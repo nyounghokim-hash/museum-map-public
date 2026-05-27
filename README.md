@@ -1,5 +1,7 @@
 # Museum Map
 
+[한국어 README](./README.ko.md) | [English README](./README.en.md)
+
 AI-powered multilingual museum discovery, map exploration, and trip planning for museums and art galleries around the world.
 
 ## Live Demo
