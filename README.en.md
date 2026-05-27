@@ -12,16 +12,18 @@ Core browsing features, including map exploration, search, museum detail pages, 
 
 ## Current Status
 
-| Metric | Value |
-| --- | --- |
-| Production URL | https://museummap.app |
-| Public Museums & Galleries | 3,840+ |
-| Museum Photo Cache Coverage | 100% public museum coverage, with placeholder fallback |
-| Artworks | 900+ |
-| MM Stories | 120+ |
-| Supported Locales | 13: KO, EN, JA, DE, FR, ES, PT, ZH-CN, ZH-TW, DA, FI, SV, ET |
-| Current App Version | 1.6.1 |
-| Public Repo Type | Sanitized evaluation copy |
+| Metric | Value | Last Updated |
+| --- | --- | --- |
+| Production URL | https://museummap.app | 2026-05-27 |
+| Public Museums & Galleries | 3,840+ | 2026-05-22 |
+| Museum Photo Cache Coverage | 100% public museum coverage, with placeholder fallback | 2026-05-22 |
+| Artworks | 900+ | 2026-03-21 |
+| MM Stories | 120+ | 2026-04-27 |
+| Supported Locales | 13: KO, EN, JA, DE, FR, ES, PT, ZH-CN, ZH-TW, DA, FI, SV, ET | 2026-03-21 |
+| Current App Version | 1.6.1 | 2026-04-30 |
+| Public Repo Type | Sanitized evaluation copy | 2026-05-27 |
+| Public Mirror Updated | 2026-05-27 | 2026-05-27 |
+| Synced From Private Commit | cc0a43e4 | 2026-05-27 |
 
 ## Evaluation Guide
 
@@ -49,6 +51,7 @@ Included:
 - Static assets under `public/`
 - Design system, feature, architecture, API, and policy documentation under `docs/`
 - A sanitized public development and verification summary at `docs/public-development-log.md`
+- Admin implementation routes and UI are omitted from this public mirror.
 
 Excluded:
 

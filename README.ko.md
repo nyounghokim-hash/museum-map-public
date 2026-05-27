@@ -12,16 +12,18 @@ Production: https://museummap.app
 
 ## 현재 현황
 
-| 항목 | 내용 |
-| --- | --- |
-| 배포 URL | https://museummap.app |
-| 공개 박물관/미술관 | 3,840+ |
-| 박물관 사진 캐시 | 공개 박물관 100% 커버리지, placeholder fallback 포함 |
-| 작품 | 900+ |
-| MM Story | 120+ |
-| 지원 언어 | 13개: KO, EN, JA, DE, FR, ES, PT, ZH-CN, ZH-TW, DA, FI, SV, ET |
-| 앱 버전 | 1.6.1 |
-| 공개 repo 형태 | 평가용 sanitized copy |
+| 항목 | 내용 | 업데이트 날짜 |
+| --- | --- | --- |
+| 배포 URL | https://museummap.app | 2026-05-27 |
+| 공개 박물관/미술관 | 3,840+ | 2026-05-22 |
+| 박물관 사진 캐시 | 공개 박물관 100% 커버리지, placeholder fallback 포함 | 2026-05-22 |
+| 작품 | 900+ | 2026-03-21 |
+| MM Story | 120+ | 2026-04-27 |
+| 지원 언어 | 13개: KO, EN, JA, DE, FR, ES, PT, ZH-CN, ZH-TW, DA, FI, SV, ET | 2026-03-21 |
+| 앱 버전 | 1.6.1 | 2026-04-30 |
+| 공개 repo 형태 | 평가용 sanitized copy | 2026-05-27 |
+| Public mirror 업데이트 | 2026-05-27 | 2026-05-27 |
+| Private 기준 커밋 | cc0a43e4 | 2026-05-27 |
 
 ## 평가 방법
 
@@ -49,6 +51,7 @@ Production 인증은 NextAuth와 Google OAuth 기반입니다. 해커톤 평가 
 - `public/` 정적 자산
 - `docs/` 디자인 시스템, 기능 정의, 아키텍처, API, 정책 문서
 - `docs/public-development-log.md` 공개 가능한 개발/검증 로그 요약
+- admin 구현 route와 UI는 public mirror에서 제외
 
 제외된 내용:
 
