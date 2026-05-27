@@ -1,5 +1,7 @@
 # Public Development Log
 
+Last updated: 2026-05-27
+
 This is a sanitized summary of useful development and production verification history from the private repository. It excludes credentials, private operational notes, raw logs, and one-off data scripts.
 
 ## 2026-05 Production Stabilization

@@ -1,5 +1,7 @@
 # 공개 개발 로그 요약
 
+마지막 업데이트: 2026-05-27
+
 이 문서는 private repository의 raw log와 운영 비밀을 제외하고, 평가자가 확인할 수 있는 개발/검증 이력만 요약한 공개용 문서입니다.
 
 ## 2026-05 Production Stabilization
