@@ -91,3 +91,9 @@ The production database and private environment variables are not included in th
 ## Built With AI
 
 This project was built and iterated with Claude Code and Codex across frontend implementation, data quality tooling, production debugging, and documentation.
+
+## Documentation
+
+- [Korean documentation](./docs/ko/README.md)
+- [English documentation](./docs/en/README.md)
+- [All public docs index](./docs/README.md)

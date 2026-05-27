@@ -104,15 +104,9 @@ docs/           Public-safe architecture, design, API, and development docs
 
 ## Documentation
 
-- `docs/design-system.md` - visual system and UI standards
-- `docs/ui-guide.md` - component and interaction guidance
-- `docs/features.md` - product feature inventory
-- `docs/architecture.md` - technical architecture
-- `docs/user-flows.md` - core user flows
-- `docs/public-development-log.md` - sanitized development and production verification log
-- `docs/openapi.yaml` - API reference
-- `docs/museum-photo-policy.md` - public image and attribution policy
-- `docs/cost-optimization-policy.md` - AI/API cost controls
+- [Korean documentation](./docs/ko/README.md)
+- [English documentation](./docs/en/README.md)
+- [All public docs index](./docs/README.md)
 
 ## Built With AI
 
