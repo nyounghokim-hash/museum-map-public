@@ -1,0 +1,497 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated_v2/client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [postgis, uuid_ossp(map: "uuid-ossp", schema: "extensions")]
+}
+
+model User {
+  id               String              @id @default(cuid())
+  name             String?
+  email            String?             @unique
+  emailVerified    DateTime?
+  image            String?
+  role             Role                @default(USER)
+  preferences      Json?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  username         String?             @unique
+  password         String?
+  lastIp           String?
+  lastLoginAt      DateTime?
+  lastLoginBrowser String?
+  termsAgreedAt    DateTime?
+  privacyAgreedAt  DateTime?
+  deletedAt        DateTime?
+  gender           String?
+  ageRange         String?
+  authProvider     String?             // google, credentials, etc.
+  marketingConsent Boolean             @default(false)
+  locationConsent  Boolean             @default(false)
+  challenges       ChallengeProgress[]
+  collections      Collection[]
+  consents         UserConsent[]
+  feedbacks        Feedback[]
+  folders          Folder[]
+  notifications    Notification[]
+  photos           UserPhoto[]
+  plans            Plan[]
+  reports          Report[]            @relation("ReportedBy")
+  reviews          Review[]
+  saves            Save[]
+  suggestions      Suggestion[]
+}
+
+model UserConsent {
+  id          String   @id @default(cuid())
+  userId      String
+  consentType String   // "terms" | "privacy"
+  version     String   // e.g. "2026-03-04"
+  agreedAt    DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Story {
+  id           String        @id @default(cuid())
+  title        String
+  content      String
+  author       String?
+  previewImage String?
+  status       ContentStatus @default(DRAFT)
+  category     String        @default("MUSEUM")
+  views        Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  contentEn    String?
+  titleEn      String?
+  description  String?
+  infoTable    Json?
+  artworks      Json?
+  collectionId  String?       // 여행 스토리 자동 생성 컬렉션 ID
+  collection    Collection?   @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  museums       StoryMuseum[]
+  storyArtworks StoryArtwork[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([category])
+  @@index([collectionId])
+  @@map("Blog")
+}
+
+model StoryMuseum {
+  storyId  String
+  museumId String
+  museum   Museum @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  story    Story  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, museumId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  messageEn String?
+  titleEn   String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Museum {
+  id                 String                   @id @default(cuid())
+  name               String
+  nameKo             String?
+  nameEn             String?
+  description        String?
+  descriptionKo      String?
+  summary            String?
+  summaryTranslations Json?
+  country            String
+  city               String
+  cityKo             String?
+  nameTranslations   Json?
+  cityTranslations   Json?
+  type               String
+  website            String?
+  address            String?
+  phone              String?
+  googleRating       Float?
+  googleRatingsTotal Int?
+  placeId            String?            @unique @map("place_id")       // Google Place ID — 영구 저장 허용
+  placePhotos        Json?              @map("place_photos")           // TTL 스냅샷 (lastSyncedAt 기준 갱신)
+  sourceAttribution  Json?              @map("source_attribution")     // { provider, html, url } 출처 표기 메타
+  imageUrl              String?
+  primaryImageSource    String?            @map("primary_image_source")      // google_places | wikimedia | manual
+  primaryImageLicense   String?            @map("primary_image_license")     // CC0 | CC-BY-SA | Google ToS
+  primaryImageAttribution String?          @map("primary_image_attribution") // 저작자/출처 표기 텍스트
+  latitude           Float
+  longitude          Float
+  location           Unsupported("geometry")?
+  popularityScore    Float                    @default(0.0)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  lastSyncedAt       DateTime?          @map("last_synced_at")         // Places 데이터 마지막 동기화 시점
+  openingHours       Json?
+  visitorInfo        Json?
+  cachedPhotoUrls    Json?              @map("cached_photo_urls")       // Supabase Storage URL 배열
+  lastPhotoSync      DateTime?          @map("last_photo_sync")         // 사진 캐시 마지막 동기화 시각
+  lastExhibitionSync DateTime?
+  artworks           Artwork[]
+  collectionItems    CollectionItem[]
+  exhibitions        Exhibition[]
+  photos             UserPhoto[]
+  planStops          PlanStop[]
+  reviews            Review[]
+  saves              Save[]
+  stories            StoryMuseum[]
+  suggestions        Suggestion[]
+
+  @@index([country, city, type])
+  @@index([popularityScore])
+  @@index([location], type: Gist)
+}
+
+model Exhibition {
+  id          String    @id @default(cuid())
+  museumId    String
+  title       String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  imageUrl    String?
+  link        String?
+  source      String?
+  museum      Museum    @relation(fields: [museumId], references: [id], onDelete: Cascade)
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isPrivate Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  saves     Save[]
+}
+
+model Save {
+  id        String   @id @default(cuid())
+  userId    String
+  museumId  String
+  folderId  String?
+  createdAt DateTime @default(now())
+  folder    Folder?  @relation(fields: [folderId], references: [id])
+  museum    Museum   @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, museumId])
+  @@index([userId, museumId, folderId])
+}
+
+model Plan {
+  id        String     @id @default(cuid())
+  userId    String
+  title     String?
+  date      DateTime   @default(now())
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stops     PlanStop[]
+
+  @@index([userId, date])
+  @@index([isActive])
+}
+
+model PlanStop {
+  id              String    @id @default(cuid())
+  planId          String
+  museumId        String
+  order           Int
+  expectedArrival DateTime?
+  museum          Museum    @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  plan            Plan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id              String           @id @default(cuid())
+  userId          String
+  museumId        String
+  content         String
+  photos          String[]
+  visitedAt       DateTime         @default(now())
+  createdAt       DateTime         @default(now())
+  country         String?
+  ipAddress       String?
+  collectionItems CollectionItem[]
+  museum          Museum           @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([museumId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Collection {
+  id          String           @id @default(cuid())
+  userId      String
+  title       String
+  description String?
+  isPublic    Boolean          @default(false)
+  shareSlug   String?          @unique
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       CollectionItem[]
+  stories     Story[]          // 이 컬렉션을 연결한 여행 스토리 목록
+
+  @@index([userId, createdAt])
+}
+
+model CollectionItem {
+  id           String     @id @default(cuid())
+  collectionId String
+  museumId     String
+  reviewId     String?
+  order        Int
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  museum       Museum     @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  review       Review?    @relation(fields: [reviewId], references: [id])
+}
+
+model Challenge {
+  id          String              @id @default(cuid())
+  title       String
+  description String
+  badgeUrl    String?
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime            @default(now())
+  progress    ChallengeProgress[]
+}
+
+model ChallengeProgress {
+  userId      String
+  challengeId String
+  completedAt DateTime?
+  completed   Boolean   @default(false)
+  progress    Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, challengeId])
+}
+
+model Feedback {
+  id         String   @id @default(cuid())
+  userId     String?
+  content    String
+  type       String   @default("general")
+  category   String?
+  targetId   String?
+  targetName String?
+  createdAt  DateTime @default(now())
+  reply      String?
+  updatedAt  DateTime @default(now()) @updatedAt
+  user       User?    @relation(fields: [userId], references: [id])
+}
+
+model AlertSubscription {
+  id        String   @id @default(cuid())
+  email     String
+  type      String
+  createdAt DateTime @default(now())
+}
+
+model Suggestion {
+  id        String           @id @default(cuid())
+  museumId  String?
+  userId    String?
+  data      Json
+  status    SuggestionStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  museum    Museum?          @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  user      User?            @relation(fields: [userId], references: [id])
+}
+
+model Report {
+  id         String       @id @default(cuid())
+  reporterId String
+  targetType TargetType
+  targetId   String
+  reason     String
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  reporter   User         @relation("ReportedBy", fields: [reporterId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String
+  target    String
+  timestamp DateTime @default(now())
+}
+
+model Artwork {
+  id            String         @id @default(cuid())
+  title         String
+  titleKo       String?
+  titleEn       String?
+  artist        String?
+  artistKo      String?
+  artistEn      String?
+  image         String?
+  description   String?
+  descriptionKo String?
+  titleTranslations  Json?
+  artistTranslations Json?
+  year          String?
+  sourceStoryId String?
+  museumId      String?
+  museum        Museum?        @relation(fields: [museumId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  photos        UserPhoto[]
+  stories       StoryArtwork[]
+
+  @@index([artist])
+  @@index([createdAt])
+  @@index([museumId])
+}
+
+model StoryArtwork {
+  storyId   String
+  artworkId String
+  order     Int      @default(0)
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  artwork   Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, artworkId])
+}
+
+model TranslationCache {
+  id         String   @id @default(cuid())
+  entityType String   // "story" | "museum"
+  entityId   String
+  field      String   // "title" | "content" | "description"
+  locale     String   // "ja" | "de" | "fr" etc.
+  translated String
+  createdAt  DateTime @default(now())
+
+  @@unique([entityType, entityId, field, locale])
+  @@index([entityType, entityId, locale])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  DELETED
+}
+
+enum TargetType {
+  MUSEUM
+  REVIEW
+  USER
+}
+
+/// AI token usage tracking
+model TokenUsage {
+  id             String   @id @default(cuid())
+  feature        String   // translate, recommend, search, etc.
+  model          String   // gemini-2.5-flash, etc.
+  promptTokens   Int      @default(0)
+  completionTokens Int    @default(0)
+  totalTokens    Int      @default(0)
+  locale         String?  // target locale if translation
+  entityType     String?  // museum, story, artwork
+  createdAt      DateTime @default(now())
+
+  @@index([feature, createdAt])
+  @@index([createdAt])
+}
+
+/// User-submitted photos for museums and artworks
+model UserPhoto {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  museumId      String?
+  museum        Museum?     @relation(fields: [museumId], references: [id], onDelete: Cascade)
+  artworkId     String?
+  artwork       Artwork?    @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  imageUrl      String      // Storage URL (compressed WebP)
+  thumbnailUrl  String?     // Smaller version for list views
+
+  status        PhotoStatus @default(PENDING)
+  isPrimary     Boolean     @default(false)
+  rejectReason  String?
+
+  caption       String?
+  order         Int         @default(0) // For future 10-photo swipe gallery
+  fileSize      Int?        // Compressed size in bytes
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  reviewedAt    DateTime?
+  reviewedBy    String?
+
+  @@index([museumId, status])
+  @@index([artworkId, status])
+  @@index([userId])
+  @@index([status])
+}
+
+enum PhotoStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

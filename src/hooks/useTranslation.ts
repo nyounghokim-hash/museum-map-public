@@ -1,0 +1,165 @@
+'use client';
+import { useState, useEffect } from 'react';
+import { Locale } from '@/lib/i18n';
+
+// Client-side localStorage cache
+const memoryCache = new Map<string, string>();
+
+function getCacheKey(text: string, locale: Locale): string {
+    return `tr:${locale}:${text.slice(0, 100)}`;
+}
+
+function containsKorean(text: string): boolean {
+    return /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(text);
+}
+
+export function useTranslatedText(text: string | null | undefined, locale: Locale): string;
+export function useTranslatedText(text: string | null | undefined, locale: Locale, opts: { withLoading: true }): { text: string; isTranslating: boolean };
+export function useTranslatedText(text: string | null | undefined, locale: Locale, opts?: { withLoading: boolean }): string | { text: string; isTranslating: boolean } {
+    const needsTranslation = locale !== 'ko' && (locale !== 'en' || containsKorean(text || ''));
+    const [translated, setTranslated] = useState(needsTranslation ? '' : (text || ''));
+    const [isTranslating, setIsTranslating] = useState(needsTranslation && !!text);
+
+    useEffect(() => {
+        if (!text) {
+            setTranslated(text || '');
+            setIsTranslating(false);
+            return;
+        }
+
+        // Korean text in Korean UI, or non-Korean text in English UI: no translation needed
+        if (locale === 'ko' || (locale === 'en' && !containsKorean(text))) {
+            setTranslated(text);
+            setIsTranslating(false);
+            return;
+        }
+
+        const key = getCacheKey(text, locale);
+
+        // Check memory cache first
+        if (memoryCache.has(key)) {
+            setTranslated(memoryCache.get(key)!);
+            setIsTranslating(false);
+            return;
+        }
+
+        // Check localStorage
+        try {
+            const cached = localStorage.getItem(key);
+            if (cached) {
+                memoryCache.set(key, cached);
+                setTranslated(cached);
+                setIsTranslating(false);
+                return;
+            }
+        } catch { }
+
+        // No cache — mark as translating and fetch
+        setIsTranslating(true);
+
+        let cancelled = false;
+        fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, targetLang: locale }),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (cancelled) return;
+                const result = data.translated || text;
+                memoryCache.set(key, result);
+                try { localStorage.setItem(key, result); } catch { }
+                setTranslated(result);
+                setIsTranslating(false);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setTranslated(text);
+                    setIsTranslating(false);
+                }
+            });
+
+        return () => { cancelled = true; };
+    }, [text, locale]);
+
+    if (opts?.withLoading) {
+        return { text: translated, isTranslating };
+    }
+    return translated;
+}
+
+/**
+ * Translate multiple texts at once. Returns a Map<original, translated>.
+ * Only translates when locale is not 'ko'. English UI translates Korean fallback text.
+ */
+export function useTranslatedTexts(texts: string[], locale: Locale): Map<string, string> {
+    const [map, setMap] = useState<Map<string, string>>(new Map());
+
+    useEffect(() => {
+        if (!texts.length || locale === 'ko') {
+            setMap(new Map(texts.map(t => [t, t])));
+            return;
+        }
+
+        let cancelled = false;
+        const result = new Map<string, string>();
+        const toFetch: string[] = [];
+
+        // Check caches first
+        for (const text of texts) {
+            if (!text) { result.set(text, text); continue; }
+            if (locale === 'en' && !containsKorean(text)) {
+                result.set(text, text);
+                continue;
+            }
+            const key = getCacheKey(text, locale);
+            if (memoryCache.has(key)) {
+                result.set(text, memoryCache.get(key)!);
+            } else {
+                try {
+                    const cached = localStorage.getItem(key);
+                    if (cached) {
+                        memoryCache.set(key, cached);
+                        result.set(text, cached);
+                        continue;
+                    }
+                } catch { }
+                toFetch.push(text);
+                result.set(text, text); // default to original while loading
+            }
+        }
+
+        setMap(new Map(result));
+
+        if (toFetch.length === 0) return;
+
+        // Fetch translations in parallel
+        Promise.all(
+            toFetch.map(text =>
+                fetch('/api/translate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, targetLang: locale }),
+                })
+                    .then(r => r.json())
+                    .then(data => ({ text, translated: data.translated || text }))
+                    .catch(() => ({ text, translated: text }))
+            )
+        ).then(results => {
+            if (cancelled) return;
+            const updated = new Map(result);
+            for (const { text, translated } of results) {
+                updated.set(text, translated);
+                const key = getCacheKey(text, locale);
+                memoryCache.set(key, translated);
+                try { localStorage.setItem(key, translated); } catch { }
+            }
+            setMap(updated);
+        });
+
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [JSON.stringify(texts), locale]);
+
+    return map;
+}

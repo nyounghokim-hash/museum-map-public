@@ -1,0 +1,362 @@
+openapi: 3.1.0
+info:
+  title: Global Contemporary Museums Map API
+  version: 1.0.0
+  description: API for searching contemporary museums, managing saves, plans, collections, and reviews.
+servers:
+  - url: /api
+paths:
+  /museums:
+    get:
+      summary: Search and Filter Museums (with PostGIS Bounding Box)
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+        - name: country
+          in: query
+          schema:
+            type: string
+        - name: bbox
+          in: query
+          description: "Comma separated bounding box: minLng,minLat,maxLng,maxLat"
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of museums
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Museum'
+                  total:
+                    type: integer
+  /museums/{id}:
+    get:
+      summary: Museum Details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Museum detail object
+  /saves:
+    post:
+      summary: Save a Museum
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [museumId]
+              properties:
+                museumId:
+                  type: string
+                folderId:
+                  type: string
+      responses:
+        '200':
+          description: Saved successfully
+  /me/saves:
+    get:
+      summary: Get User's Saves
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: folderId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of saves
+  /folders:
+    post:
+      summary: Create Folder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                isPrivate:
+                  type: boolean
+      responses:
+        '201':
+          description: Folder created
+  /folders/{id}:
+    patch:
+      summary: Update Folder
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                isPrivate:
+                  type: boolean
+      responses:
+        '200':
+          description: Folder updated
+    delete:
+      summary: Delete Folder
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Folder deleted
+  /route/generate:
+    post:
+      summary: AutoRoute Generator (TSP Mock)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [museumIds]
+              properties:
+                museumIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Returns an optimized route plan
+  /plans:
+    post:
+      summary: Save a Plan
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stops]
+              properties:
+                title:
+                  type: string
+                date:
+                  type: string
+                  format: date-time
+                stops:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      museumId:
+                        type: string
+                      order:
+                        type: integer
+                      expectedArrival:
+                        type: string
+                        format: date-time
+      responses:
+        '201':
+          description: Plan created
+  /plans/{id}:
+    get:
+      summary: Get Plan
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Plan detail
+    patch:
+      summary: Update Plan
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Plan updated
+  /visited:
+    post:
+      summary: Mark Visit Complete
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                museumId:
+                  type: string
+                planStopId:
+                  type: string
+      responses:
+        '200':
+          description: Marked as visited
+  /reviews:
+    post:
+      summary: Submit a 3-line Review
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [museumId, content]
+              properties:
+                museumId:
+                  type: string
+                content:
+                  type: string
+                  description: Exactly max 3 lines, max 120 chars each line.
+                photos:
+                  type: array
+                  maxItems: 3
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Review Created
+  /collections:
+    post:
+      summary: Create Collection (from reviews/plans)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                isPublic:
+                  type: boolean
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      museumId:
+                        type: string
+                      reviewId:
+                        type: string
+                      order:
+                        type: integer
+      responses:
+        '201':
+          description: Collection saved
+  /share/collections/{slug}:
+    get:
+      summary: Get Public Collection Details
+      responses:
+        '200':
+          description: Public collection
+  /challenges/{id}/join:
+    post:
+      summary: Join a challenge
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Joined successfully
+  /challenges/{id}/complete:
+    post:
+      summary: Check & Complete a Challenge
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Challenge verified and completed
+  /suggestions:
+    post:
+      summary: Suggest an edit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                museumId:
+                  type: string
+                data:
+                  type: object
+      responses:
+        '201':
+          description: Suggestion received
+  /reports:
+    post:
+      summary: Submit a report
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetType, targetId, reason]
+              properties:
+                targetType:
+                  type: string
+                  enum: [MUSEUM, REVIEW, USER]
+                targetId:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Report recorded
+components:
+  schemas:
+    Museum:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        country:
+          type: string
+        city:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer

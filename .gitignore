@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+build/
+
+# Environment and deployment secrets
+.env
+.env.*
+!.env.example
+.vercel/
+
+# Generated files
+src/generated/
+src/generated_v2/
+next-env.d.ts
+*.tsbuildinfo
+
+# Local-only workspace files
+.DS_Store
+.claude/
+.agents/
+logs/
+scratch/
+notuploadgithub/
+*.log
+
+# Secret-bearing files
+*.pem
+*.key
+service-account*.json
+gcp-*.json
+*-credentials.json

@@ -1,0 +1,278 @@
+'use client';
+import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { useApp } from '@/components/AppContext';
+import { useModal } from '@/components/ui/Modal';
+import { t, Locale, translateCategory } from '@/lib/i18n';
+import { GlassPanel } from '@/components/ui/glass';
+import { getCountryName, getCityName } from '@/lib/countries';
+import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
+import { useTranslatedText } from '@/hooks/useTranslation';
+import { buildShareUrl } from '@/lib/utm';
+import { getMuseumImageSrc, getMuseumImageFallback } from '@/lib/getMuseumImage';
+import { getDisplayStoryTitle } from '@/lib/storyTitle';
+
+// Sub-component for translating text (wraps hook for use in JSX)
+function TranslatedTitle({ text, locale }: { text: string; locale: string }) {
+    const translated = useTranslatedText(text, locale as Locale);
+    return <>{translated}</>;
+}
+
+// Format author display
+function formatAuthor(user: any, locale: Locale) {
+    if (!user?.name) return `${t('collections.curatedBy', locale)} ${t('global.anonymous', locale)} ${t('collections.anonymousVisitor', locale)}`;
+    if (user.email === 'nyongho.kim@gmail.com' || user.name === 'System Admin') return `${t('collections.curatedBy', locale)} MM Editor`;
+    if (user.name.startsWith('guest_')) return `${t('collections.curatedBy', locale)} ${t('global.anonymous', locale)} ${t('collections.anonymousVisitor', locale)}`;
+    return `${t('collections.curatedBy', locale)} ${user.name}`;
+}
+
+export default function CollectionDetailPage() {
+    const { id } = useParams();
+    const router = useRouter();
+    const { locale } = useApp();
+    const { showAlert } = useModal();
+    const [collection, setCollection] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [isExiting, setIsExiting] = useState(false);
+    const [isFromBack, setIsFromBack] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const backTs = sessionStorage.getItem('navigating-back');
+            if (backTs && Date.now() - parseInt(backTs) < 500) {
+                setIsFromBack(true);
+            }
+            sessionStorage.removeItem('navigating-back');
+        }
+    }, []);
+
+    const handleBack = useCallback(() => {
+        setIsExiting(true);
+        if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now()));
+        setTimeout(() => router.back(), 200);
+    }, [router]);
+
+    useEffect(() => {
+        fetch(`/api/collections/${id}`)
+            .then(r => r.json())
+            .then(res => {
+                setCollection(res.data);
+                setLoading(false);
+            })
+            .catch(() => setLoading(false));
+    }, [id]);
+
+    const handleCreateAutoRoute = () => {
+        if (!collection?.items || collection.items.length === 0) {
+            showAlert(t('collections.emptyFolder', locale));
+            return;
+        }
+        const museumIds = collection.items.map((i: any) => i.museumId).join(',');
+        router.push(`/plans/new?museums=${museumIds}`);
+    };
+
+    const handleShareCollection = () => {
+        navigator.clipboard.writeText(buildShareUrl(window.location.href));
+        showAlert(t('collections.shareSuccess', locale));
+    };
+
+    if (loading) return (
+        <div className="w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8">
+            <div className="mb-6">
+                <div className="skeleton h-8 rounded-lg w-1/2 max-w-sm mb-3" />
+                <div className="skeleton h-4 rounded w-1/3 max-w-xs" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="skeleton-card overflow-hidden">
+                        <div className="skeleton h-40 w-full rounded-none" />
+                        <div className="p-4">
+                            <div className="skeleton h-5 rounded-lg w-2/3 mb-3" />
+                            <div className="skeleton h-4 rounded w-1/2" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
+    const itemsCount = collection.items?.length || 0;
+    const authorText = formatAuthor(collection.user, locale);
+
+    return (
+        <div className={`w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+            {/* Sticky header with back button */}
+            <div className="-mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 py-3 mb-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="min-w-0">
+                            <h1 className="text-lg sm:text-xl font-black tracking-tight dark:text-white truncate" title={collection.title}>{locale === 'ko' ? collection.title : <TranslatedTitle text={collection.title} locale={locale} />}</h1>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate">
+                                {authorText} · {itemsCount} {t('collections.items', locale)}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <button
+                            onClick={handleShareCollection}
+                            className="w-9 h-9 flex items-center justify-center rounded-full border text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors shadow-sm active:scale-95" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
+                            aria-label="Share"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Related Stories Section — above museum list */}
+            {collection.stories && collection.stories.length > 0 && (
+                <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-1 rounded-full bg-purple-500" />
+                        <span className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.15em]">Related Stories</span>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                        {collection.stories.map((story: any) => {
+                            const museumImg = story.museums?.[0]?.museum?.imageUrl
+                                || (story.museums?.[0]?.museum?.cachedPhotoUrls ? (typeof story.museums[0].museum.cachedPhotoUrls === 'string' ? JSON.parse(story.museums[0].museum.cachedPhotoUrls) : story.museums[0].museum.cachedPhotoUrls)?.[0] : null);
+                            const thumbSrc = story.previewImage || museumImg;
+                            return (
+                                <div
+                                    key={story.id}
+                                    onClick={() => router.push(`/blog/${story.id}`)}
+                                    className="mm-card group flex active:scale-[0.99] cursor-pointer"
+                                >
+                                    <div className="w-24 h-24 sm:w-32 sm:h-28 shrink-0 overflow-hidden rounded-2xl relative" style={{ background: 'var(--mm-surface-secondary)' }}>
+                                        {thumbSrc ? (
+                                            <img
+                                                src={thumbSrc}
+                                                alt={story.title}
+                                                className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500 opacity-0"
+                                                onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
+                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-6 opacity-20 dark:invert dark:opacity-60'; }}
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <img src="/logo.svg" alt="" className="w-10 h-10 opacity-20 dark:invert dark:opacity-60" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="p-3 sm:p-4 flex-1 flex flex-col justify-center min-w-0">
+                                        <div className="flex items-center gap-2 mb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--mm-brand)' }}>
+                                            <span>{story.author || 'MM Editor'}</span>
+                                            <span style={{ color: 'var(--mm-surface-border)' }}>•</span>
+                                            <span className="font-medium" style={{ color: 'var(--mm-text-tertiary)' }}>
+                                                {new Date(story.createdAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                            </span>
+                                        </div>
+                                        <h3 className="text-sm sm:text-base font-bold group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
+                                            {getDisplayStoryTitle(locale === 'ko' ? story.title : (story.titleEn || story.title))}
+                                        </h3>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Museum list */}
+            {itemsCount === 0 ? (
+                <div className="py-20 text-center border-2 border-dashed border-gray-200 dark:border-neutral-800 rounded-2xl mb-10">
+                    <div className="text-4xl mb-4">
+                        <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                        </svg>
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">{t('collections.thisEmpty', locale)}</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    {collection.items.map((item: any) => (
+                        <GlassPanel
+                            key={item.id}
+                            className="overflow-hidden group cursor-pointer shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98]"
+                            onClick={() => router.push(`/museums/${item.museum.id}`)}
+                        >
+                            <div className="h-40 bg-gray-100 dark:bg-neutral-800 relative overflow-hidden">
+                                {(() => {
+                                    const imgSrc = getMuseumImageSrc(item.museum);
+                                    const fallbackSrc = getMuseumImageFallback(item.museum);
+                                    return imgSrc ? (
+                                        <img
+                                            src={imgSrc}
+                                            alt={item.museum.name}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 will-change-transform opacity-0"
+                                            onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
+                                            onError={(e) => {
+                                                const el = e.target as HTMLImageElement;
+                                                if (fallbackSrc && el.src !== fallbackSrc) { el.src = fallbackSrc; }
+                                                else { el.style.display = 'none'; el.parentElement?.querySelector('.logo-fallback')?.classList.remove('hidden'); }
+                                            }}
+                                        />
+                                    ) : null;
+                                })()}
+                                <div className={`logo-fallback absolute inset-0 flex items-center justify-center ${getMuseumImageSrc(item.museum) ? 'hidden' : ''}`}>
+                                    <img src="/logo.svg" alt="Museum Map" className="w-36 h-36 opacity-20 dark:invert dark:opacity-[0.6]" />
+                                </div>
+                                {item.museum.type && (
+                                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-white/80 dark:bg-black/60 backdrop-blur-md shadow-sm">
+                                        <span className="text-xs font-bold text-gray-800 dark:text-gray-200 capitalize">
+                                            {translateCategory(item.museum.type, locale)}
+                                        </span>
+                                    </div>
+                                )}
+                                {item.museum.imageUrl?.includes('googleusercontent') && (
+                                    <span className="absolute bottom-2 right-2 text-[8px] text-white/40 font-medium">📷 Google</span>
+                                )}
+                            </div>
+                            <div className="p-4 backdrop-blur-md flex items-center justify-between gap-2" style={{ background: 'var(--glass-bg)' }}>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="font-bold text-lg mb-1 dark:text-white capitalize truncate">{getLocalizedMuseumName(item.museum, locale)}</h3>
+                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase truncate">{getLocalizedCityName(item.museum, locale) || getCityName(item.museum.city, locale)}, {getCountryName(item.museum.country, locale)}</p>
+                                </div>
+                                {item.museum.googleRating && (
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <svg className="w-4 h-4 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                        <span className="text-sm font-bold text-yellow-500">{item.museum.googleRating.toFixed(1)}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </GlassPanel>
+                    ))}
+                </div>
+            )}
+
+            {/* Mobile: Floating back button — rendered via portal to escape transform container */}
+            {typeof document !== 'undefined' && createPortal(
+                <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
+                    {itemsCount > 0 && (
+                        <button
+                            onClick={handleCreateAutoRoute}
+                            className="w-14 h-14 flex items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg active:scale-95 transition-all animate-fadeIn"
+                            style={{ boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)' }}
+                            title={t('collections.planTrip', locale)}
+                        >
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </button>
+                    )}
+                    <button
+                        onClick={() => { setIsExiting(true); if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); setTimeout(() => router.back(), 200); }}
+                        className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+}
