@@ -96,7 +96,7 @@ export default function CreateCollectionPage() {
                     <input
                         required type="text" value={title} onChange={e => setTitle(e.target.value)}
                         placeholder={lx('titlePlaceholder', locale)}
-                        className="w-full border-gray-300 dark:border-neutral-700 rounded-lg p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-purple-500 dark:focus:border-purple-400 transition dark:text-white"
+                        className="w-full border-gray-300 dark:border-neutral-700 rounded-lg p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition dark:text-white"
                     />
                 </div>
 
@@ -105,7 +105,7 @@ export default function CreateCollectionPage() {
                     <textarea
                         rows={3} value={desc} onChange={e => setDesc(e.target.value)}
                         placeholder={lx('descPlaceholder', locale)}
-                        className="w-full border-gray-300 dark:border-neutral-700 rounded-lg p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-purple-500 dark:focus:border-purple-400 transition dark:text-white"
+                        className="w-full border-gray-300 dark:border-neutral-700 rounded-lg p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition dark:text-white"
                     />
                 </div>
 
@@ -113,7 +113,7 @@ export default function CreateCollectionPage() {
                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">{lx('selectPlan', locale)}</label>
                     <select
                         required value={selectedPlanId} onChange={e => setSelectedPlanId(e.target.value)}
-                        className="w-full border-gray-300 dark:border-neutral-700 rounded-lg p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-purple-500 dark:focus:ring-purple-400 focus:border-purple-500 dark:focus:border-purple-400 transition dark:text-white"
+                        className="w-full border-gray-300 dark:border-neutral-700 rounded-lg p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 transition dark:text-white"
                     >
                         <option value="">{lx('choosePlan', locale)}</option>
                         {plans.map(p => (
@@ -125,7 +125,7 @@ export default function CreateCollectionPage() {
                 <div className="flex items-center gap-3 bg-gray-50 dark:bg-neutral-800 p-4 rounded-xl">
                     <input
                         type="checkbox" id="isPublic" checked={isPublic} onChange={e => setIsPublic(e.target.checked)}
-                        className="w-5 h-5 accent-purple-600"
+                        className="w-5 h-5 accent-blue-600"
                     />
                     <label htmlFor="isPublic" className="text-sm font-bold text-gray-800 dark:text-gray-200">{lx('makePublic', locale)}</label>
                 </div>

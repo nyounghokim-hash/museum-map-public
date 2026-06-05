@@ -75,40 +75,40 @@ export default function CollectionsPage() {
 
     return (
         <div
-            className="no-back-swipe w-full lg:max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8"
+            className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10"
             onTouchStart={handleSwipeStart}
             onTouchEnd={handleSwipeEnd}
         >
-            <div className="mb-6 sm:mb-8">
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 {loading ? (
                     <>
-                        <div className="skeleton skeleton-title w-36 mb-2" />
-                        <div className="skeleton skeleton-text w-56 mt-2" />
+                        <div className="mm-skel-line w-24 mb-4 opacity-40" />
+                        <div className="mm-skel-line h-8 w-44 mb-3 opacity-50" />
+                        <div className="mm-skel-line w-64 opacity-40" />
                     </>
                 ) : (
                     <>
-                        <div className="flex items-center gap-2 mb-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                            <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">Collection</span>
+                        <div className="mm-gallery-kicker mb-3">
+                            Collection
                             {collections.length > 0 && (
-                                <span className="text-[10px] font-black text-gray-400 dark:text-neutral-500 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full">{collections.length}</span>
+                                <span className="ml-2 rounded-full bg-white/12 px-2 py-0.5 text-[10px] text-blue-100">{collections.length}</span>
                             )}
                         </div>
-                        <h1 className="text-2xl sm:text-3xl font-black tracking-tight dark:text-white">{t('collections.title', locale)}</h1>
-                        <p className="text-gray-400 dark:text-neutral-500 mt-1 text-xs font-medium">{t('collections.subtitle', locale)}</p>
+                        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{t('collections.title', locale)}</h1>
+                        <p className="text-blue-100/80 mt-2 text-sm font-medium">{t('collections.subtitle', locale)}</p>
                     </>
                 )}
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 mb-8">
+            <div className="flex gap-2 mb-6">
                 {(['public', 'my'] as const).map((key) => (
                     <button
                         key={key}
                         onClick={() => setTab(key)}
-                        className={`flex-1 py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 ${tab === key
-                            ? 'gradient-btn text-white shadow-lg'
-                            : 'bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-700'
+                        className={`mm-gallery-chip flex-1 justify-center ${tab === key
+                            ? 'is-active'
+                            : ''
                             }`}
                     >
                         {tabLabel(key)}
@@ -119,16 +119,16 @@ export default function CollectionsPage() {
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="skeleton-card p-5" style={{ borderColor: 'var(--glass-border)' }}>
-                            <div className="skeleton h-6 rounded-lg w-3/5 mb-3" />
+                        <div key={i} className="mm-actual-skeleton p-5">
+                            <div className="mm-skel-line h-6 w-3/5 mb-3" />
                             <div className="flex items-center gap-3 mt-2">
                                 <div className="flex -space-x-2">
                                     {Array.from({ length: 4 }).map((_, idx) => (
-                                        <div key={idx} className="skeleton w-7 h-7 rounded-full border-2 border-white dark:border-neutral-900" />
+                                        <div key={idx} className="mm-skel-circle w-7 h-7 border-2 border-white dark:border-neutral-900" />
                                     ))}
                                 </div>
-                                <div className="skeleton h-4 rounded w-20" />
-                                <div className="hidden sm:block skeleton h-5 rounded-full w-16" />
+                                <div className="mm-skel-line w-20" />
+                                <div className="hidden sm:block mm-skel-pill w-16" />
                             </div>
                         </div>
                     ))}
@@ -153,7 +153,7 @@ export default function CollectionsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {collections.map((col: any) => (
                         <Link key={col.id} href={`/collections/${col.id}`}>
-                            <div className="border rounded-xl p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative active:scale-[0.98]" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
+                            <div className="mm-list-row2 p-5 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative active:scale-[0.98]">
                                 {tab === 'my' && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col.id); }}
@@ -165,7 +165,7 @@ export default function CollectionsPage() {
                                     </button>
                                 )}
                                 <div>
-                                    <h3 className="text-lg font-bold group-hover:text-purple-600 dark:text-white dark:group-hover:text-purple-400 transition-colors leading-snug pr-8">{locale === 'ko' ? col.title : <TranslatedTitle text={col.title} locale={locale} />}</h3>
+                                    <h3 className="text-lg font-bold group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 transition-colors leading-snug pr-8">{locale === 'ko' ? col.title : <TranslatedTitle text={col.title} locale={locale} />}</h3>
                                     {tab === 'public' && col.user?.name && (
                                         <span className="inline-block mt-1 text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
                                             {(col.user.email === 'nyongho.kim@gmail.com' || col.user.name === 'System Admin') ? 'MM Editor' : col.user.name.startsWith('guest_') ? (locale === 'ko' ? '익명' : 'Anonymous') : col.user.name}
@@ -210,7 +210,7 @@ export default function CollectionsPage() {
                                                     <>
                                                         <span className="text-gray-300 dark:text-neutral-600">•</span>
                                                         {types.slice(0, 3).map((type: any) => (
-                                                            <span key={type} className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded-full capitalize">
+                                                            <span key={type} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full capitalize">
                                                                 {translateCategory(type, locale)}
                                                             </span>
                                                         ))}
@@ -239,13 +239,13 @@ export default function CollectionsPage() {
                     }}
                     className="block mt-4"
                 >
-                    <div className="border-2 border-dashed border-purple-200 dark:border-purple-800/50 rounded-2xl p-6 flex flex-col items-center justify-center hover:border-purple-500 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 transition-all cursor-pointer group active:scale-[0.98]">
-                        <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 group-hover:bg-purple-600 dark:group-hover:bg-purple-600 flex items-center justify-center transition-colors mb-2">
-                            <svg className="w-5 h-5 text-purple-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <div className="border-2 border-dashed border-blue-200 dark:border-blue-800/50 rounded-2xl p-6 flex flex-col items-center justify-center hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all cursor-pointer group active:scale-[0.98]">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 group-hover:bg-blue-600 dark:group-hover:bg-blue-600 flex items-center justify-center transition-colors mb-2">
+                            <svg className="w-5 h-5 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                             </svg>
                         </div>
-                        <span className="text-sm font-semibold text-purple-500 group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors">{t('collections.newCollection', locale)}</span>
+                        <span className="text-sm font-semibold text-blue-500 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">{t('collections.newCollection', locale)}</span>
                     </div>
                 </div>
             )}

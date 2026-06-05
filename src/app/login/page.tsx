@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
@@ -71,11 +71,11 @@ const choiceLabels = {
     login: { ko: '로그인', en: 'Sign In', ja: 'ログイン', de: 'Anmelden', fr: 'Connexion', es: 'Iniciar sesión', pt: 'Entrar', 'zh-CN': '登录', 'zh-TW': '登入', da: 'Log ind', fi: 'Kirjaudu', sv: 'Logga in', et: 'Logi sisse' },
     loginDesc: { ko: '이미 계정이 있으신가요?', en: 'Already have an account?', ja: 'アカウントをお持ちですか？', de: 'Bereits ein Konto?', fr: 'Déjà un compte ?', es: '¿Ya tienes cuenta?', pt: 'Já tem conta?', 'zh-CN': '已有账号？', 'zh-TW': '已有帳號？', da: 'Har du allerede en konto?', fi: 'Onko sinulla jo tili?', sv: 'Har du redan ett konto?', et: 'Sul on juba konto?' },
     signup: { ko: '회원가입', en: 'Sign Up', ja: '新規登録', de: 'Registrieren', fr: "S'inscrire", es: 'Registrarse', pt: 'Cadastrar', 'zh-CN': '注册', 'zh-TW': '註冊', da: 'Tilmeld dig', fi: 'Rekisteröidy', sv: 'Registrera dig', et: 'Registreeru' },
-    signupDesc: { ko: '처음 오셨나요? 약관 동의 후 시작해요', en: 'New here? Agree to terms and get started', ja: '初めてですか？規約に同意して始めましょう', de: 'Neu hier? Stimmen Sie den Bedingungen zu', fr: 'Nouveau ? Acceptez les conditions', es: '¿Eres nuevo? Acepta los términos', pt: 'Novo por aqui? Aceite os termos', 'zh-CN': '新用户？同意条款后开始', 'zh-TW': '新用戶？同意條款後開始', da: 'Ny her? Accepter vilkår', fi: 'Uusi? Hyväksy ehdot', sv: 'Ny här? Godkänn villkoren', et: 'Uus? Nõustu tingimustega' },
+    signupDesc: { ko: '처음이라면 필수 약관에 동의하고 시작해요', en: 'New here? Agree to terms and get started', ja: '初めてですか？規約に同意して始めましょう', de: 'Neu hier? Stimmen Sie den Bedingungen zu', fr: 'Nouveau ? Acceptez les conditions', es: '¿Eres nuevo? Acepta los términos', pt: 'Novo por aqui? Aceite os termos', 'zh-CN': '新用户？同意条款后开始', 'zh-TW': '新用戶？同意條款後開始', da: 'Ny her? Accepter vilkår', fi: 'Uusi? Hyväksy ehdot', sv: 'Ny här? Godkänn villkoren', et: 'Uus? Nõustu tingimustega' },
 };
 
 export default function LoginPage() {
-    const { darkMode, locale } = useApp();
+    const { locale } = useApp();
     const { status } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -101,13 +101,6 @@ export default function LoginPage() {
             router.replace('/');
         }
     }, [status, router, signupRequired, searchParams]);
-
-    // Typewriter effect
-    const TITLE = 'Museum\nMap';
-    const [titleText, setTitleText] = useState('');
-    const typoPhase = useRef<'typing' | 'waiting' | 'erasing' | 'pause'>('typing');
-    const typoIdx = useRef(0);
-    const typoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Museum name scroll
     const [museumIdx, setMuseumIdx] = useState(0);
@@ -147,23 +140,6 @@ export default function LoginPage() {
     const saveConsentState = () => {
         sessionStorage.setItem('consentModal', JSON.stringify({ terms: termsAgreed, privacy: privacyAgreed }));
     };
-
-    useEffect(() => {
-        function tick() {
-            const phase = typoPhase.current;
-            const idx = typoIdx.current;
-            if (phase === 'typing') {
-                if (idx <= TITLE.length) { setTitleText(TITLE.slice(0, idx)); typoIdx.current = idx + 1; typoTimer.current = setTimeout(tick, 160); }
-                else { typoPhase.current = 'waiting'; typoTimer.current = setTimeout(tick, 3000); }
-            } else if (phase === 'waiting') { typoPhase.current = 'erasing'; typoIdx.current = TITLE.length; tick(); }
-            else if (phase === 'erasing') {
-                if (idx > 0) { typoIdx.current = idx - 1; setTitleText(TITLE.slice(0, idx - 1)); typoTimer.current = setTimeout(tick, 100); }
-                else { typoPhase.current = 'pause'; typoTimer.current = setTimeout(tick, 1000); }
-            } else if (phase === 'pause') { typoPhase.current = 'typing'; typoIdx.current = 0; tick(); }
-        }
-        tick();
-        return () => { if (typoTimer.current) clearTimeout(typoTimer.current); };
-    }, []);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -228,7 +204,7 @@ export default function LoginPage() {
 
     // i18n
     const labels: Record<string, { desc: string; google: string; terms: string; privacy: string; agree: string }> = {
-        ko: { desc: '세계의 박물관과 미술관을 탐험하세요', google: 'Google로 계속하기', terms: '이용약관', privacy: '개인정보처리방침', agree: '로그인 시 다음에 동의하게 됩니다:' },
+        ko: { desc: '세계의 박물관과 미술관을 지도에서 찾아보세요', google: 'Google로 계속하기', terms: '이용약관', privacy: '개인정보처리방침', agree: '로그인하면 아래 내용에 동의하게 돼요:' },
         en: { desc: 'Explore museums and galleries worldwide', google: 'Continue with Google', terms: 'Terms of Service', privacy: 'Privacy Policy', agree: 'By signing in, you agree to our:' },
         ja: { desc: '世界の美術館・博物館を探索しよう', google: 'Googleで続ける', terms: '利用規約', privacy: 'プライバシーポリシー', agree: 'ログインすると以下に同意します：' },
         de: { desc: 'Entdecken Sie Museen und Galerien weltweit', google: 'Mit Google fortfahren', terms: 'Nutzungsbedingungen', privacy: 'Datenschutz', agree: 'Mit der Anmeldung stimmen Sie zu:' },
@@ -245,43 +221,46 @@ export default function LoginPage() {
     const l = labels[locale] || labels['en'];
 
     return (
-        <div className={`fixed inset-0 ${darkMode ? 'bg-black' : 'bg-white'} flex flex-col selection:bg-orange-300 selection:text-black transition-colors duration-300 overflow-hidden lg:overflow-y-auto animate-[fadeIn_0.8s_ease]`}>
+        <div className="login-2-shell fixed inset-0 flex flex-col selection:bg-blue-200 selection:text-slate-950 transition-colors duration-300 overflow-hidden lg:overflow-y-auto animate-[fadeIn_0.8s_ease]">
+            <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="fixed right-4 top-[max(16px,env(safe-area-inset-top,0px))] z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-slate-950/42 text-white shadow-xl shadow-blue-950/20 backdrop-blur-xl transition-all active:scale-95 hover:bg-slate-950/58 dark:bg-blue-950/58 dark:hover:bg-blue-950/72"
+                aria-label={locale === 'ko' ? '닫기' : 'Close'}
+            >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
             {/* Background */}
-            <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-                <img src="/login_bg.jpeg" alt="" className="absolute top-0 left-0 h-full opacity-60" style={{ width: '200%', minWidth: '200%', objectFit: 'cover', animation: 'panLeft 50s linear infinite' }} />
-                <div className="absolute inset-0 bg-black opacity-0 dark:opacity-[0.82] transition-opacity duration-300" />
-            </div>
+            <div className="login-2-map-bg absolute inset-0 z-0 pointer-events-none overflow-hidden" />
 
             {/* Content */}
-            <div className="relative z-10 flex flex-col flex-1 lg:block lg:pt-36 lg:pb-24">
+            <div className="relative z-10 grid min-h-full grid-rows-[1fr_auto] px-5 pb-8 pt-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:grid-rows-1 lg:items-center lg:gap-16 lg:px-16 lg:py-16">
                 {/* Top — branding */}
-                <div className="flex flex-col items-center text-center pt-28 sm:pt-32 lg:pt-0 px-4 flex-1 lg:flex-none">
+                <div className="flex flex-col items-center justify-center text-center lg:items-start lg:text-left">
+                    <div className="mb-7 flex h-20 w-20 items-center justify-center rounded-[1.65rem] border border-white/12 bg-white/10 text-white shadow-2xl shadow-blue-950/30 backdrop-blur-xl">
+                        <svg viewBox="0 0 510 286" className="h-11 w-auto fill-current" aria-hidden="true">
+                            <path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" />
+                            <path d="M464.31,47.94v50.85c0,7.73-5.23,14.48-12.72,16.41l-44.5,11.47c-16.97,4.37-16.95,28.48.03,32.83l44.45,11.37c7.5,1.92,12.75,8.68,12.75,16.42v50.78c0,9.36-7.59,16.94-16.94,16.94h-165.21c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h.25c19.93,0,23.51-28.42,4.2-33.36l-8.64-2.21c-7.5-1.92-12.75-8.68-12.75-16.42v-19.3c0-7.74,5.25-14.5,12.75-16.42l8.38-2.14c19.31-4.93,15.74-33.36-4.19-33.36h0c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h165.21c9.36,0,16.94,7.59,16.94,16.94Z" />
+                        </svg>
+                    </div>
                     <div className="h-8 overflow-hidden mb-2">
-                        <p className={`text-sm sm:text-base font-medium text-gray-400 dark:text-white/50 italic tracking-wider transition-all duration-400 ${museumVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
+                        <p className={`text-xs font-black uppercase tracking-[0.22em] text-blue-200/70 transition-all duration-400 ${museumVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
                             {FAMOUS_MUSEUMS[museumIdx]}
                         </p>
                     </div>
-                    <p className="text-base sm:text-lg font-bold text-purple-500 dark:text-purple-400 tracking-wide mb-4 dark:drop-shadow-lg">
+                    <h1 className="font-serif text-5xl font-semibold leading-none tracking-normal text-white sm:text-6xl lg:text-7xl">
+                        Museum Map
+                    </h1>
+                    <p className="mt-5 max-w-sm text-base font-semibold leading-relaxed text-blue-100/78 sm:text-lg">
                         {l.desc}
                     </p>
-                    <div className="w-full h-[9rem] sm:h-[14rem]">
-                        <h1 className="text-7xl sm:text-9xl font-black tracking-tighter text-black dark:text-white select-none leading-[0.95] whitespace-pre-line text-center dark:drop-shadow-2xl">
-                            {titleText.split('\n').map((line, i, arr) => (
-                                <span key={i}>
-                                    {line}
-                                    {i === arr.length - 1 && (
-                                        <span className="inline-block w-[4px] h-[0.85em] bg-current opacity-80 ml-1 align-middle" style={{ animation: 'blink 600ms ease-in-out infinite' }} />
-                                    )}
-                                    {i < arr.length - 1 && <br />}
-                                </span>
-                            ))}
-                        </h1>
-                    </div>
                 </div>
 
                 {/* Login card */}
-                <div className="w-full lg:max-w-md mx-auto px-5 pb-8 lg:pb-0 lg:mt-12 shrink-0">
-                    <div className="glass-popup gradient-border rounded-[2rem] p-7 sm:p-8" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+                <div className="w-full max-w-md mx-auto shrink-0">
+                    <div className="rounded-[2rem] border border-white/80 bg-white/95 p-7 shadow-2xl shadow-blue-950/25 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/88 sm:p-8">
                         {/* In-app browser warning */}
                         {inAppBrowser && (
                             <div className="mb-5 p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
@@ -293,12 +272,12 @@ export default function LoginPage() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-1">
-                                            {locale === 'ko' ? `${inAppBrowser} 앱 내 브라우저 감지됨` :
+                                            {locale === 'ko' ? `${inAppBrowser} 앱 안에서는 로그인이 제한돼요` :
                                                 locale === 'ja' ? `${inAppBrowser}アプリ内ブラウザを検出` :
                                                     `${inAppBrowser} in-app browser detected`}
                                         </p>
                                         <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 leading-relaxed">
-                                            {locale === 'ko' ? 'Google 로그인은 Safari 또는 Chrome에서만 가능합니다. 아래 링크를 복사한 후 브라우저에서 열어주세요.' :
+                                            {locale === 'ko' ? 'Google 로그인은 Safari 또는 Chrome에서 열어야 해요. 링크를 복사해 브라우저에서 열어 주세요.' :
                                                 locale === 'ja' ? 'Googleログインは SafariまたはChromeでのみ可能です。下のリンクをコピーしてブラウザで開いてください。' :
                                                     'Google sign-in requires Safari or Chrome. Copy the link below and open it in your browser.'}
                                         </p>
@@ -314,7 +293,7 @@ export default function LoginPage() {
                                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                                                         </svg>
-                                                        {locale === 'ko' ? '복사됨!' : locale === 'ja' ? 'コピー済み!' : 'Copied!'}
+                                                        {locale === 'ko' ? '링크를 복사했어요' : locale === 'ja' ? 'コピー済み!' : 'Copied!'}
                                                     </>
                                                 ) : (
                                                     <>
@@ -352,7 +331,7 @@ export default function LoginPage() {
 
                         <button
                             onClick={handleGoogleClick}
-                            className="w-full py-4 rounded-2xl font-bold text-gray-800 dark:text-white bg-white dark:bg-neutral-800 border-2 border-gray-200 dark:border-neutral-700 hover:border-gray-300 dark:hover:border-neutral-600 hover:shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                            className="w-full py-4 rounded-2xl font-bold text-slate-900 dark:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -366,9 +345,9 @@ export default function LoginPage() {
                         <div className="mt-5 text-center">
                             <p className="text-[11px] text-gray-600 dark:text-neutral-400 leading-relaxed">
                                 {l.agree}{' '}
-                                <Link href="/terms" className="text-orange-500 hover:underline font-medium">{l.terms}</Link>
+                                <Link href="/terms" className="text-blue-600 hover:underline font-semibold">{l.terms}</Link>
                                 {' & '}
-                                <Link href="/terms?tab=privacy" className="text-orange-500 hover:underline font-medium">{l.privacy}</Link>
+                                <Link href="/terms?tab=privacy" className="text-blue-600 hover:underline font-semibold">{l.privacy}</Link>
                             </p>
                         </div>
                     </div>
@@ -407,14 +386,14 @@ export default function LoginPage() {
                             {/* Login */}
                             <button
                                 onClick={handleLogin}
-                                className="w-full text-left p-4 rounded-2xl border border-white/50 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-700 bg-white/90 dark:bg-white/8 hover:bg-white dark:hover:bg-purple-900/10 transition-all active:scale-[0.98] mb-3 group"
+                                className="w-full text-left p-4 rounded-2xl border border-white/50 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-700 bg-white/90 dark:bg-white/8 hover:bg-white dark:hover:bg-blue-900/10 transition-all active:scale-[0.98] mb-3 group"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="w-11 h-11 rounded-2xl bg-purple-500/10 dark:bg-purple-400/10 flex items-center justify-center shrink-0">
-                                        <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
+                                    <div className="w-11 h-11 rounded-2xl bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center shrink-0">
+                                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
                                     </div>
                                     <div>
-                                        <span className="text-base font-extrabold text-gray-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{txt(choiceLabels.login, locale)}</span>
+                                        <span className="text-base font-extrabold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{txt(choiceLabels.login, locale)}</span>
                                         <p className="text-[11px] text-gray-600 dark:text-neutral-400 mt-0.5">{txt(choiceLabels.loginDesc, locale)}</p>
                                     </div>
                                     <svg className="w-4 h-4 text-gray-300 dark:text-neutral-600 ml-auto shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
@@ -424,14 +403,14 @@ export default function LoginPage() {
                             {/* Signup */}
                             <button
                                 onClick={handleSignup}
-                                className="w-full text-left p-4 rounded-2xl border border-white/50 dark:border-white/10 hover:border-purple-300 dark:hover:border-purple-700 bg-white/90 dark:bg-white/8 hover:bg-white dark:hover:bg-purple-900/10 transition-all active:scale-[0.98] mb-3 group"
+                                className="w-full text-left p-4 rounded-2xl border border-white/50 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-700 bg-white/90 dark:bg-white/8 hover:bg-white dark:hover:bg-blue-900/10 transition-all active:scale-[0.98] mb-3 group"
                             >
                                 <div className="flex items-center gap-4">
                                     <div className="w-11 h-11 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
                                         <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" /></svg>
                                     </div>
                                     <div>
-                                        <span className="text-base font-extrabold text-gray-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{txt(choiceLabels.signup, locale)}</span>
+                                        <span className="text-base font-extrabold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{txt(choiceLabels.signup, locale)}</span>
                                         <p className="text-[11px] text-gray-600 dark:text-neutral-400 mt-0.5">{txt(choiceLabels.signupDesc, locale)}</p>
                                     </div>
                                     <svg className="w-4 h-4 text-gray-300 dark:text-neutral-600 ml-auto shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
@@ -461,29 +440,29 @@ export default function LoginPage() {
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-                            <button onClick={handleAgreeAll} className={`mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.98] ${allAgreed ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-neutral-700 hover:border-purple-300 dark:hover:border-purple-700'}`}>
-                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${allAgreed ? 'border-purple-500 bg-purple-500' : 'border-gray-300 dark:border-neutral-600'}`}>
+                            <button onClick={handleAgreeAll} className={`mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.98] ${allAgreed ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
+                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${allAgreed ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                                     {allAgreed && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                 </div>
-                                <span className={`text-sm font-bold ${allAgreed ? 'text-purple-600 dark:text-purple-400' : 'text-gray-700 dark:text-gray-200'}`}>{txt(consentLabels.agreeAll, locale)}</span>
+                                <span className={`text-sm font-bold ${allAgreed ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200'}`}>{txt(consentLabels.agreeAll, locale)}</span>
                             </button>
                         </div>
 
                         {/* Items */}
                         <div className="px-6 py-4 space-y-3 max-h-[50vh] overflow-y-auto">
                             {/* Terms */}
-                            <div onClick={() => setTermsAgreed((prev: boolean) => !prev)} className={`rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${termsAgreed ? 'border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
+                            <div onClick={() => setTermsAgreed((prev: boolean) => !prev)} className={`rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${termsAgreed ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
                                 <div className="flex items-start gap-3">
-                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${termsAgreed ? 'border-purple-500 bg-purple-500' : 'border-gray-300 dark:border-neutral-600'}`}>
+                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${termsAgreed ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                                         {termsAgreed && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="text-sm font-bold text-gray-800 dark:text-white">{txt(consentLabels.termsName, locale)}</span>
-                                            <span className="text-[10px] font-bold text-purple-500">{txt(consentLabels.required, locale)}</span>
+                                            <span className="text-[10px] font-bold text-blue-500">{txt(consentLabels.required, locale)}</span>
                                         </div>
                                         <p className="text-xs text-gray-400 dark:text-neutral-500 mt-1.5 leading-relaxed">{txt(consentLabels.termsSummary, locale)}</p>
-                                        <button onClick={(e) => { e.stopPropagation(); setConsentView('terms'); }} className="inline-flex items-center gap-1 mt-2 text-[11px] font-medium text-purple-500 hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
+                                        <button onClick={(e) => { e.stopPropagation(); setConsentView('terms'); }} className="inline-flex items-center gap-1 mt-2 text-[11px] font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
                                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                             {l.terms}
                                         </button>
@@ -492,18 +471,18 @@ export default function LoginPage() {
                             </div>
 
                             {/* Privacy */}
-                            <div onClick={() => setPrivacyAgreed((prev: boolean) => !prev)} className={`rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${privacyAgreed ? 'border-purple-300 dark:border-purple-700 bg-purple-50/50 dark:bg-purple-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
+                            <div onClick={() => setPrivacyAgreed((prev: boolean) => !prev)} className={`rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${privacyAgreed ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
                                 <div className="flex items-start gap-3">
-                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${privacyAgreed ? 'border-purple-500 bg-purple-500' : 'border-gray-300 dark:border-neutral-600'}`}>
+                                    <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${privacyAgreed ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                                         {privacyAgreed && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="text-sm font-bold text-gray-800 dark:text-white">{txt(consentLabels.privacyName, locale)}</span>
-                                            <span className="text-[10px] font-bold text-purple-500">{txt(consentLabels.required, locale)}</span>
+                                            <span className="text-[10px] font-bold text-blue-500">{txt(consentLabels.required, locale)}</span>
                                         </div>
                                         <p className="text-xs text-gray-400 dark:text-neutral-500 mt-1.5 leading-relaxed">{txt(consentLabels.privacySummary, locale)}</p>
-                                        <button onClick={(e) => { e.stopPropagation(); setConsentView('privacy'); }} className="inline-flex items-center gap-1 mt-2 text-[11px] font-medium text-purple-500 hover:text-purple-700 dark:hover:text-purple-300 transition-colors">
+                                        <button onClick={(e) => { e.stopPropagation(); setConsentView('privacy'); }} className="inline-flex items-center gap-1 mt-2 text-[11px] font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">
                                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                             {l.privacy}
                                         </button>
@@ -546,7 +525,7 @@ export default function LoginPage() {
                                             <p key="t7">Google OAuth를 통해 가입하며, 계정 정보의 정확성은 이용자 본인에게 있습니다.</p>,
                                             <p key="t8" className="font-semibold text-gray-700 dark:text-gray-300">제4조 (금지 행위)</p>,
                                             <p key="t9">부정 접근, 서비스 방해, 타인의 권리 침해 등의 행위를 금지합니다.</p>,
-                                            <p key="t10" className="mt-4"><button onClick={() => router.push('/terms')} className="text-purple-500 hover:underline font-medium">전체 약관 보기 →</button></p>,
+                                            <p key="t10" className="mt-4"><button onClick={() => router.push('/terms')} className="text-blue-500 hover:underline font-medium">전체 약관 보기 →</button></p>,
                                         ].map((el, i) => <div key={i} style={{ animation: `fadeSlideIn 0.4s ease ${i * 50}ms both` }}>{el}</div>)}
                                     </div>
                                 ) : (
@@ -562,7 +541,7 @@ export default function LoginPage() {
                                             <p key="p7">회원 탈퇴 시 즉시 삭제. 별도 삭제 요청은 30일 내 처리.</p>,
                                             <p key="p8" className="font-semibold text-gray-700 dark:text-gray-300">제3자 제공</p>,
                                             <p key="p9">이용자의 동의 없이 제3자에게 개인정보를 제공하지 않습니다.</p>,
-                                            <p key="p10" className="mt-4"><button onClick={() => router.push('/terms?tab=privacy')} className="text-purple-500 hover:underline font-medium">전체 방침 보기 →</button></p>,
+                                            <p key="p10" className="mt-4"><button onClick={() => router.push('/terms?tab=privacy')} className="text-blue-500 hover:underline font-medium">전체 방침 보기 →</button></p>,
                                         ].map((el, i) => <div key={i} style={{ animation: `fadeSlideIn 0.4s ease ${i * 50}ms both` }}>{el}</div>)}
                                     </div>
                                 )}
@@ -582,14 +561,14 @@ export default function LoginPage() {
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
                     <div className="relative glass-panel gradient-border rounded-3xl p-8 mx-6 max-w-sm w-full text-center" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-500/10 dark:bg-purple-400/10 flex items-center justify-center">
-                            <svg className="w-8 h-8 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
                             </svg>
                         </div>
                         <h3 className="text-lg font-extrabold dark:text-white mb-2">
                             {txt({
-                                ko: '회원가입이 필요합니다',
+                                ko: '회원가입이 필요해요',
                                 en: 'Sign Up Required',
                                 ja: '会員登録が必要です',
                                 de: 'Registrierung erforderlich',
@@ -606,7 +585,7 @@ export default function LoginPage() {
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                             {txt({
-                                ko: '서비스 이용을 위해 약관 동의 후 회원가입을 진행합니다.',
+                                ko: '필수 약관에 동의하면 회원가입을 계속할 수 있어요.',
                                 en: 'Please agree to the terms and sign up to use the service.',
                                 ja: 'サービスをご利用いただくには、規約に同意して会員登録をお願いします。',
                                 de: 'Bitte stimmen Sie den Bedingungen zu und registrieren Sie sich.',

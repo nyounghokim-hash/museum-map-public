@@ -21,9 +21,9 @@ const ui: Record<string, L> = {
     sortAlpha: { ko: '가나다순', en: 'A-Z', ja: '名前順', de: 'A-Z', fr: 'A-Z', es: 'A-Z', pt: 'A-Z', 'zh-CN': '字母顺序', 'zh-TW': '字母順序', da: 'A-Z', fi: 'A-Ö', sv: 'A-Ö', et: 'A-Z' },
     sortOldest: { ko: '오래된순', en: 'Oldest', ja: '古い順', de: 'Älteste', fr: 'Anciens', es: 'Antiguos', pt: 'Antigos', 'zh-CN': '最早', 'zh-TW': '最早', da: 'Ældste', fi: 'Vanhimmat', sv: 'Äldsta', et: 'Vanimad' },
     sortNearby: { ko: '위치순', en: 'Nearby', ja: '距離順', de: 'In der Nähe', fr: 'Proximité', es: 'Cercanos', pt: 'Próximos', 'zh-CN': '附近', 'zh-TW': '附近', da: 'Nærmeste', fi: 'Lähellä', sv: 'Nära', et: 'Lähedal' },
-    noHistory: { ko: '아직 둘러본 미술관이 없어요', en: 'No museums explored yet', ja: 'まだ閲覧した美術館はありません', de: 'Noch keine Museen erkundet', fr: 'Aucun musée consulté', es: 'Aún no has explorado museos', pt: 'Nenhum museu explorado', 'zh-CN': '暂无浏览记录', 'zh-TW': '暫無瀏覽紀錄', da: 'Ingen museer udforsket endnu', fi: 'Ei selattuja museoita', sv: 'Inga utforskade museer', et: 'Pole veel vaadatud muuseume' },
+    noHistory: { ko: '아직 최근에 본 미술관이 없어요', en: 'No museums explored yet', ja: 'まだ閲覧した美術館はありません', de: 'Noch keine Museen erkundet', fr: 'Aucun musée consulté', es: 'Aún no has explorado museos', pt: 'Nenhum museu explorado', 'zh-CN': '暂无浏览记录', 'zh-TW': '暫無瀏覽紀錄', da: 'Ingen museer udforsket endnu', fi: 'Ei selattuja museoita', sv: 'Inga utforskade museer', et: 'Pole veel vaadatud muuseume' },
     clearHistory: { ko: '기록 삭제', en: 'Clear', ja: '履歴削除', de: 'Löschen', fr: 'Effacer', es: 'Borrar', pt: 'Limpar', 'zh-CN': '清除', 'zh-TW': '清除', da: 'Ryd', fi: 'Tyhjennä', sv: 'Rensa', et: 'Tühjenda' },
-    clearHistoryConfirm: { ko: '최근 살펴본 미술관 기록을 모두 삭제할까요?\n삭제 후에는 복구할 수 없습니다.', en: 'Clear all recently explored museum records?\nThis action cannot be undone.', ja: '最近閲覧した美術館の履歴をすべて削除しますか？\nこの操作は元に戻せません。', de: 'Alle kürzlich erkundeten Museen löschen?\nDiese Aktion kann nicht rückgängig gemacht werden.', fr: 'Effacer tout l\'historique des musées consultés ?\nCette action est irréversible.', es: '¿Eliminar todo el historial de museos explorados?\nEsta acción no se puede deshacer.', pt: 'Limpar todo o histórico de museus explorados?\nEsta ação não pode ser desfeita.', 'zh-CN': '清除所有最近浏览的博物馆记录？\n此操作无法撤销。', 'zh-TW': '清除所有最近瀏覽的博物館紀錄？\n此操作無法撤銷。', da: 'Ryd alle nyligt udforskede museer?\nDenne handling kan ikke fortrydes.', fi: 'Tyhjennä kaikki viimeksi selatut museot?\nToimintoa ei voi kumota.', sv: 'Rensa alla nyligen utforskade museer?\nDenna åtgärd kan inte ångras.', et: 'Kustuta kõik hiljuti vaadatud muuseumid?\nSeda toimingut ei saa tagasi võtta.' },
+    clearHistoryConfirm: { ko: '최근에 본 미술관 기록을 모두 삭제할까요?\n삭제하면 다시 복구할 수 없어요.', en: 'Clear all recently explored museum records?\nThis action cannot be undone.', ja: '最近閲覧した美術館の履歴をすべて削除しますか？\nこの操作は元に戻せません。', de: 'Alle kürzlich erkundeten Museen löschen?\nDiese Aktion kann nicht rückgängig gemacht werden.', fr: 'Effacer tout l\'historique des musées consultés ?\nCette action est irréversible.', es: '¿Eliminar todo el historial de museos explorados?\nEsta acción no se puede deshacer.', pt: 'Limpar todo o histórico de museus explorados?\nEsta ação não pode ser desfeita.', 'zh-CN': '清除所有最近浏览的博物馆记录？\n此操作无法撤销。', 'zh-TW': '清除所有最近瀏覽的博物館紀錄？\n此操作無法撤銷。', da: 'Ryd alle nyligt udforskede museer?\nDenne handling kan ikke fortrydes.', fi: 'Tyhjennä kaikki viimeksi selatut museot?\nToimintoa ei voi kumota.', sv: 'Rensa alla nyligen utforskade museer?\nDenna åtgärd kan inte ångras.', et: 'Kustuta kõik hiljuti vaadatud muuseumid?\nSeda toimingut ei saa tagasi võtta.' },
 };
 const g = (key: string, locale: string) => ui[key]?.[locale] || ui[key]?.['en'] || key;
 
@@ -74,14 +74,14 @@ export default function SavedPage() {
     useEffect(() => {
         if (sortBy === 'nearby' && !userLocation) {
             if (!navigator.geolocation) {
-                showAlert('위치 정보를 사용할 수 없습니다.');
+                showAlert(locale === 'ko' ? '이 브라우저에서는 현재 위치를 사용할 수 없어요.' : 'Location is not available in this browser.');
                 setSortBy('newest');
                 return;
             }
             navigator.geolocation.getCurrentPosition(
                 pos => setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
                 (err) => {
-                    showAlert(locale === 'ko' ? '현재 위치를 사용하려면 권한이 필요해요. 브라우저 설정에서 위치 접근을 허용해주세요.' : 'Location permission is required. Please allow in browser settings.');
+                    showAlert(locale === 'ko' ? '현재 위치를 사용하려면 권한이 필요해요. 브라우저 설정에서 위치 접근을 허용해 주세요.' : 'Location permission is required. Please allow in browser settings.');
                     setSortBy('newest');
                 }
             );
@@ -193,9 +193,9 @@ export default function SavedPage() {
     const getMuseum = (item: any) => activeTab === 'saved' ? item.museum : item;
 
     return (
-        <div className="no-back-swipe w-full lg:max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8">
+        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             {/* Header */}
-            <div className="mb-4 sm:mb-6">
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
                 {isLoading && activeTab === 'saved' && saves.length === 0 ? (
                     <>
                         <div className="skeleton skeleton-text w-20 mb-3" />
@@ -204,23 +204,20 @@ export default function SavedPage() {
                     </>
                 ) : (
                     <>
-                        <div className="flex items-center gap-2 mb-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                            <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">{activeTab === 'saved' ? 'My Collection' : 'Museum Log'}</span>
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl font-black tracking-tight dark:text-white">{t('saved.title', locale)}</h1>
-                        <p className="text-gray-400 dark:text-neutral-500 mt-1 text-xs font-medium">{t('saved.subtitle', locale)}</p>
+                        <div className="mm-gallery-kicker mb-3">{activeTab === 'saved' ? 'Saved Route' : 'Museum Log'}</div>
+                        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{t('saved.title', locale)}</h1>
+                        <p className="text-blue-100/80 mt-2 text-sm font-medium">{t('saved.subtitle', locale)}</p>
                     </>
                 )}
             </div>
 
-            {/* Purple Toggle Tabs */}
-            <div className="flex gap-2 mb-4">
-                <button onClick={() => { setActiveTab('saved'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`flex-1 py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 ${activeTab === 'saved' ? 'gradient-btn text-white shadow-lg' : 'bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-700'}`}>
+            {/* Blue Toggle Tabs */}
+            <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
+                <button onClick={() => { setActiveTab('saved'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`mm-gallery-chip ${activeTab === 'saved' ? 'is-active' : ''}`}>
                     <svg className="w-4 h-4 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
                     {g('tabSaved', locale)}
                 </button>
-                <button onClick={() => { setActiveTab('history'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`flex-1 py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 ${activeTab === 'history' ? 'gradient-btn text-white shadow-lg' : 'bg-gray-100 dark:bg-neutral-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-neutral-700'}`}>
+                <button onClick={() => { setActiveTab('history'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`mm-gallery-chip ${activeTab === 'history' ? 'is-active' : ''}`}>
                     <svg className="w-4 h-4 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     {g('tabHistory', locale)}
                 </button>
@@ -232,13 +229,13 @@ export default function SavedPage() {
                     {activeTab === 'saved' && saves.length > 0 && (
                         <button
                             onClick={() => { setIsSelectMode(!isSelectMode); if (isSelectMode) setSelectedMuseums(new Set()); }}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors border shadow-sm ${isSelectMode ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700 dark:hover:bg-neutral-700'}`}
+                            className={`mm-gallery-chip ${isSelectMode ? 'is-active' : ''}`}
                         >
                             {isSelectMode ? t('modal.cancel', locale) || 'Cancel' : t('global.select', locale)}
                         </button>
                     )}
                     {activeTab === 'history' && historyMuseums.length > 0 && (
-                        <button onClick={handleClearHistory} className="px-4 py-2 rounded-xl text-sm font-bold transition-colors border shadow-sm bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700 dark:hover:bg-neutral-700">
+                        <button onClick={handleClearHistory} className="mm-gallery-chip">
                             {g('clearHistory', locale)}
                         </button>
                     )}
@@ -246,7 +243,7 @@ export default function SavedPage() {
                 <select
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortType)}
-                    className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-700 dark:text-neutral-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    className="mm-gallery-chip cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300"
                 >
                     <option value="newest">{g('sortNewest', locale)}</option>
                     <option value="rating">{g('sortRating', locale)}</option>
@@ -257,10 +254,10 @@ export default function SavedPage() {
             </div>
 
             {/* Selection Action Bar (animated) */}
-            <div className={`bg-purple-50 dark:bg-purple-900/30 border border-purple-100 dark:border-purple-800 rounded-xl flex justify-between items-center transition-all duration-300 ease-out overflow-hidden ${selectedMuseums.size > 0 ? 'p-4 mb-6 opacity-100 translate-y-0 max-h-24' : 'p-0 mb-0 opacity-0 -translate-y-2 max-h-0 border-transparent'}`}>
-                <span className="text-purple-800 dark:text-purple-300 font-semibold text-sm">{selectedMuseums.size} {t('saved.selected', locale)}</span>
+            <div className={`bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-xl flex justify-between items-center transition-all duration-300 ease-out overflow-hidden ${selectedMuseums.size > 0 ? 'p-4 mb-6 opacity-100 translate-y-0 max-h-24' : 'p-0 mb-0 opacity-0 -translate-y-2 max-h-0 border-transparent'}`}>
+                <span className="text-blue-800 dark:text-blue-300 font-semibold text-sm">{selectedMuseums.size} {t('saved.selected', locale)}</span>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleCreateAutoRoute} className="gradient-btn text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">
+                    <button onClick={handleCreateAutoRoute} className="gradient-btn text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">
                         {t('saved.createAutoRoute', locale)}
                     </button>
                     <button
@@ -275,7 +272,7 @@ export default function SavedPage() {
                             setIsSelectMode(false);
                             if (addedCount > 0) router.push('/compare');
                         }}
-                        className="bg-white dark:bg-neutral-800 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900"
+                        className="bg-white dark:bg-neutral-800 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900"
                         aria-label={t('compare.title', locale)}
                     >
                         {t('compare.title', locale)}
@@ -301,7 +298,12 @@ export default function SavedPage() {
                 </div>
             </div>
 
-            {/* Museum Grid */}
+            <div className="mm-section-heading">
+                <h2>{activeTab === 'saved' ? (locale === 'ko' ? '방문 후보' : 'Saved places') : (locale === 'ko' ? '최근 살펴본 곳' : 'Recently explored')}</h2>
+                <span>{displayItems.length.toLocaleString()} {locale === 'ko' ? '곳' : 'places'}</span>
+            </div>
+
+            {/* Museum List */}
             {isLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -317,74 +319,65 @@ export default function SavedPage() {
                     ))}
                 </div>
             ) : displayItems.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="mm-list-surface">
                     {displayItems.map((item: any, i: number) => {
                         const museum = getMuseum(item);
                         const itemId = activeTab === 'saved' ? item.id : museum.id;
+                        const cached = Array.isArray(museum.cachedPhotoUrls) ? museum.cachedPhotoUrls : (typeof museum.cachedPhotoUrls === 'string' ? (() => { try { return JSON.parse(museum.cachedPhotoUrls); } catch { return []; } })() : []);
+                        const imgSrc = cached[0] || museum.imageUrl;
+                        const fallbackSrc = cached[0] ? museum.imageUrl : null;
                         return (
-                            <GlassPanel
+                            <button
                                 key={`${activeTab}-${sortBy}-${itemId}`}
                                 style={{ animation: `fadeInUp 0.4s ${Math.min(i, 15) * 50}ms both` }}
-                                className={`overflow-hidden group cursor-pointer shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98] ${deletingIds.has(museum.id) ? 'animate-slideOutLeft' : ''}`}
+                                className={`mm-list-row2 group w-full text-left transition-all duration-200 ${deletingIds.has(museum.id) ? 'animate-slideOutLeft' : ''}`}
                                 onClick={() => {
                                     if (isSelectMode && activeTab === 'saved') toggleSelect(museum.id);
                                     else router.push(`/museums/${museum.id}`);
                                 }}
                             >
-                                <div className="h-40 bg-gray-100 dark:bg-neutral-800 relative overflow-hidden">
-                                    {(() => {
-                                        const cached = Array.isArray(museum.cachedPhotoUrls) ? museum.cachedPhotoUrls : (typeof museum.cachedPhotoUrls === 'string' ? (() => { try { return JSON.parse(museum.cachedPhotoUrls); } catch { return []; } })() : []);
-                                        const imgSrc = cached[0] || museum.imageUrl;
-                                        const fallbackSrc = cached[0] ? museum.imageUrl : null;
-                                        return imgSrc ? (
-                                            <img
-                                                src={imgSrc}
-                                                alt={museum.name}
-                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 will-change-transform opacity-0"
-                                                onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
-                                                onError={(e) => {
-                                                    const el = e.target as HTMLImageElement;
-                                                    if (fallbackSrc && el.src !== fallbackSrc) {
-                                                        el.src = fallbackSrc;
-                                                    } else {
-                                                        el.style.display = 'none';
-                                                        el.parentElement?.querySelector('.logo-fallback')?.classList.remove('hidden');
-                                                    }
-                                                }}
-                                            />
-                                        ) : null;
-                                    })()}
-                                    <div className={`logo-fallback absolute inset-0 flex items-center justify-center ${(Array.isArray(museum.cachedPhotoUrls) ? museum.cachedPhotoUrls.length > 0 : false) || museum.imageUrl ? 'hidden' : ''}`}>
-                                        <img src="/logo.svg" alt="Museum Map" className="w-36 h-36 opacity-20 dark:invert dark:opacity-[0.6]" />
-                                    </div>
-
-                                    {/* Checkbox — only in saved tab + select mode */}
+                                <div className="mm-saved-row-thumb relative">
+                                    {imgSrc ? (
+                                        <img
+                                            src={imgSrc}
+                                            alt={museum.name}
+                                            className="opacity-0 transition-all duration-500 group-hover:scale-105"
+                                            onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
+                                            onError={(e) => {
+                                                const el = e.target as HTMLImageElement;
+                                                if (fallbackSrc && el.src !== fallbackSrc) {
+                                                    el.src = fallbackSrc;
+                                                } else {
+                                                    el.src = '/logo.svg';
+                                                    el.className = 'w-full h-full object-contain p-3 opacity-20 dark:invert dark:opacity-60';
+                                                }
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <img src="/logo.svg" alt="" className="w-8 h-8 opacity-20 dark:invert dark:opacity-60" />
+                                        </div>
+                                    )}
                                     {isSelectMode && activeTab === 'saved' && (
-                                        <div className={`absolute top-3 left-3 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${selectedMuseums.has(museum.id) ? 'bg-gradient-to-br from-orange-400 to-orange-600 border-orange-300 shadow-lg shadow-orange-500/30 scale-110' : 'bg-black/20 backdrop-blur-md border-white/60'}`}>
+                                        <div className={`absolute inset-0 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 ${selectedMuseums.has(museum.id) ? 'bg-blue-600/80 border-blue-200 shadow-lg shadow-blue-500/30' : 'bg-black/10 backdrop-blur-[1px] border-white/60'}`}>
                                             {selectedMuseums.has(museum.id) && (
                                                 <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                             )}
                                         </div>
                                     )}
-                                    {museum.type && (
-                                        <div className="absolute top-3 right-3 px-2 py-1 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur-md shadow-sm">
-                                            <span className="text-xs font-bold text-gray-800 dark:text-gray-200 capitalize">{translateCategory(museum.type, locale)}</span>
-                                        </div>
-                                    )}
                                 </div>
-                                <div className="p-4 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-md">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <h3 className="font-bold text-lg mb-1 dark:text-white capitalize truncate flex-1">{getLocalizedMuseumName(museum, locale)}</h3>
-                                        {museum.googleRating && (
-                                            <span className="flex items-center gap-0.5 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full shrink-0">
-                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                                                {museum.googleRating.toFixed(1)}
-                                            </span>
-                                        )}
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        {museum.type && <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 truncate">{translateCategory(museum.type, locale)}</span>}
+                                        {museum.googleRating && <span className="text-[11px] font-extrabold text-slate-400 shrink-0">★ {museum.googleRating.toFixed(1)}</span>}
                                     </div>
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase truncate">{getLocalizedCityName(museum, locale) || getCityName(museum.city, locale)}, {getCountryName(museum.country, locale)}</p>
+                                    <h3 className="font-black text-[15px] sm:text-base dark:text-white capitalize truncate mt-0.5">{getLocalizedMuseumName(museum, locale)}</h3>
+                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate mt-1">{getLocalizedCityName(museum, locale) || getCityName(museum.city, locale)}, {getCountryName(museum.country, locale)}</p>
                                 </div>
-                            </GlassPanel>
+                                {activeTab === 'saved' && (
+                                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center font-black">✓</span>
+                                )}
+                            </button>
                         );
                     })}
                 </div>
@@ -392,6 +385,25 @@ export default function SavedPage() {
                 <div className="col-span-full py-16 sm:py-20 text-center text-gray-400 dark:text-gray-500 w-full">
                     {activeTab === 'saved' ? t('saved.noSaves', locale) : g('noHistory', locale)}
                 </div>
+            )}
+
+            {activeTab === 'saved' && displayItems.length > 0 && (
+                <>
+                    <div className="mm-section-heading">
+                        <h2>{locale === 'ko' ? '빠른 행동' : 'Quick actions'}</h2>
+                    </div>
+                    <div className="mm-decision-panel2 p-4">
+                        <p className="text-sm font-black text-slate-900 dark:text-white">{locale === 'ko' ? '선택한 장소로 여행 동선을 만들 수 있어요.' : 'Create a trip route from selected places.'}</p>
+                        <div className="grid grid-cols-2 gap-2 mt-3">
+                            <button onClick={handleCreateAutoRoute} className="h-11 rounded-2xl bg-blue-600 text-white text-sm font-black active:scale-95 transition-all">
+                                {t('saved.createAutoRoute', locale)}
+                            </button>
+                            <button onClick={() => setIsSelectMode(true)} className="h-11 rounded-2xl bg-white text-slate-700 border border-blue-100 text-sm font-black active:scale-95 transition-all">
+                                {t('global.select', locale)}
+                            </button>
+                        </div>
+                    </div>
+                </>
             )}
         </div>
     );

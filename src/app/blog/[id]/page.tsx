@@ -129,7 +129,7 @@ export default async function BlogPostDetail({ params }: { params: Promise<{ id:
         return (
             <div className="w-full max-w-[1080px] mx-auto px-4 py-20 text-center">
                 <h1 className="text-2xl font-bold dark:text-white">Story not found</h1>
-                <Link href="/blog" className="text-purple-600 dark:text-purple-400 mt-4 inline-block hover:underline">
+                <Link href="/blog" className="text-blue-600 dark:text-blue-400 mt-4 inline-block hover:underline">
                     {t('blog.backToList', locale)}
                 </Link>
             </div>

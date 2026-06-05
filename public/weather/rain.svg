@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Rain weather">
+  <defs>
+    <linearGradient id="cloud" x1="19" x2="79" y1="25" y2="62" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#A5B4FC"/>
+    </linearGradient>
+    <linearGradient id="rain" x1="31" x2="62" y1="64" y2="91" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#cloud)" stroke="#8B5CF6" stroke-width="2.3" d="M25 58h43.5A15 15 0 0 0 70 28.1 21 21 0 0 0 29.7 35 11.4 11.4 0 0 0 25 58Z"/>
+  <g stroke="url(#rain)" stroke-linecap="round" stroke-width="5">
+    <path d="M34 67 28 82"/>
+    <path d="M49 67 43 86"/>
+    <path d="M64 67 58 82"/>
+  </g>
+</svg>

@@ -116,7 +116,7 @@ export default function TripDetailPanel({
 
                 <button
                     onClick={() => setIsCollapsed(true)}
-                    className="w-10 h-10 flex items-center justify-center bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-full transition-colors shadow-sm active:scale-95 shrink-0"
+                    className="w-10 h-10 flex items-center justify-center bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-full transition-colors shadow-sm active:scale-95 shrink-0"
                     title={locale === 'ko' ? '숨기기' : 'Collapse'}
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -130,12 +130,12 @@ export default function TripDetailPanel({
                     {/* Title section */}
                     <div className="mb-5 shrink-0">
                         <div className="flex items-center gap-2 mb-1.5">
-                            <div className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                                <svg className="w-3.5 h-3.5 text-purple-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <svg className="w-3.5 h-3.5 text-blue-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                 </svg>
                             </div>
-                            <p className="text-xs font-bold tracking-widest text-purple-600 dark:text-purple-400 uppercase">
+                            <p className="text-xs font-bold tracking-widest text-blue-600 dark:text-blue-400 uppercase">
                                 {t('plans.viewActiveRoute', locale)}
                             </p>
                         </div>
@@ -147,7 +147,7 @@ export default function TripDetailPanel({
 
                     {/* Stops list - same drag style as plans/[id] */}
                     <div className="space-y-3 relative flex-1">
-                        <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-purple-100 dark:bg-purple-900/30" />
+                        <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-blue-100 dark:bg-blue-900/30" />
 
                         {stops.map((stop, i) => (
                             <div
@@ -159,13 +159,13 @@ export default function TripDetailPanel({
                                     onPointerDown={() => handlePointerDown(i)}
                                     onPointerUp={handlePointerUp}
                                     onPointerCancel={handlePointerCancel}
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 cursor-grab active:cursor-grabbing transition-all touch-none ${isDragging && dragIndex === i ? 'bg-purple-700 text-white shadow-lg scale-110' : 'bg-purple-500 text-white shadow-sm'}`}
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 cursor-grab active:cursor-grabbing transition-all touch-none ${isDragging && dragIndex === i ? 'bg-blue-700 text-white shadow-lg scale-110' : 'bg-blue-500 text-white shadow-sm'}`}
                                 >
                                     {i + 1}
                                 </div>
                                 <div
                                     onClick={() => onMuseumClick(stop.museumId)}
-                                    className="flex-1 min-w-0 p-3.5 rounded-xl border bg-white dark:bg-neutral-900 border-gray-100 dark:border-neutral-800 shadow-sm hover:shadow-md hover:border-purple-200 dark:hover:border-purple-800 transition-all cursor-pointer"
+                                    className="flex-1 min-w-0 p-3.5 rounded-xl border bg-white dark:bg-neutral-900 border-gray-100 dark:border-neutral-800 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all cursor-pointer"
                                 >
                                     <h3 className="font-bold text-sm text-gray-900 dark:text-white truncate">
                                         {stop.name}

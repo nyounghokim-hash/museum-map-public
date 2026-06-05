@@ -31,6 +31,19 @@ export default function NavHeader() {
     const [userMenuStyle, setUserMenuStyle] = useState<{ top: number; left: number } | null>(null);
     const notifRef = useRef<HTMLDivElement>(null);
     const { locale, setLocale, darkMode, setDarkMode } = useApp();
+    const [isMapMobileHome, setIsMapMobileHome] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const update = () => setIsMapMobileHome(pathname === '/' && window.innerWidth < 1024);
+        update();
+        window.addEventListener('resize', update, { passive: true });
+        window.addEventListener('orientationchange', update, { passive: true });
+        return () => {
+            window.removeEventListener('resize', update);
+            window.removeEventListener('orientationchange', update);
+        };
+    }, [pathname]);
 
     // Translate notification texts for dropdown
     const notifTexts = notifications.flatMap((n: any) => [
@@ -190,10 +203,24 @@ export default function NavHeader() {
         return () => window.removeEventListener('scroll', onScroll);
     }, [isDetailPage]);
 
+    const isHeaderlessEditorialRoute = pathname === '/saved'
+        || pathname === '/blog'
+        || pathname?.startsWith('/blog/')
+        || pathname === '/artworks'
+        || pathname?.startsWith('/artworks/')
+        || pathname === '/collections'
+        || pathname?.startsWith('/collections/')
+        || pathname === '/plans'
+        || pathname?.startsWith('/plans/')
+        || pathname === '/compare'
+        || pathname === '/settings'
+        || pathname === '/login';
+
+    if (isMapMobileHome || isHeaderlessEditorialRoute) return null;
+
     return (
         <>
-            <header className={`sticky top-0 z-50 w-full glass-nav app-header transition-transform duration-300 ease-in-out ${headerHidden ? '-translate-y-full' : 'translate-y-0'}`}>
-                <div className="app-header-accent gradient-accent-bar absolute bottom-0 left-0 right-0 opacity-60" />
+            <header className={`sticky top-0 z-50 w-full glass-nav app-header transition-transform duration-300 ease-in-out ${pathname === '/' ? 'max-lg:hidden mm-map-home-header' : ''} ${headerHidden ? '-translate-y-full' : 'translate-y-0'}`}>
                 <div className="w-full xl:max-w-screen-xl xl:mx-auto flex h-14 items-center gap-2 lg:gap-4 px-3 lg:px-8">
                     <Link href="/" className="font-bold text-lg flex items-center gap-2 shrink-0 dark:text-white">
                         <svg viewBox="0 0 510 286" className="h-6 w-auto fill-current" aria-label="Museum Map"><path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" /><path d="M464.31,47.94v50.85c0,7.73-5.23,14.48-12.72,16.41l-44.5,11.47c-16.97,4.37-16.95,28.48.03,32.83l44.45,11.37c7.5,1.92,12.75,8.68,12.75,16.42v50.78c0,9.36-7.59,16.94-16.94,16.94h-165.21c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h.25c19.93,0,23.51-28.42,4.2-33.36l-8.64-2.21c-7.5-1.92-12.75-8.68-12.75-16.42v-19.3c0-7.74,5.25-14.5,12.75-16.42l8.38-2.14c19.31-4.93,15.74-33.36-4.19-33.36h0c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h165.21c9.36,0,16.94,7.59,16.94,16.94Z" /></svg>
@@ -218,8 +245,8 @@ export default function NavHeader() {
                                     key={link.href}
                                     href={link.href}
                                     onClick={handleDesktopClick}
-                                    className={`transition-colors hover:text-black dark:hover:text-white ${pathname === link.href
-                                        ? 'text-black dark:text-white'
+                                    className={`relative transition-colors hover:text-blue-700 dark:hover:text-blue-300 ${pathname === link.href
+                                        ? 'text-blue-700 dark:text-blue-300'
                                         : 'text-gray-500 dark:text-gray-400'
                                         }`}
                                 >
@@ -234,7 +261,7 @@ export default function NavHeader() {
                         <div className="relative" ref={notifRef}>
                             <Link
                                 href="/notifications"
-                                className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 title={t('notif.title', locale)}
                                 aria-label={t('notif.title', locale)}
                             >
@@ -247,7 +274,7 @@ export default function NavHeader() {
                             </Link>
                             <button
                                 onClick={() => setNotifOpen(!notifOpen)}
-                                className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 title={t('notif.title', locale)}
                                 aria-label={t('notif.title', locale)}
                             >
@@ -312,7 +339,7 @@ export default function NavHeader() {
                         {/* Dark mode toggle - desktop only */}
                         <button
                             onClick={() => setDarkMode(!darkMode)}
-                            className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             title={darkMode ? t('theme.light', locale) : t('theme.dark', locale)}
                             aria-label={darkMode ? t('theme.light', locale) : t('theme.dark', locale)}
                         >
@@ -329,10 +356,10 @@ export default function NavHeader() {
 
                         {/* Settings icon - PC only (gear) */}
                         <Link
-                            href="/info"
-                            className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            title={t('nav.info', locale)}
-                            aria-label={t('nav.info', locale)}
+                            href="/settings"
+                            className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            title={locale === 'ko' ? '설정' : 'Settings'}
+                            aria-label={locale === 'ko' ? '설정' : 'Settings'}
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -361,7 +388,7 @@ export default function NavHeader() {
                                 {(session.user as any)?.role === 'ADMIN' && (
                                     <Link
                                         href="/admin"
-                                        className="p-2 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors text-purple-600 dark:text-purple-400"
+                                        className="p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-blue-600 dark:text-blue-400"
                                         title="Admin"
                                     >
                                         <span className="w-5 h-5 flex items-center justify-center font-black text-sm">A</span>
@@ -380,9 +407,9 @@ export default function NavHeader() {
                                         <button
                                             ref={userMenuBtnRef}
                                             onClick={() => setUserMenuOpen(!userMenuOpen)}
-                                            className="flex items-center ring-2 ring-transparent hover:ring-purple-500 rounded-full transition-all"
+                                            className="flex items-center ring-2 ring-transparent hover:ring-blue-500 rounded-full transition-all"
                                         >
-                                            <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 flex items-center justify-center text-purple-700 dark:text-purple-400 font-bold text-xs overflow-hidden">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs overflow-hidden">
                                                 {session.user?.image ? (
                                                     <img src={session.user.image} alt={session.user.name || 'User'} className="w-full h-full object-cover" />
                                                 ) : (
@@ -429,7 +456,7 @@ export default function NavHeader() {
                         style={{ animation: mobileClosing ? 'slideOutRight 250ms ease-in forwards' : 'slideInRight 250ms ease-out', background: 'var(--glass-bg-heavy)', backdropFilter: 'blur(24px) saturate(200%)', WebkitBackdropFilter: 'blur(24px) saturate(200%)' }}
                     >
                         {/* Gradient accent on left edge */}
-                        <div className="absolute top-0 left-0 w-[2px] h-full" style={{ background: 'var(--gradient-purple-orange)' }} />
+                        <div className="absolute top-0 left-0 w-[2px] h-full" style={{ background: 'var(--gradient-blue-orange)' }} />
                         <div className="flex items-center justify-between p-4 border-b dark:border-neutral-800">
                             <span className="font-bold text-lg dark:text-white">{t('nav.menu', locale)}</span>
                             <button onClick={closeMobile} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
@@ -459,7 +486,7 @@ export default function NavHeader() {
                                             href={link.href}
                                             onClick={handleDrawerClick}
                                             className={`block px-4 py-3 rounded-xl text-sm font-medium transition-all ${pathname === link.href
-                                            ? 'gradient-btn !rounded-xl'
+                                            ? 'gradient-btn !rounded-xl shadow-lg shadow-blue-500/18'
                                             : 'text-gray-700 dark:text-gray-300 hover:bg-white/40 dark:hover:bg-white/10'
                                             }`}
                                     >
@@ -471,10 +498,35 @@ export default function NavHeader() {
 
 
 
-                        {/* Mobile info & feedback */}
+                        {/* Mobile profile/admin/settings */}
                         <div className="px-4 py-2">
+                            {session && !session.user?.name?.startsWith('guest_') && (
+                                <Link
+                                    href="/login"
+                                    onClick={() => setMobileOpen(false)}
+                                    className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
+                                >
+                                    <span className="h-8 w-8 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                        {session.user?.image ? <img src={session.user.image} alt="" className="h-full w-full object-cover" /> : (session.user?.name?.charAt(0).toUpperCase() || 'U')}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate">
+                                        {session.user?.name || (locale === 'ko' ? '프로필' : 'Profile')}
+                                    </span>
+                                </Link>
+                            )}
+                            {(session?.user as any)?.role === 'ADMIN' && (
+                                <Link
+                                    href="/admin"
+                                    onClick={() => setMobileOpen(false)}
+                                    className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
+                                >
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-md border border-blue-200 text-[11px] font-semibold dark:border-blue-800">A</span>
+                                    Admin
+                                </Link>
+                            )}
                             <Link
-                                href="/info"
+                                href="/settings"
+                                onClick={() => setMobileOpen(false)}
                                 className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -537,7 +589,7 @@ export default function NavHeader() {
                                     onClick={() => {
                                         setMobileOpen(false);
                                         const deleteLabels: Record<string, { title: string; confirm: string; done: string; fail: string }> = {
-                                            ko: { title: '회원 탈퇴', confirm: '정말로 탈퇴하시겠습니까?\n저장된 즐겨찾기, 컬렉션, 여행 계획이\n모두 삭제됩니다.', done: '탈퇴가 완료되었습니다.\n이용해주셔서 감사합니다.', fail: '탈퇴 처리 중 오류가 발생했습니다.' },
+                                            ko: { title: '회원 탈퇴', confirm: '계정을 탈퇴할까요?\n내 픽, 컬렉션, 여행 계획이 모두 삭제되며\n복구할 수 없어요.', done: '회원 탈퇴가 완료됐어요.\n이용해 주셔서 감사합니다.', fail: '회원 탈퇴를 처리하지 못했어요. 잠시 후 다시 시도해 주세요.' },
                                             en: { title: 'Delete Account', confirm: 'Are you sure you want to delete your account?\nAll your saves, collections, and plans will be permanently removed.', done: 'Your account has been deleted.\nThank you for using Museum Map.', fail: 'Failed to delete account.' },
                                             ja: { title: 'アカウント削除', confirm: '本当にアカウントを削除しますか？\nお気に入り、コレクション、旅行プランがすべて削除されます。', done: 'アカウントが削除されました。\nご利用ありがとうございました。', fail: 'アカウント削除に失敗しました。' },
                                             de: { title: 'Konto löschen', confirm: 'Möchten Sie Ihr Konto wirklich löschen?\nAlle Favoriten, Sammlungen und Pläne werden dauerhaft entfernt.', done: 'Ihr Konto wurde gelöscht.\nVielen Dank für die Nutzung.', fail: 'Konto konnte nicht gelöscht werden.' },
@@ -612,7 +664,7 @@ export default function NavHeader() {
                         <button
                             key={l}
                             onClick={() => { setLocale(l); setLangOpen(false); }}
-                            className={`block w-full text-left px-4 py-2 text-sm hover:bg-purple-50/80 dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:bg-purple-50 dark:focus-visible:bg-neutral-800 transition-colors ${l === locale ? 'font-bold text-black dark:text-white bg-purple-50/50 dark:bg-neutral-800/70' : 'text-gray-700 dark:text-gray-300'}`}
+                            className={`block w-full text-left px-4 py-2 text-sm hover:bg-blue-50/80 dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-neutral-800 transition-colors ${l === locale ? 'font-bold text-black dark:text-white bg-blue-50/50 dark:bg-neutral-800/70' : 'text-gray-700 dark:text-gray-300'}`}
                         >
                             {LOCALE_NAMES[l]}
                         </button>

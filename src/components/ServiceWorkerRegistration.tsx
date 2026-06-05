@@ -6,23 +6,27 @@ export default function ServiceWorkerRegistration() {
     useEffect(() => {
         if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
-        // Register SW after page load to not block initial render
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                .then((reg) => {
-                    reg.update().catch(() => { });
-                    // Check for updates periodically (every 60 min)
-                    setInterval(() => reg.update(), 60 * 60 * 1000);
-                })
-                .catch(() => {
-                    // SW registration failed — app works fine without it
-                });
-        });
+        const clearServiceWorkerShell = async () => {
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(registrations.map((registration) => registration.unregister()));
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.filter((key) => key.startsWith('mm-')).map((key) => caches.delete(key)));
+                }
+                const reloadKey = 'mm-sw-cleared-v2';
+                if (registrations.length > 0 && !sessionStorage.getItem(reloadKey)) {
+                    sessionStorage.setItem(reloadKey, '1');
+                    window.location.reload();
+                }
+            } catch {
+                // If cleanup fails, keep running without blocking the app.
+            }
+        };
 
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-            // Do not force-reload on first control after a new deployment.
-            // On mobile this made the splash screen appear to restart and flicker.
-        });
+        // Temporarily disable the service worker. A stale app-shell cache can mix
+        // old CSS with new React markup and break the mobile map layout.
+        clearServiceWorkerShell();
     }, []);
 
     return null;

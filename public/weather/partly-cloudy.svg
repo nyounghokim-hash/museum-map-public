@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Partly cloudy weather">
+  <defs>
+    <linearGradient id="sun" x1="23" x2="62" y1="18" y2="62" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDE68A"/>
+      <stop offset="1" stop-color="#FB923C"/>
+    </linearGradient>
+    <linearGradient id="cloud" x1="24" x2="77" y1="45" y2="76" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DDD6FE"/>
+    </linearGradient>
+  </defs>
+  <circle cx="39" cy="37" r="19" fill="url(#sun)"/>
+  <g stroke="#F59E0B" stroke-linecap="round" stroke-width="4">
+    <path d="M39 10v8"/>
+    <path d="M39 56v8"/>
+    <path d="M12 37h8"/>
+    <path d="M58 37h8"/>
+    <path d="m20 18 5.7 5.7"/>
+    <path d="m58 18-5.7 5.7"/>
+  </g>
+  <path fill="url(#cloud)" stroke="#C4B5FD" stroke-width="2" d="M34 73h34.5A14.5 14.5 0 0 0 70 44.1 20 20 0 0 0 31.7 51 11.1 11.1 0 0 0 34 73Z"/>
+</svg>

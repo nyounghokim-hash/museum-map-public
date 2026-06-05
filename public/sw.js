@@ -1,5 +1,5 @@
 // Museum Map — Service Worker for Offline Support
-const CACHE_VERSION = 'mm-v3';
+const CACHE_VERSION = 'mm-v4';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const IMAGE_CACHE = `${CACHE_VERSION}-images`;
@@ -73,10 +73,12 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Strategy 3: Cache-first for static assets (JS, CSS, fonts)
+    // Strategy 3: Network-first for app shell assets.
+    // A stale JS/CSS mix can destroy mobile layout after a design deployment, so
+    // prefer the network for Next assets and keep cache only as an offline fallback.
     if (request.destination === 'script' || request.destination === 'style' || request.destination === 'font' ||
         url.pathname.startsWith('/_next/static')) {
-        event.respondWith(cacheFirst(request, STATIC_CACHE));
+        event.respondWith(networkFirst(request, STATIC_CACHE));
         return;
     }
 

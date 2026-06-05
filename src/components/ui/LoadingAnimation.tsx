@@ -8,7 +8,7 @@ interface LoadingAnimationProps {
 }
 
 /**
- * 단순한 보라색 스피너.
+ * 단순한 블루 스피너.
  * 이전에는 lottie-react + /loading.json 으로 운영했으나 번들 크기와
  * 초기 로딩 지연 때문에 CSS 스피너로 대체.
  */
@@ -21,7 +21,7 @@ const LoadingAnimation = ({ size = 160, className = "", inline = false }: Loadin
             style={{ width: size, height: size }}
         >
             <div
-                className="rounded-full border-4 border-purple-200 border-t-purple-600 dark:border-neutral-700 dark:border-t-purple-400 animate-spin"
+                className="rounded-full border-4 border-blue-200 border-t-blue-600 dark:border-neutral-700 dark:border-t-blue-400 animate-spin"
                 style={{ width: ringSize, height: ringSize }}
             />
         </div>

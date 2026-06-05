@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 const TEXTS: Record<string, { title: string; subtitle: string; home: string }> = {
-    ko: { title: '지금 열심히 보수공사 중입니다!', subtitle: '조금만 기다려주세요!', home: '홈으로 돌아가기' },
+    ko: { title: '페이지를 찾지 못했어요', subtitle: '주소가 바뀌었거나 삭제된 페이지일 수 있어요.', home: '홈으로 돌아가기' },
     en: { title: 'Page not found', subtitle: 'Please wait a moment!', home: 'Back to Home' },
     ja: { title: 'ページが見つかりません', subtitle: '少々お待ちください！', home: 'ホームへ戻る' },
     de: { title: 'Seite nicht gefunden', subtitle: 'Bitte warten Sie einen Moment!', home: 'Zurück zur Startseite' },
@@ -53,7 +53,7 @@ export default function NotFound() {
 
     return (
         <div className="min-h-[70vh] flex flex-col items-center justify-center px-6 py-20 text-center">
-            <svg className="w-24 h-24 text-purple-400 dark:text-purple-500 mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+            <svg className="w-24 h-24 text-blue-400 dark:text-blue-500 mb-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
             </svg>
 

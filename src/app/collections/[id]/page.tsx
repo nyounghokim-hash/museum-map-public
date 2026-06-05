@@ -131,8 +131,8 @@ export default function CollectionDetailPage() {
             {collection.stories && collection.stories.length > 0 && (
                 <div className="mb-8">
                     <div className="flex items-center gap-2 mb-3">
-                        <div className="w-1 h-1 rounded-full bg-purple-500" />
-                        <span className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.15em]">Related Stories</span>
+                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                        <span className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.15em]">Related Stories</span>
                     </div>
                     <div className="flex flex-col gap-3">
                         {collection.stories.map((story: any) => {
@@ -168,7 +168,7 @@ export default function CollectionDetailPage() {
                                                 {new Date(story.createdAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                                             </span>
                                         </div>
-                                        <h3 className="text-sm sm:text-base font-bold group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
+                                        <h3 className="text-sm sm:text-base font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
                                             {getDisplayStoryTitle(locale === 'ko' ? story.title : (story.titleEn || story.title))}
                                         </h3>
                                     </div>

@@ -59,24 +59,24 @@ export default function MyPlansPage() {
     };
 
     return (
-        <div className="no-back-swipe w-full lg:max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8 overflow-hidden">
-            <div className="mb-6 sm:mb-8">
+        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10 overflow-visible">
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 {loading ? (
                     <>
-                        <div className="skeleton skeleton-title w-44 mb-2" />
-                        <div className="skeleton skeleton-text w-60 mt-2" />
+                        <div className="mm-skel-line w-20 mb-4 opacity-40" />
+                        <div className="mm-skel-line h-8 w-44 mb-3 opacity-50" />
+                        <div className="mm-skel-line w-64 opacity-40" />
                     </>
                 ) : (
                     <>
-                        <div className="flex items-center gap-2 mb-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                            <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">Travel</span>
+                        <div className="mm-gallery-kicker mb-3">
+                            Travel
                             {plans.length > 0 && (
-                                <span className="text-[10px] font-black text-gray-400 dark:text-neutral-500 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full">{plans.length}</span>
+                                <span className="ml-2 rounded-full bg-white/12 px-2 py-0.5 text-[10px] text-blue-100">{plans.length}</span>
                             )}
                         </div>
-                        <h1 className="text-2xl sm:text-3xl font-black tracking-tight dark:text-white">{t('plans.title', locale)}</h1>
-                        <p className="text-gray-400 dark:text-neutral-500 mt-1 text-xs font-medium">{t('plans.subtitle', locale)}</p>
+                        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{t('plans.title', locale)}</h1>
+                        <p className="text-blue-100/80 mt-2 text-sm font-medium">{t('plans.subtitle', locale)}</p>
                     </>
                 )}
             </div>
@@ -84,21 +84,21 @@ export default function MyPlansPage() {
             {loading ? (
                 <div className="flex flex-col gap-3 sm:gap-4">
                     {Array.from({ length: 3 }).map((_, i) => (
-                        <GlassPanel key={i} className="p-4 sm:p-5 relative overflow-hidden">
+                        <div key={i} className="mm-actual-skeleton p-4 sm:p-5 relative overflow-hidden">
                             <div className="min-w-0 pr-8 sm:pr-10">
-                                <div className={`skeleton skeleton-title ${i === 0 ? 'w-2/5' : i === 1 ? 'w-1/3' : 'w-1/4'} mb-3`} />
+                                <div className={`mm-skel-line h-6 ${i === 0 ? 'w-2/5' : i === 1 ? 'w-1/3' : 'w-1/4'} mb-3`} />
                                 <div className="flex items-center gap-2 mt-1.5">
-                                    <div className="skeleton skeleton-text w-24" />
-                                    <div className="skeleton skeleton-text w-16" />
+                                    <div className="mm-skel-pill w-24" />
+                                    <div className="mm-skel-pill w-16" />
                                 </div>
-                                <div className={`skeleton skeleton-text ${i === 0 ? 'w-3/4' : 'w-1/2'} mt-3`} />
+                                <div className={`mm-skel-line ${i === 0 ? 'w-3/4' : 'w-1/2'} mt-3`} />
                                 <div className="flex items-center gap-1 mt-3">
                                     {Array.from({ length: i === 0 ? 4 : i === 1 ? 3 : 2 }).map((_, j) => (
-                                        <div key={j} className="skeleton skeleton-circle w-9 h-9 sm:w-10 sm:h-10 shrink-0" />
+                                        <div key={j} className="mm-skel-circle w-9 h-9 sm:w-10 sm:h-10 shrink-0" />
                                     ))}
                                 </div>
                             </div>
-                        </GlassPanel>
+                        </div>
                     ))}
                 </div>
             ) : plans.length === 0 ? (
@@ -128,7 +128,7 @@ export default function MyPlansPage() {
 
                         return (
                             <Link key={plan.id} href={`/plans/${plan.id}`}>
-                                <GlassPanel className={`p-4 sm:p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group overflow-hidden relative active:scale-[0.98] ${isPending ? 'ring-2 ring-amber-400 bg-amber-50/50 dark:bg-amber-900/10 shadow-md' : isActive ? 'ring-2 ring-purple-500 bg-purple-50/50 dark:bg-purple-900/10 shadow-md' : 'shadow-sm'}`}>
+                                <GlassPanel className={`p-4 sm:p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group overflow-hidden relative active:scale-[0.98] !rounded-3xl ${isPending ? 'ring-2 ring-amber-400 bg-amber-50/50 dark:bg-amber-900/10 shadow-md' : isActive ? 'ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-md' : 'shadow-sm'}`}>
                                     <button
                                         onClick={(e) => handleDelete(plan.id, e)}
                                         className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 p-2 sm:p-1.5 rounded-xl text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 sm:opacity-0 sm:group-hover:opacity-100 transition-all z-10"
@@ -141,7 +141,7 @@ export default function MyPlansPage() {
                                     </button>
                                     <div className="min-w-0 pr-8 sm:pr-10">
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-base sm:text-lg font-bold group-hover:text-purple-600 dark:text-white dark:group-hover:text-purple-400 transition-colors truncate">
+                                            <h3 className="text-base sm:text-lg font-bold group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 transition-colors truncate">
                                                 {plan.title || (locale === 'ko' ? '이름 없는 계획' : 'Untitled Plan')}
                                             </h3>
                                             {isPending && (
@@ -157,7 +157,7 @@ export default function MyPlansPage() {
                                                 </>
                                             )}
                                             {isActive && !isPending && (
-                                                <span className="shrink-0 text-[10px] sm:text-xs font-bold text-white bg-purple-500 px-2 py-0.5 rounded-full animate-pulse">
+                                                <span className="shrink-0 text-[10px] sm:text-xs font-bold text-white bg-blue-500 px-2 py-0.5 rounded-full animate-pulse">
                                                     {({ ko: '여행 중', en: 'On Trip', ja: '旅行中', de: 'Auf Reise', fr: 'En voyage', es: 'De viaje', pt: 'Em viagem', zh: '旅行中', it: 'In viaggio', ru: 'В поездке', ar: 'في رحلة', hi: 'यात्रा पर', et: 'Reisil' } as Record<string, string>)[locale] || 'On Trip'}
                                                 </span>
                                             )}

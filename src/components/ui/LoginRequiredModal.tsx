@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 
 const TEXTS: Record<string, { title: string; message: string; login: string; cancel: string }> = {
-    ko: { title: '로그인이 필요해요', message: '이 기능을 이용하려면 로그인이 필요합니다.', login: '로그인하기', cancel: '취소' },
+    ko: { title: '로그인하면 사용할 수 있어요', message: '내 픽, 여행, 컬렉션은 로그인 후 저장돼요.', login: '로그인하기', cancel: '나중에' },
     en: { title: 'Login Required', message: 'Please log in to use this feature.', login: 'Log In', cancel: 'Cancel' },
     ja: { title: 'ログインが必要です', message: 'この機能を利用するにはログインが必要です。', login: 'ログイン', cancel: 'キャンセル' },
     zh: { title: '需要登录', message: '请登录以使用此功能。', login: '登录', cancel: '取消' },
@@ -55,8 +55,8 @@ export default function LoginRequiredModal({ isOpen, onClose, callbackUrl }: Log
                 onClick={e => e.stopPropagation()}
             >
                 {/* Lock icon */}
-                <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-purple-500/10 dark:bg-purple-400/10 flex items-center justify-center">
-                    <svg className="w-7 h-7 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center">
+                    <svg className="w-7 h-7 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
                     </svg>
                 </div>

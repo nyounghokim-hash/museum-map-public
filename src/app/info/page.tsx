@@ -373,7 +373,7 @@ export default function InfoPage() {
     const consentModals: Record<string, { locTitle: string; locDenied: string; mktTitle: string; mktBody: string; mktOff: string }> = {
         ko: {
             locTitle: '위치정보 이용 동의',
-            locDenied: '브라우저에서 위치 권한을 허용해주세요.\n설정 > 개인정보 보호 > 위치 서비스에서 변경할 수 있습니다.',
+            locDenied: '현재 위치를 사용하려면 브라우저에서 위치 접근을 허용해 주세요.\n설정 > 개인정보 보호 > 위치 서비스에서 변경할 수 있습니다.',
             mktTitle: '마케팅 정보 수신 동의',
             mktBody: '새로운 전시·이벤트 안내, 추천 미술관 소식을\n앱 내 알림으로 받아보시겠어요?\n\n· 저장한 미술관, 관심 지역 기반 맞춤 알림\n· 설정에서 언제든 해제 가능\n\n* 동의하지 않아도 서비스 이용에 제한이 없습니다.',
             mktOff: '마케팅 수신 동의가 해제되었습니다.\n더 이상 마케팅 관련 알림을 받지 않습니다.',
@@ -528,7 +528,7 @@ export default function InfoPage() {
             <div className="mb-6 sm:mb-8">
                 <div className="flex items-center gap-2.5">
                     <h1 className="text-xl sm:text-2xl font-bold dark:text-white">{tx.title}</h1>
-                    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400 tracking-wide">v1.6.0</span>
+                    <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 tracking-wide">v1.6.0</span>
                 </div>
                 <p className="text-gray-400 dark:text-gray-500 mt-1 text-xs">{tx.subtitle}</p>
             </div>
@@ -538,8 +538,8 @@ export default function InfoPage() {
                 {isLoggedIn && consentLoaded && (
                     <div className="border rounded-xl px-4 py-3.5" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
-                                <svg className="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                                <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
@@ -555,7 +555,7 @@ export default function InfoPage() {
                                 </div>
                                 <button
                                     onClick={() => toggleConsent('locationConsent', !locationConsent)}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out cursor-pointer focus:outline-none ${locationConsent ? 'bg-purple-600' : 'bg-gray-200 dark:bg-neutral-700'}`}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out cursor-pointer focus:outline-none ${locationConsent ? 'bg-blue-600' : 'bg-gray-200 dark:bg-neutral-700'}`}
                                 >
                                     <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${locationConsent ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
@@ -568,7 +568,7 @@ export default function InfoPage() {
                                 </div>
                                 <button
                                     onClick={() => toggleConsent('marketingConsent', !marketingConsent)}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out cursor-pointer focus:outline-none ${marketingConsent ? 'bg-purple-600' : 'bg-gray-200 dark:bg-neutral-700'}`}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out cursor-pointer focus:outline-none ${marketingConsent ? 'bg-blue-600' : 'bg-gray-200 dark:bg-neutral-700'}`}
                                 >
                                     <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${marketingConsent ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
@@ -578,14 +578,14 @@ export default function InfoPage() {
                 )}
                 {/* Feedback */}
                 <Link href="/feedback" className="block group">
-                    <div className="flex items-center gap-3 border rounded-xl px-4 py-3.5 hover:border-purple-300 dark:hover:border-purple-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
-                        <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
-                            <svg className="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <div className="flex items-center gap-3 border rounded-xl px-4 py-3.5 hover:border-blue-300 dark:hover:border-blue-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                            <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                             </svg>
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{tx.feedback}</p>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{tx.feedback}</p>
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{tx.feedbackDesc}</p>
                         </div>
                         <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -596,14 +596,14 @@ export default function InfoPage() {
 
                 {/* Terms — link to /terms */}
                 <Link href="/terms" className="block group">
-                    <div className="flex items-start gap-3 border rounded-xl px-4 py-3.5 hover:border-purple-300 dark:hover:border-purple-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
+                    <div className="flex items-start gap-3 border rounded-xl px-4 py-3.5 hover:border-blue-300 dark:hover:border-blue-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                         <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-neutral-800 flex items-center justify-center shrink-0 mt-0.5">
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                             </svg>
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{tx.termsTitle}</p>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{tx.termsTitle}</p>
                             <p className="text-[10px] text-gray-300 dark:text-gray-600 mt-0.5">2026.03.17</p>
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 leading-relaxed">{tx.termsBody}</p>
                         </div>
@@ -615,14 +615,14 @@ export default function InfoPage() {
 
                 {/* Privacy — link to /terms?tab=privacy */}
                 <Link href="/terms?tab=privacy" className="block group">
-                    <div className="flex items-start gap-3 border rounded-xl px-4 py-3.5 hover:border-purple-300 dark:hover:border-purple-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
+                    <div className="flex items-start gap-3 border rounded-xl px-4 py-3.5 hover:border-blue-300 dark:hover:border-blue-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                         <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-neutral-800 flex items-center justify-center shrink-0 mt-0.5">
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                             </svg>
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-gray-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{tx.privacyTitle}</p>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{tx.privacyTitle}</p>
                             <p className="text-[10px] text-gray-300 dark:text-gray-600 mt-0.5">2026.03.17</p>
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 leading-relaxed">{tx.privacyBody}</p>
                         </div>

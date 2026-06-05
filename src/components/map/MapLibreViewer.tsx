@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { type Museum } from '@/generated_v2/client';
 import { translateCategory, type Locale } from '@/lib/i18n';
 import { createRoot } from 'react-dom/client';
+import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 
 // Category → SVG icon path (each visually distinct)
 const CATEGORY_ICONS: Record<string, string> = {
@@ -46,7 +47,7 @@ function createSvgImage(pathD: string, color: string, size: number = 32): HTMLIm
 }
 
 /** Canvas-rendered gradient circle for cluster markers */
-function createGradientCircle(size: number, darkMode: boolean, variant: 'purple' | 'orange' = 'purple'): ImageData {
+function createGradientCircle(size: number, darkMode: boolean, variant: 'blue' | 'orange' = 'blue'): ImageData {
   const r = size * 2; // retina
   const canvas = document.createElement('canvas');
   canvas.width = r; canvas.height = r;
@@ -55,23 +56,23 @@ function createGradientCircle(size: number, darkMode: boolean, variant: 'purple'
   const grad = ctx.createLinearGradient(0, 0, r, r);
   if (variant === 'orange') {
     if (darkMode) {
-      grad.addColorStop(0, '#EA580C');
-      grad.addColorStop(0.5, '#F97316');
-      grad.addColorStop(1, '#FB923C');
+      grad.addColorStop(0, '#1D4ED8');
+      grad.addColorStop(0.5, '#3B82F6');
+      grad.addColorStop(1, '#93C5FD');
     } else {
-      grad.addColorStop(0, '#C2410C');
-      grad.addColorStop(0.5, '#EA580C');
-      grad.addColorStop(1, '#F97316');
+      grad.addColorStop(0, '#1E40AF');
+      grad.addColorStop(0.5, '#2563EB');
+      grad.addColorStop(1, '#60A5FA');
     }
   } else {
     if (darkMode) {
-      grad.addColorStop(0, '#8B5CF6');
-      grad.addColorStop(0.5, '#A78BFA');
-      grad.addColorStop(1, '#C4B5FD');
+      grad.addColorStop(0, '#1D4ED8');
+      grad.addColorStop(0.5, '#3B82F6');
+      grad.addColorStop(1, '#93C5FD');
     } else {
-      grad.addColorStop(0, '#6D28D9');
-      grad.addColorStop(0.5, '#7C3AED');
-      grad.addColorStop(1, '#A78BFA');
+      grad.addColorStop(0, '#1E40AF');
+      grad.addColorStop(0.5, '#2563EB');
+      grad.addColorStop(1, '#60A5FA');
     }
   }
 
@@ -93,15 +94,15 @@ function createGradientCircle(size: number, darkMode: boolean, variant: 'purple'
 }
 
 /** Soft glow ring for cluster pulse animation */
-function createGlowCircle(size: number, darkMode: boolean, variant: 'purple' | 'orange' = 'purple'): ImageData {
+function createGlowCircle(size: number, darkMode: boolean, variant: 'blue' | 'orange' = 'blue'): ImageData {
   const r = size * 2;
   const canvas = document.createElement('canvas');
   canvas.width = r; canvas.height = r;
   const ctx = canvas.getContext('2d')!;
 
   const color = variant === 'orange'
-    ? (darkMode ? 'rgba(234,88,12,' : 'rgba(194,65,12,')
-    : (darkMode ? 'rgba(139,92,246,' : 'rgba(124,58,237,');
+    ? (darkMode ? 'rgba(96,165,250,' : 'rgba(37,99,235,')
+    : (darkMode ? 'rgba(96,165,250,' : 'rgba(37,99,235,');
 
   // Soft radial glow
   const grad = ctx.createRadialGradient(r / 2, r / 2, r * 0.2, r / 2, r / 2, r / 2);
@@ -123,7 +124,7 @@ function museumsToGeoJSON(museums: Museum[], savedIds?: Set<string>, compareIds?
     features: (museums || []).map(m => ({
       type: 'Feature' as const,
       geometry: { type: 'Point' as const, coordinates: [m.longitude, m.latitude] },
-      properties: { id: m.id, name: m.name, nameKo: (m as any).nameKo || '', nameEn: (m as any).nameEn || '', nameTranslations: JSON.stringify((m as any).nameTranslations || {}), type: m.type, city: m.city || '', cityKo: (m as any).cityKo || '', cityTranslations: JSON.stringify((m as any).cityTranslations || {}), country: m.country || '', saved: savedIds?.has(m.id) ? 1 : 0, inCompare: compareIds?.has(m.id) ? 1 : 0, googleRating: (m as any).googleRating || 0 }
+      properties: { id: m.id, name: m.name, nameKo: (m as any).nameKo || '', nameEn: (m as any).nameEn || '', nameTranslations: JSON.stringify((m as any).nameTranslations || {}), type: m.type, city: m.city || '', cityKo: (m as any).cityKo || '', cityTranslations: JSON.stringify((m as any).cityTranslations || {}), country: m.country || '', saved: savedIds?.has(m.id) ? 1 : 0, inCompare: compareIds?.has(m.id) ? 1 : 0, googleRating: (m as any).googleRating || 0, imageSrc: getMuseumImageSrc(m as any) || '' }
     }))
   };
 }
@@ -235,10 +236,10 @@ function hideNorthKoreaLabels(map: maplibregl.Map) {
 
 const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const LIGHT_COLOR = '#7C3AED'; // purple-600
-const DARK_COLOR = '#C4B5FD';  // purple-300 (lavender)
-const SAVED_COLOR = '#F97316'; // orange-500
-const SAVED_DARK_COLOR = '#FB923C'; // orange-400
+const LIGHT_COLOR = '#2563EB'; // Museum Map 2.0 primary blue
+const DARK_COLOR = '#60A5FA';  // Museum Map 2.0 dark-mode blue
+const SAVED_COLOR = '#2563EB';
+const SAVED_DARK_COLOR = '#60A5FA';
 
 export type MapBounds = { minLng: number; minLat: number; maxLng: number; maxLat: number };
 
@@ -439,7 +440,7 @@ export default function MapLibreViewer({
       // Apply locale to map labels
       applyMapLocale(map, localeRef.current);
 
-      // Register all category icon images (purple + orange for saved)
+      // Register all category icon images (blue + orange for saved)
       const categories = Object.keys(CATEGORY_ICONS);
       const savedColor = '#ffffff'; // white icons on orange filled background
 
@@ -450,7 +451,7 @@ export default function MapLibreViewer({
         const savedImg = createSvgImage(CATEGORY_ICONS[cat], savedColor);
         savedImg.onload = () => { if (!map.hasImage(`saved-icon-${cat}`)) map.addImage(`saved-icon-${cat}`, savedImg); };
       }
-      // Default icon (purple + orange)
+      // Default icon (blue + orange)
       const defImg = createSvgImage(DEFAULT_ICON, color);
       defImg.onload = () => { if (!map.hasImage('icon-_default')) map.addImage('icon-_default', defImg); };
       const savedDefImg = createSvgImage(DEFAULT_ICON, savedColor);
@@ -469,7 +470,7 @@ export default function MapLibreViewer({
       // Register gradient circle images for clusters (3 sizes × 2 variants)
       const clusterSizes = [{ name: 'sm', px: 40 }, { name: 'md', px: 60 }, { name: 'lg', px: 80 }];
       for (const cs of clusterSizes) {
-        for (const variant of ['purple', 'orange'] as const) {
+        for (const variant of ['blue', 'orange'] as const) {
           const key = `cluster-${variant}-${cs.name}`;
           const imgData = createGradientCircle(cs.px, darkMode, variant);
           if (!map.hasImage(key)) map.addImage(key, imgData, { pixelRatio: 2 });
@@ -490,14 +491,14 @@ export default function MapLibreViewer({
           'icon-image': [
             'case', ['>', ['get', 'hasSaved'], 0],
             ['step', ['get', 'point_count'], 'glow-orange-sm', 10, 'glow-orange-md', 50, 'glow-orange-lg'],
-            ['step', ['get', 'point_count'], 'glow-purple-sm', 10, 'glow-purple-md', 50, 'glow-purple-lg'],
+            ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'],
           ] as any,
           'icon-allow-overlap': true,
           'icon-size': 1.0,
         },
       });
 
-      // Cluster gradient circles — purple (unsaved) or orange (has saved)
+      // Cluster gradient circles — blue (default) or orange (contains saved museums)
       map.addLayer({
         id: 'clusters',
         type: 'symbol',
@@ -507,7 +508,7 @@ export default function MapLibreViewer({
           'icon-image': [
             'case', ['>', ['get', 'hasSaved'], 0],
             ['step', ['get', 'point_count'], 'cluster-orange-sm', 10, 'cluster-orange-md', 50, 'cluster-orange-lg'],
-            ['step', ['get', 'point_count'], 'cluster-purple-sm', 10, 'cluster-purple-md', 50, 'cluster-purple-lg'],
+            ['step', ['get', 'point_count'], 'cluster-blue-sm', 10, 'cluster-blue-md', 50, 'cluster-blue-lg'],
           ] as any,
           'icon-allow-overlap': true,
         },
@@ -556,7 +557,7 @@ export default function MapLibreViewer({
           'circle-color': [
             'case',
             ['==', ['get', 'saved'], 1], darkMode ? SAVED_DARK_COLOR : SAVED_COLOR,
-            darkMode ? '#1e1b4b' : '#f5f3ff',
+            darkMode ? '#172554' : '#eff6ff',
           ] as any,
           'circle-radius': 18,
           'circle-stroke-width': 2,
@@ -656,34 +657,47 @@ export default function MapLibreViewer({
           const listItems = sortedLeaves.map((lf: any, idx: number) => {
             const p = lf.properties;
             return (
-              <div
+              <button
+                type="button"
                 key={idx}
-                className="px-3 py-2.5 border-b border-gray-100 dark:border-neutral-800 last:border-0 hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer"
+                className="mm-cluster-popup2-item"
                 style={{ animation: `fadeInUp 0.25s ease-out ${idx * 0.04}s both` }}
                 onClick={() => {
+                  if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
                   if (p?.id) onMuseumClickRef.current(p.id);
                 }}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-bold text-gray-900 dark:text-white text-sm truncate min-w-0 flex-1">{(() => { const loc = localeRef.current; if (loc === 'ko') return p?.nameKo || p?.name; if (loc === 'en') return p?.nameEn || p?.name; try { const t = JSON.parse(p?.nameTranslations || '{}'); return t[loc] || p?.nameEn || p?.name; } catch { return p?.nameEn || p?.name; } })()}</div>
-                  {p?.googleRating > 0 && <span className="text-[10px] text-yellow-500 flex-shrink-0 font-medium">★{Number(p.googleRating).toFixed(1)}</span>}
-                </div>
-                <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate flex items-center gap-1.5">
-                  {(() => { const loc = localeRef.current; if (loc === 'ko') return p?.cityKo || p?.city; if (loc === 'en') return p?.city; try { const t = JSON.parse(p?.cityTranslations || '{}'); return t[loc] || p?.city; } catch { return p?.city; } })()}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
-                  {p?.type && (
-                    <>
-                      <span>•</span>
-                      <span className="capitalize">{translateCategory(p.type, localeRef.current as Locale)}</span>
-                    </>
+                <div className="mm-cluster-popup2-thumb">
+                  {p?.imageSrc ? (
+                    <img
+                      src={p.imageSrc}
+                      alt=""
+                      onError={(event) => {
+                        event.currentTarget.src = '/logo.svg';
+                        event.currentTarget.className = 'mm-cluster-popup2-logo';
+                      }}
+                    />
+                  ) : (
+                    <img src="/logo.svg" alt="" className="mm-cluster-popup2-logo" />
                   )}
                 </div>
-              </div>
+                <div className="mm-cluster-popup2-copy">
+                  <div className="mm-cluster-popup2-title-row">
+                    <strong>{(() => { const loc = localeRef.current; if (loc === 'ko') return p?.nameKo || p?.name; if (loc === 'en') return p?.nameEn || p?.name; try { const t = JSON.parse(p?.nameTranslations || '{}'); return t[loc] || p?.nameEn || p?.name; } catch { return p?.nameEn || p?.name; } })()}</strong>
+                    {p?.googleRating > 0 && <span>★ {Number(p.googleRating).toFixed(1)}</span>}
+                  </div>
+                  <small>
+                    {(() => { const loc = localeRef.current; if (loc === 'ko') return p?.cityKo || p?.city; if (loc === 'en') return p?.city; try { const t = JSON.parse(p?.cityTranslations || '{}'); return t[loc] || p?.city; } catch { return p?.city; } })()}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
+                    {p?.type ? ` · ${translateCategory(p.type, localeRef.current as Locale)}` : ''}
+                  </small>
+                </div>
+              </button>
             );
           });
 
           root.render(
-            <div className="max-h-60 overflow-y-auto w-56 bg-white dark:bg-neutral-900 rounded-lg shadow-xl" style={{ overscrollBehavior: 'contain' }}>
-              <div className="sticky top-0 bg-gray-100 dark:bg-neutral-800 px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-neutral-700 z-10">
+            <div className="mm-cluster-popup2" style={{ overscrollBehavior: 'contain' }}>
+              <div className="mm-cluster-popup2-head">
                 {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
               </div>
               {listItems}
@@ -693,7 +707,7 @@ export default function MapLibreViewer({
           if (geometry.type === 'Point') {
             // Close previous popup if open
             if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
-            const popup = new maplibregl.Popup({ closeButton: false, maxWidth: '300px', offset: [0, 10], anchor: 'top' })
+            const popup = new maplibregl.Popup({ closeButton: false, maxWidth: '340px', offset: [0, 10], anchor: 'top' })
               .setLngLat(geometry.coordinates as [number, number])
               .setDOMContent(popupNode)
               .addTo(map);
@@ -713,7 +727,11 @@ export default function MapLibreViewer({
       map.on('click', 'cluster-glow', handleClusterClick);
       map.on('click', (e: any) => {
         const point = getEventPoint(e);
-        if (!point || !getClusterFeatureAtPoint(map, point)) return;
+        if (!point) return;
+        if (!getClusterFeatureAtPoint(map, point)) {
+          if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+          return;
+        }
         handleClusterClick({ point, features: [] });
       });
       if (!clusterTouchHandlerAttachedRef.current) {
@@ -810,7 +828,7 @@ export default function MapLibreViewer({
       // Register gradient circle images for clusters (3 sizes × 2 variants)
       const clusterSizes = [{ name: 'sm', px: 40 }, { name: 'md', px: 60 }, { name: 'lg', px: 80 }];
       for (const cs of clusterSizes) {
-        for (const variant of ['purple', 'orange'] as const) {
+        for (const variant of ['blue', 'orange'] as const) {
           const key = `cluster-${variant}-${cs.name}`;
           const imgData = createGradientCircle(cs.px, darkMode, variant);
           if (!map.hasImage(key)) map.addImage(key, imgData, { pixelRatio: 2 });
@@ -827,7 +845,7 @@ export default function MapLibreViewer({
           'icon-image': [
             'case', ['>', ['get', 'hasSaved'], 0],
             ['step', ['get', 'point_count'], 'glow-orange-sm', 10, 'glow-orange-md', 50, 'glow-orange-lg'],
-            ['step', ['get', 'point_count'], 'glow-purple-sm', 10, 'glow-purple-md', 50, 'glow-purple-lg'],
+            ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'],
           ] as any,
           'icon-allow-overlap': true, 'icon-size': 1.0,
         },
@@ -839,7 +857,7 @@ export default function MapLibreViewer({
           'icon-image': [
             'case', ['>', ['get', 'hasSaved'], 0],
             ['step', ['get', 'point_count'], 'cluster-orange-sm', 10, 'cluster-orange-md', 50, 'cluster-orange-lg'],
-            ['step', ['get', 'point_count'], 'cluster-purple-sm', 10, 'cluster-purple-md', 50, 'cluster-purple-lg'],
+            ['step', ['get', 'point_count'], 'cluster-blue-sm', 10, 'cluster-blue-md', 50, 'cluster-blue-lg'],
           ] as any,
           'icon-allow-overlap': true,
         },
@@ -872,7 +890,7 @@ export default function MapLibreViewer({
           'circle-color': [
             'case',
             ['==', ['get', 'saved'], 1], darkMode ? '#431407' : '#fff7ed',
-            darkMode ? '#1e1b4b' : '#f5f3ff',
+            darkMode ? '#172554' : '#eff6ff',
           ] as any,
           'circle-radius': 18,
           'circle-stroke-width': 2,
@@ -944,34 +962,47 @@ export default function MapLibreViewer({
           const listItems = sortedLeaves.map((lf: any, idx: number) => {
             const p = lf.properties;
             return (
-              <div
+              <button
+                type="button"
                 key={idx}
-                className="px-3 py-2.5 border-b border-gray-100 dark:border-neutral-700 last:border-0 hover:bg-gray-50 dark:hover:bg-neutral-800 cursor-pointer"
+                className="mm-cluster-popup2-item"
                 style={{ animation: `fadeInUp 0.25s ease-out ${idx * 0.04}s both` }}
                 onClick={() => {
+                  if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
                   if (p?.id) onMuseumClickRef.current(p.id);
                 }}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-bold text-gray-900 dark:text-neutral-100 text-sm truncate min-w-0 flex-1">{(() => { const loc = localeRef.current; if (loc === 'ko') return p?.nameKo || p?.name; if (loc === 'en') return p?.nameEn || p?.name; try { const t = JSON.parse(p?.nameTranslations || '{}'); return t[loc] || p?.nameEn || p?.name; } catch { return p?.nameEn || p?.name; } })()}</div>
-                  {p?.googleRating > 0 && <span className="text-[10px] text-yellow-500 flex-shrink-0 font-medium">★{Number(p.googleRating).toFixed(1)}</span>}
-                </div>
-                <div className="text-[11px] text-gray-500 dark:text-neutral-400 mt-0.5 truncate flex items-center gap-1.5">
-                  {(() => { const loc = localeRef.current; if (loc === 'ko') return p?.cityKo || p?.city; if (loc === 'en') return p?.city; try { const t = JSON.parse(p?.cityTranslations || '{}'); return t[loc] || p?.city; } catch { return p?.city; } })()}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
-                  {p?.type && (
-                    <>
-                      <span>•</span>
-                      <span className="capitalize">{translateCategory(p.type, localeRef.current as Locale)}</span>
-                    </>
+                <div className="mm-cluster-popup2-thumb">
+                  {p?.imageSrc ? (
+                    <img
+                      src={p.imageSrc}
+                      alt=""
+                      onError={(event) => {
+                        event.currentTarget.src = '/logo.svg';
+                        event.currentTarget.className = 'mm-cluster-popup2-logo';
+                      }}
+                    />
+                  ) : (
+                    <img src="/logo.svg" alt="" className="mm-cluster-popup2-logo" />
                   )}
                 </div>
-              </div>
+                <div className="mm-cluster-popup2-copy">
+                  <div className="mm-cluster-popup2-title-row">
+                    <strong>{(() => { const loc = localeRef.current; if (loc === 'ko') return p?.nameKo || p?.name; if (loc === 'en') return p?.nameEn || p?.name; try { const t = JSON.parse(p?.nameTranslations || '{}'); return t[loc] || p?.nameEn || p?.name; } catch { return p?.nameEn || p?.name; } })()}</strong>
+                    {p?.googleRating > 0 && <span>★ {Number(p.googleRating).toFixed(1)}</span>}
+                  </div>
+                  <small>
+                    {(() => { const loc = localeRef.current; if (loc === 'ko') return p?.cityKo || p?.city; if (loc === 'en') return p?.city; try { const t = JSON.parse(p?.cityTranslations || '{}'); return t[loc] || p?.city; } catch { return p?.city; } })()}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
+                    {p?.type ? ` · ${translateCategory(p.type, localeRef.current as Locale)}` : ''}
+                  </small>
+                </div>
+              </button>
             );
           });
 
           root.render(
-            <div className="max-h-60 overflow-y-auto w-56 bg-white dark:bg-neutral-900 rounded-lg shadow-xl" style={{ overscrollBehavior: 'contain' }}>
-              <div className="sticky top-0 bg-gray-100 dark:bg-neutral-800 px-3 py-1.5 text-xs font-bold text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-neutral-700 z-10">
+            <div className="mm-cluster-popup2" style={{ overscrollBehavior: 'contain' }}>
+              <div className="mm-cluster-popup2-head">
                 {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
               </div>
               {listItems}
@@ -980,7 +1011,7 @@ export default function MapLibreViewer({
 
           if (geometry.type === 'Point') {
             if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
-            const popup = new maplibregl.Popup({ closeButton: false, maxWidth: '300px', offset: [0, 10], anchor: 'top' })
+            const popup = new maplibregl.Popup({ closeButton: false, maxWidth: '340px', offset: [0, 10], anchor: 'top' })
               .setLngLat(geometry.coordinates as [number, number])
               .setDOMContent(popupNode)
               .addTo(map);
@@ -1000,7 +1031,11 @@ export default function MapLibreViewer({
       map.on('click', 'cluster-glow', darkHandleClusterClick);
       map.on('click', (e: any) => {
         const point = getEventPoint(e);
-        if (!point || !getClusterFeatureAtPoint(map, point)) return;
+        if (!point) return;
+        if (!getClusterFeatureAtPoint(map, point)) {
+          if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+          return;
+        }
         darkHandleClusterClick({ point, features: [] });
       });
       for (const layer of ['clusters', 'cluster-count', 'cluster-glow', 'unclustered-bg']) {

@@ -51,7 +51,7 @@ export default function NotificationDetailPage() {
             <h1 className="text-xl font-bold dark:text-white mb-4">
                 {t('notif.notFound', locale)}
             </h1>
-            <Link href="/notifications" className="text-purple-600 dark:text-purple-400 hover:underline font-medium text-sm">
+            <Link href="/notifications" className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-sm">
                 ← {t('notif.backToList', locale)}
             </Link>
         </div>
@@ -65,7 +65,7 @@ export default function NotificationDetailPage() {
             <div className="w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 page-slide-in">
                 <Link
                     href="/notifications"
-                    className="hidden lg:inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors mb-6 sm:mb-8 group"
+                    className="hidden lg:inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-6 sm:mb-8 group"
                 >
                     <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -76,13 +76,13 @@ export default function NotificationDetailPage() {
                 <div className="bg-white dark:bg-neutral-900 rounded-3xl border border-gray-100 dark:border-neutral-800 shadow-sm overflow-hidden">
                     <div className="p-6 sm:p-10">
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                                <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                 </svg>
                             </div>
                             <div>
-                                <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest">
+                                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
                                     {t('notif.label', locale)}
                                 </span>
                                 <p className="text-xs text-gray-400 dark:text-neutral-500 font-medium">

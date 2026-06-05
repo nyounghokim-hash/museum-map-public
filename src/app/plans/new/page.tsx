@@ -163,8 +163,8 @@ function AutoRouteContent() {
                 <div className="flex items-center gap-3">
                     <div>
                         <div className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                            <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">Route</span>
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                            <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em]">Route</span>
                         </div>
                         <h1 className="text-lg sm:text-xl font-black tracking-tight dark:text-white leading-tight">{t('plans.reviewAutoRoute', locale)}</h1>
                     </div>
@@ -205,11 +205,11 @@ function AutoRouteContent() {
                                         onPointerCancel={drag.cancelPress}
                                         onPointerLeave={drag.cancelPress}
                                     >
-                                        <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs md:text-sm shrink-0 shadow-md ${isBeingDragged ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white'}`}>
+                                        <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs md:text-sm shrink-0 shadow-md ${isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>
                                             {i + 1}
                                         </div>
                                         <div className={`flex-1 p-2.5 md:p-3 rounded-lg border flex justify-between items-center shadow-sm backdrop-blur-sm
-                                            ${isBeingDragged ? 'border-purple-400 bg-purple-50/50 dark:bg-purple-900/30 dark:border-purple-700' : 'border'}`} style={!isBeingDragged ? { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : undefined}>
+                                            ${isBeingDragged ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-900/30 dark:border-blue-700' : 'border'}`} style={!isBeingDragged ? { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : undefined}>
                                             <div>
                                                 <h4 className="font-bold text-sm dark:text-white">{getLocalizedMuseumName(stop, locale)}</h4>
                                                 <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-0.5">
@@ -239,7 +239,7 @@ function AutoRouteContent() {
                             })}
                         </div>
                         {isDragging && (
-                            <p className="text-xs text-purple-500 dark:text-purple-400 text-center mt-4 animate-pulse">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 text-center mt-4 animate-pulse">
                                 {t('plans.dragReorder', locale)}
                             </p>
                         )}
@@ -252,7 +252,7 @@ function AutoRouteContent() {
                         <div className="space-y-5 mb-6">
                             <div>
                                 <label className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] mb-2 block">{t('plans.tripTitle', locale)}</label>
-                                <input name="title" required type="text" placeholder={t('plans.tripTitlePlaceholder', locale)} className="w-full border-gray-300 dark:border-neutral-700 rounded-xl p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-purple-500 focus:border-purple-500 transition dark:text-white text-sm" />
+                                <input name="title" required type="text" placeholder={t('plans.tripTitlePlaceholder', locale)} className="w-full border-gray-300 dark:border-neutral-700 rounded-xl p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-blue-500 focus:border-blue-500 transition dark:text-white text-sm" />
                             </div>
                             <div>
                                 <label className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] mb-2 block">{locale === 'ko' ? '여행기간 설정' : 'Set Travel Period'}</label>
@@ -267,14 +267,14 @@ function AutoRouteContent() {
                                     minDate={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`}
                                 />
                                 {!startDate && (
-                                    <p className="text-[10px] text-red-400 mt-1.5 font-medium">{({ ko: '시작일과 종료일을 선택해주세요', en: 'Please select start and end dates', ja: '開始日と終了日を選択してください', de: 'Bitte Start- und Enddatum wählen', fr: 'Sélectionnez les dates de début et de fin', es: 'Seleccione fechas de inicio y fin', pt: 'Selecione as datas de início e término', 'zh-CN': '请选择开始和结束日期', 'zh-TW': '請選擇開始和結束日期', da: 'Vælg start- og slutdato', fi: 'Valitse alku- ja loppupäivä', sv: 'Välj start- och slutdatum', et: 'Valige algus- ja lõppkuupäev' } as Record<string, string>)[locale] || 'Please select start and end dates'}</p>
+                                    <p className="text-[10px] text-red-400 mt-1.5 font-medium">{({ ko: '시작일과 종료일을 선택해 주세요', en: 'Please select start and end dates', ja: '開始日と終了日を選択してください', de: 'Bitte Start- und Enddatum wählen', fr: 'Sélectionnez les dates de début et de fin', es: 'Seleccione fechas de inicio y fin', pt: 'Selecione as datas de início e término', 'zh-CN': '请选择开始和结束日期', 'zh-TW': '請選擇開始和結束日期', da: 'Vælg start- og slutdato', fi: 'Valitse alku- ja loppupäivä', sv: 'Välj start- och slutdatum', et: 'Valige algus- ja lõppkuupäev' } as Record<string, string>)[locale] || 'Please select start and end dates'}</p>
                                 )}
                             </div>
                         </div>
                         <button
                             type="submit"
                             disabled={saving || !startDate || !endDate}
-                            className="w-full bg-purple-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-purple-700 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving ? t('plans.saving', locale) : t('plans.saveButton', locale)}
                         </button>

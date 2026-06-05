@@ -73,7 +73,7 @@ function InfoTable({ data, locale }: { data: any[]; locale: string }) {
             try { await navigator.share({ title, url }); } catch { }
         } else {
             await navigator.clipboard.writeText(url);
-            alert(locale === 'ko' ? '링크가 복사되었습니다' : 'Link copied');
+            alert(locale === 'ko' ? '공유 링크를 복사했어요' : 'Link copied');
         }
     };
 
@@ -157,7 +157,7 @@ function ArtworkModal({ work, onClose, translations, locale }: { work: any; onCl
                     {/* Content */}
                     <div className="p-6 pb-10">
                         {work.artist && (
-                            <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1">
+                            <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">
                                 {getLocalizedArtistName(work, locale) || work.artist}
                             </p>
                         )}
@@ -271,7 +271,7 @@ function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string })
                     {hasMore && (
                         <button
                             onClick={() => setShowAll(prev => !prev)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-dashed border-purple-200 dark:border-purple-800/40 bg-purple-50/50 dark:bg-purple-900/10 hover:bg-purple-100 dark:hover:bg-purple-900/25 transition-all text-xs font-bold text-purple-500 dark:text-purple-400 active:scale-95"
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-dashed border-blue-200 dark:border-blue-800/40 bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100 dark:hover:bg-blue-900/25 transition-all text-xs font-bold text-blue-500 dark:text-blue-400 active:scale-95"
                         >
                             {showAll ? (
                                 <>
@@ -287,22 +287,6 @@ function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string })
                         </button>
                     )}
                 </div>
-                <button
-                    onClick={async () => {
-                        const url = buildShareUrl(window.location.href);
-                        if (navigator.share) {
-                            try { await navigator.share({ title: document.title, url }); } catch { }
-                        } else {
-                            await navigator.clipboard.writeText(url);
-                        }
-                    }}
-                    className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors shadow-sm active:scale-95"
-                    aria-label="Share story"
-                >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                    </svg>
-                </button>
             </div>
         </div>
     );
@@ -359,6 +343,15 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
         }, 200);
     }, [backHref, fromMap, router]);
 
+    const handleShare = useCallback(async () => {
+        const url = buildShareUrl(window.location.href);
+        if (navigator.share) {
+            try { await navigator.share({ title: document.title, url }); } catch { }
+        } else {
+            await navigator.clipboard.writeText(url);
+        }
+    }, []);
+
     // DB-cached translation for non-ko/en locales
     const { translations: cached } = useCachedTranslation('story', post.id, effectiveLocale);
     const sourceTitle = post.titleEn || post.title || '';
@@ -396,37 +389,46 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const showBackControls = pathname?.startsWith('/blog/') && pathname !== '/blog';
 
     return (
-        <div className={isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}>
+        <div className={`mm-editorial-page2 w-full lg:max-w-[860px] mx-auto ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             {/* Preview Image with fallback */}
-            <div className="lg:rounded-t-3xl overflow-hidden border-b border-gray-200 dark:border-neutral-800 relative">
-                {/* Back button overlay (top-left, like artwork detail) */}
-                {showBackControls && (
-                    <button
-                        onClick={handleBack}
-                        className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-all active:scale-95"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            <div className="mm-detail-hero2 h-[340px] sm:h-[420px] lg:rounded-b-[32px]">
+                <div className="mm-detail-round-actions">
+                    {showBackControls ? (
+                        <button onClick={handleBack} aria-label="Back">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                    ) : <span />}
+                    <button onClick={handleShare} aria-label="Share story">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
                     </button>
-                )}
+                </div>
                 {post.previewImage && !previewError ? (
                     <img
                         src={post.previewImage}
                         alt={displayTitle}
-                        className="w-full h-[250px] sm:h-[300px] object-cover object-center"
+                        className="w-full h-full object-cover object-center"
                         onError={() => setPreviewError(true)}
                     />
                 ) : (
-                    <div className="w-full h-[250px] sm:h-[300px] flex items-center justify-center bg-gray-100 dark:bg-neutral-800">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-neutral-800">
                         <img src="/logo.svg" alt="Museum Map" className="w-20 h-20 opacity-20 dark:invert dark:opacity-60" />
                     </div>
                 )}
+                <div className="mm-detail-hero-copy">
+                    <div className="mm-gallery-kicker mb-3">MM Story</div>
+                    <h1 className="text-3xl sm:text-5xl font-black leading-[1.02] tracking-tight text-white">
+                        {displayTitle}
+                    </h1>
+                </div>
             </div>
 
             <div className="p-6 sm:p-10 md:p-12">
                 {/* Author & Date */}
-                <div className="flex items-center gap-2 mb-4 text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest">
+                <div className="flex items-center gap-2 mb-4 text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
                     <span>{post.author || 'MM Editor'}</span>
                     <span className="text-gray-300 dark:text-neutral-700">•</span>
                     <span className="text-gray-400 font-medium">{formatDate(post.createdAt, effectiveLocale)}</span>
@@ -441,7 +443,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                     )}
                 </div>
 
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-6 leading-tight">
+                <h1 className="mm-hide-when-hero-title">
                     {displayTitle}
                 </h1>
 
@@ -488,7 +490,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 <div className="mt-10 pt-6 border-t border-gray-100 dark:border-neutral-800">
                     <button
                         onClick={() => setReportOpen(true)}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-100 dark:border-neutral-800 bg-gray-50 dark:bg-neutral-800/50 text-gray-400 dark:text-gray-500 hover:text-purple-600 hover:border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/10 dark:hover:border-purple-800 text-xs font-bold transition-all active:scale-95"
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-100 dark:border-neutral-800 bg-gray-50 dark:bg-neutral-800/50 text-gray-400 dark:text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/10 dark:hover:border-blue-800 text-xs font-bold transition-all active:scale-95"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                         {t('blog.requestInfoUpdate', effectiveLocale as Locale)}
@@ -515,21 +517,6 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                     }}
                 />
             </div>
-
-            {/* Mobile: Floating back button — rendered via portal to escape transform container */}
-            {showBackControls && typeof document !== 'undefined' && createPortal(
-                <div className="story-back-portal lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
-                    <button
-                        onClick={handleBack}
-                        className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-                </div>,
-                document.body
-            )}
         </div>
     );
 }

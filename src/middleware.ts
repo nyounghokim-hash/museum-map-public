@@ -1,11 +1,5 @@
-import { withAuth } from "next-auth/middleware"
+import { getToken } from "next-auth/jwt"
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server"
-
-const authMiddleware = withAuth({
-    pages: {
-        signIn: '/login',
-    },
-})
 
 function isProtectedPath(pathname: string) {
     return pathname === '/saved'
@@ -28,11 +22,16 @@ function getRecoveredInternalUrl(req: NextRequest) {
     return new URL(recovered, req.url);
 }
 
-export default function middleware(req: NextRequest, event: NextFetchEvent) {
+export default async function middleware(req: NextRequest, _event: NextFetchEvent) {
     const recovered = getRecoveredInternalUrl(req);
     if (recovered) return NextResponse.redirect(recovered);
     if (isProtectedPath(req.nextUrl.pathname)) {
-        return authMiddleware(req as any, event);
+        const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+        if (!token) {
+            const loginUrl = new URL('/login', req.url);
+            loginUrl.searchParams.set('callbackUrl', req.nextUrl.pathname + req.nextUrl.search);
+            return NextResponse.redirect(loginUrl);
+        }
     }
     return NextResponse.next();
 }

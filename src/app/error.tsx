@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 const TEXTS: Record<string, { title: string; subtitle: string; retry: string; home: string }> = {
-    ko: { title: '지금 열심히 보수공사 중입니다!', subtitle: '조금만 기다려주세요!', retry: '다시 시도하기', home: '홈으로' },
+    ko: { title: '화면을 불러오지 못했어요', subtitle: '잠시 후 다시 시도해 주세요.', retry: '다시 시도하기', home: '홈으로' },
     en: { title: 'Something went wrong!', subtitle: 'Please wait a moment!', retry: 'Try Again', home: 'Home' },
     ja: { title: '現在メンテナンス中です！', subtitle: '少々お待ちください！', retry: 'もう一度', home: 'ホーム' },
     de: { title: 'Etwas ist schiefgelaufen!', subtitle: 'Bitte warten Sie einen Moment!', retry: 'Erneut versuchen', home: 'Startseite' },

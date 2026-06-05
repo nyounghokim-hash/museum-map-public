@@ -808,7 +808,7 @@ export function getReportLabels(locale: string) {
 
 // ── Copy toast translations ──
 const COPY_TOAST: Record<string, string> = {
-    ko: '주소가 복사되었습니다', en: 'Address copied', ja: 'アドレスをコピーしました',
+    ko: '주소를 복사했어요', en: 'Address copied', ja: 'アドレスをコピーしました',
     de: 'Adresse kopiert', fr: 'Adresse copiée', es: 'Dirección copiada',
     pt: 'Endereço copiado', 'zh-CN': '地址已复制', 'zh-TW': '地址已複製',
     da: 'Adresse kopieret', fi: 'Osoite kopioitu', sv: 'Adress kopierad', et: 'Aadress kopeeritud',
@@ -820,7 +820,7 @@ export function getCopyToast(locale: string): string {
 
 // ── Tap to copy address hint ──
 const TAP_COPY: Record<string, string> = {
-    ko: '터치하여 주소 복사', en: 'Tap to copy address', ja: 'タップしてアドレスをコピー',
+    ko: '주소 복사하기', en: 'Tap to copy address', ja: 'タップしてアドレスをコピー',
     de: 'Tippen zum Kopieren', fr: 'Appuyez pour copier', es: 'Toca para copiar',
     pt: 'Toque para copiar', 'zh-CN': '点击复制地址', 'zh-TW': '點擊複製地址',
     da: 'Tryk for at kopiere', fi: 'Kopioi napauttamalla', sv: 'Tryck för att kopiera', et: 'Puuduta kopeerimiseks',
@@ -871,13 +871,13 @@ const REVIEWS_LABEL: Record<string, string> = {
 };
 
 const NO_REVIEW_TEXT: Record<string, string> = {
-    ko: '리뷰 텍스트가 없습니다.', en: 'No text provided.', ja: 'テキストなし。', de: 'Kein Text vorhanden.', fr: 'Aucun texte fourni.',
+    ko: '리뷰 내용이 비어 있어요.', en: 'No text provided.', ja: 'テキストなし。', de: 'Kein Text vorhanden.', fr: 'Aucun texte fourni.',
     es: 'Sin texto proporcionado.', pt: 'Sem texto fornecido.', 'zh-CN': '暂无文字。', 'zh-TW': '暫無文字。',
     da: 'Ingen tekst angivet.', fi: 'Ei tekstiä.', sv: 'Ingen text tillgänglig.', et: 'Tekst puudub.',
 };
 
 const NO_REVIEWS_MSG: Record<string, string> = {
-    ko: '아직 Google 리뷰가 없습니다.', en: 'No descriptive Google Reviews available at the moment.',
+    ko: '아직 표시할 Google 리뷰가 없어요.', en: 'No descriptive Google Reviews available at the moment.',
     ja: '現在Googleレビューはありません。', de: 'Derzeit keine Google-Bewertungen verfügbar.',
     fr: 'Aucun avis Google disponible pour le moment.', es: 'No hay reseñas de Google disponibles en este momento.',
     pt: 'Nenhuma avaliação do Google disponível no momento.', 'zh-CN': '暂无Google评论。', 'zh-TW': '暫無Google評論。',
@@ -886,7 +886,7 @@ const NO_REVIEWS_MSG: Record<string, string> = {
 };
 
 const NOT_FOUND: Record<string, string> = {
-    ko: '박물관을 찾을 수 없습니다', en: 'Museum Not Found', ja: '博物館が見つかりません', de: 'Museum nicht gefunden',
+    ko: '박물관을 찾지 못했어요', en: 'Museum Not Found', ja: '博物館が見つかりません', de: 'Museum nicht gefunden',
     fr: 'Musée introuvable', es: 'Museo no encontrado', pt: 'Museu não encontrado',
     'zh-CN': '未找到博物馆', 'zh-TW': '找不到博物館', da: 'Museum ikke fundet',
     fi: 'Museota ei löydy', sv: 'Museum hittades inte', et: 'Muuseumit ei leitud',

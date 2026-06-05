@@ -54,8 +54,8 @@ export default function ReportModal({ isOpen, onClose, onSubmit, locale, targetN
                 {/* Header */}
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-purple-500/10 dark:bg-purple-400/10 flex items-center justify-center">
-                            <PencilIcon className="w-5 h-5 text-purple-600" />
+                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center">
+                            <PencilIcon className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
                             <h3 className="text-sm font-extrabold dark:text-white">
@@ -80,7 +80,7 @@ export default function ReportModal({ isOpen, onClose, onSubmit, locale, targetN
                     value={message}
                     onChange={e => setMessage(e.target.value)}
                     placeholder={labels.placeholder}
-                    className="w-full h-28 p-4 rounded-2xl bg-white/50 dark:bg-white/5 border border-white/40 dark:border-white/10 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-neutral-500 resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-700 transition-all"
+                    className="w-full h-28 p-4 rounded-2xl bg-white/50 dark:bg-white/5 border border-white/40 dark:border-white/10 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-neutral-500 resize-none focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 transition-all"
                     onFocus={() => {
                         setTimeout(() => {
                             textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });

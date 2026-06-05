@@ -130,7 +130,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
         >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-neutral-700">
                 <h3 className="font-extrabold text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                    <svg className="w-4 h-4 text-purple-500 dark:text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-4 h-4 text-blue-500 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
@@ -138,7 +138,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                 </h3>
                 <button
                     onClick={onClose}
-                    className="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-800 active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-900"
+                    className="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-800 active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-900"
                     aria-label={locale === 'ko' ? '닫기' : 'Close'}
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -150,7 +150,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
             <div className="max-h-[380px] overflow-y-auto">
                 {state === 'loading' && (
                     <div className="py-10 flex flex-col items-center gap-2 text-gray-500 dark:text-gray-300">
-                        <div className="w-5 h-5 rounded-full border-2 border-purple-300 dark:border-purple-600 border-t-purple-600 dark:border-t-purple-300 animate-spin" />
+                        <div className="w-5 h-5 rounded-full border-2 border-blue-300 dark:border-blue-600 border-t-blue-600 dark:border-t-blue-300 animate-spin" />
                         <p className="text-xs">{locale === 'ko' ? '현재 위치를 확인하는 중이에요' : 'Locating…'}</p>
                     </div>
                 )}
@@ -160,7 +160,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                             {locale === 'ko' ? '현재 위치를 사용하려면 권한이 필요해요' : 'Location permission required'}
                         </p>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {locale === 'ko' ? '브라우저 설정에서 위치 접근을 허용해주세요.' : 'Allow location access in browser settings'}
+                            {locale === 'ko' ? '브라우저 설정에서 위치 접근을 허용해 주세요.' : 'Allow location access in browser settings'}
                         </p>
                     </div>
                 )}
@@ -171,14 +171,14 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                 )}
                 {state === 'ready' && nearby.length === 0 && (
                     <div className="py-8 px-5 text-center text-[11px] text-gray-600 dark:text-gray-300">
-                        {locale === 'ko' ? '가까운 박물관을 찾지 못했어요' : 'No museums found nearby'}
+                        {locale === 'ko' ? '주변에서 표시할 박물관을 찾지 못했어요' : 'No museums found nearby'}
                     </div>
                 )}
                 {state === 'ready' && nearby.map((m: any) => (
                     <button
                         key={m.id}
                         onClick={() => { onMuseumClick(m.id); onClose(); }}
-                        className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-purple-50 dark:hover:bg-purple-900/30 active:scale-[0.98] transition text-left border-b border-gray-100 dark:border-neutral-800 last:border-0 focus-visible:outline-none focus-visible:bg-purple-50 dark:focus-visible:bg-purple-900/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-purple-500"
+                        className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 active:scale-[0.98] transition text-left border-b border-gray-100 dark:border-neutral-800 last:border-0 focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-900/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
                     >
                         <div className="min-w-0 flex-1">
                             <h4 className="font-bold text-xs text-gray-900 dark:text-white truncate">
@@ -188,7 +188,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                                 {getLocalizedCityName(m, locale) || m.city}
                             </p>
                         </div>
-                        <div className="shrink-0 px-2 py-1 rounded-lg bg-purple-100 dark:bg-purple-800/60 text-purple-700 dark:text-purple-100 text-[11px] font-bold font-mono">
+                        <div className="shrink-0 px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-100 text-[11px] font-bold font-mono">
                             {m.distance < 1 ? `${Math.round(m.distance * 1000)}m` : `${m.distance.toFixed(1)}km`}
                         </div>
                     </button>

@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -28,6 +29,17 @@ function sanitizeAI(text: string): string {
         .trim();
 }
 
+function getStoryImageChain(post: any): string[] {
+    const firstMuseum = post.museums?.[0]?.museum;
+    const museumImg = firstMuseum ? getMuseumImageSrc(firstMuseum) : null;
+    const relArt = post.storyArtworks?.[0]?.artwork?.image;
+    const jsonArtRaw = Array.isArray(post.artworks) ? (post.artworks as any[])[0] : null;
+    const jsonArt = jsonArtRaw?.image || jsonArtRaw?.imageUrl;
+    const preview = isRenderableUrl(post.previewImage) ? post.previewImage : null;
+    const artwork = isRenderableUrl(relArt) ? relArt : (isRenderableUrl(jsonArt) ? jsonArt : null);
+    return [artwork, preview, museumImg].filter(Boolean) as string[];
+}
+
 function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
     // DB-cached translations for non-ko/en
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
@@ -52,103 +64,42 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
         displayTitle = getDisplayStoryTitle(sanitizeAI(liveTitle || sourceTitle), post.museums);
         displayContent = sanitizeAI((liveContent || sourceContent).substring(0, 200));
     }
+    const chain = getStoryImageChain(post);
     return (
-        <div
+        <button
             onClick={() => onNavigate(post.id)}
-            className="mm-card group flex flex-col sm:flex-row min-h-auto sm:min-h-[180px] cursor-pointer"
+            className="mm-list-row2 group w-full text-left"
         >
-            {/* Horizontal Thumbnail — 대표작품 이미지를 우선. 순서: storyArtworks → artworks(JSON) → previewImage → 박물관 사진.
-                로드 실패 시(Wikipedia hotlink 404/429 등) 다음 소스로 cascade fallback. */}
-            <div className="w-full sm:w-[280px] h-[180px] sm:h-[200px] shrink-0 overflow-hidden relative" style={{ background: 'var(--mm-surface-secondary)' }}>
-                {(() => {
-                    const firstMuseum = post.museums?.[0]?.museum;
-                    const museumImg = firstMuseum ? getMuseumImageSrc(firstMuseum) : null;
-                    const relArt = post.storyArtworks?.[0]?.artwork?.image;
-                    const jsonArtRaw = Array.isArray(post.artworks) ? (post.artworks as any[])[0] : null;
-                    const jsonArt = jsonArtRaw?.image || jsonArtRaw?.imageUrl;
-                    const preview = isRenderableUrl(post.previewImage) ? post.previewImage : null;
-                    const artwork = isRenderableUrl(relArt) ? relArt : (isRenderableUrl(jsonArt) ? jsonArt : null);
-                    const chain = [artwork, preview, museumImg].filter(Boolean) as string[];
-                    if (chain.length === 0) return null;
-                    return (
-                        <img
-                            src={chain[0]}
-                            data-fallbacks={JSON.stringify(chain.slice(1))}
-                            alt={post.title}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out will-change-transform opacity-0"
-                            onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
-                            onError={(e) => {
-                                const el = e.currentTarget;
-                                const rest = JSON.parse(el.dataset.fallbacks || '[]') as string[];
-                                if (rest.length > 0) {
-                                    const next = rest.shift()!;
-                                    el.dataset.fallbacks = JSON.stringify(rest);
-                                    el.src = next;
-                                } else {
-                                    el.src = '/logo.svg';
-                                    el.className = 'w-full h-full object-contain p-12 opacity-20 dark:invert dark:opacity-60';
-                                }
-                            }}
-                        />
-                    );
-                })() ?? (
-                    <div className="w-full h-full flex items-center justify-center" style={{ color: 'var(--mm-text-tertiary)' }}>
-                        <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                    </div>
-                )}
-                {/* Category badge — top-left, prominent */}
-                {post.category && (() => {
-                    const label = CATEGORY_LABELS[post.category]?.[locale] || CATEGORY_LABELS[post.category]?.en || post.category;
-                    const cat = post.category as string;
-                    const gradientCls =
-                        cat === 'TRAVEL' ? 'bg-gradient-to-br from-blue-500 to-indigo-600'
-                            : cat === 'ART' ? 'bg-gradient-to-br from-pink-500 to-rose-600'
-                                : cat === 'SPECIAL' ? 'bg-gradient-to-br from-amber-500 to-orange-600'
-                                    : 'bg-gradient-to-br from-purple-500 to-purple-700';
-                    return (
-                        <span
-                            className={`absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest text-white shadow-lg ${gradientCls}`}
-                            aria-label={label}
-                        >
-                            <span className="w-1.5 h-1.5 rounded-full bg-white/80" aria-hidden="true" />
-                            {label}
-                        </span>
-                    );
-                })()}
-
-                {/* Museum tags overlay — top-right of image */}
-                {post.museums && post.museums.length > 0 && (
-                    <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1 max-w-[60%]">
-                        {post.museums.slice(0, 3).map((sm: any) => {
-                            const mname = getLocalizedMuseumName(sm.museum || {}, locale);
-                            const display = mname.length > 16 ? mname.substring(0, 16) + '…' : mname;
-                            return (
-                                <span
-                                    key={sm.museum?.id}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold text-white bg-black/55 backdrop-blur-md truncate max-w-full"
-                                    title={mname}
-                                >
-                                    <svg className="w-2.5 h-2.5 flex-shrink-0 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                    </svg>
-                                    <span className="truncate">{display}</span>
-                                </span>
-                            );
-                        })}
-                        {post.museums.length > 3 && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white/85 bg-white/15 backdrop-blur-md">
-                                +{post.museums.length - 3}
-                            </span>
-                        )}
+            <div className="mm-story-list-thumb">
+                {chain[0] ? (
+                    <img
+                        src={chain[0]}
+                        data-fallbacks={JSON.stringify(chain.slice(1))}
+                        alt={post.title}
+                        className="opacity-0 transition-all duration-500 group-hover:scale-105"
+                        onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
+                        onError={(e) => {
+                            const el = e.currentTarget;
+                            const rest = JSON.parse(el.dataset.fallbacks || '[]') as string[];
+                            if (rest.length > 0) {
+                                const next = rest.shift()!;
+                                el.dataset.fallbacks = JSON.stringify(rest);
+                                el.src = next;
+                            } else {
+                                el.src = '/logo.svg';
+                                el.className = 'w-full h-full object-contain p-3 opacity-20 dark:invert dark:opacity-60';
+                            }
+                        }}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.svg" alt="" className="w-8 h-8 opacity-20 dark:invert dark:opacity-60" />
                     </div>
                 )}
             </div>
 
-            {/* Content Side */}
-            <div className="p-5 sm:p-6 flex-1 flex flex-col justify-center min-w-0">
-                <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-widest flex-wrap" style={{ color: 'var(--mm-brand)' }}>
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1 text-[10px] font-black uppercase tracking-widest flex-wrap" style={{ color: 'var(--mm-brand)' }}>
                     <span>{post.author || 'MM Editor'}</span>
                     <span style={{ color: 'var(--mm-surface-border)' }}>•</span>
                     <span className="font-medium" style={{ color: 'var(--mm-text-tertiary)' }}>{formatDate(post.createdAt, locale)}</span>
@@ -159,18 +110,118 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                         </>
                     )}
                 </div>
-                <h2 className="text-lg sm:text-xl font-bold mb-2 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
+                <h2 className="text-[15px] sm:text-base font-black mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
                     {displayTitle}
                 </h2>
-                <p className="text-sm line-clamp-2 leading-relaxed" style={{ color: 'var(--mm-text-secondary)', wordBreak: 'break-word' }}>
+                <p className="text-xs line-clamp-1 leading-relaxed" style={{ color: 'var(--mm-text-secondary)', wordBreak: 'break-word' }}>
                     {displayContent}
                 </p>
-                <div className="mt-3 flex items-center gap-1 text-xs font-bold group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors" style={{ color: 'var(--mm-text-tertiary)' }}>
-                    {t('blog.readMore', locale)}
-                    <svg className="w-3 h-3 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
+            </div>
+        </button>
+    );
+}
+
+function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
+    const { translations: cached } = useCachedTranslation('story', post.id, locale);
+    const sourceTitle = post.titleEn || post.title || '';
+    const sourceContent = ((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '');
+    const liveTitle = useTranslatedText(sourceTitle, locale);
+    const liveContent = useTranslatedText(sourceContent.substring(0, 1200), locale);
+    const displayTitle = getDisplayStoryTitle(sanitizeAI(locale === 'ko'
+        ? post.title
+        : locale === 'en'
+            ? (post.titleEn || post.title)
+            : (cached.title || liveTitle || sourceTitle)), post.museums);
+    const displayContent = sanitizeAI(locale === 'ko'
+        ? (post.content || '').replace(/<[^>]*>/g, '')
+        : locale === 'en'
+            ? ((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '')
+            : (cached.content || liveContent || sourceContent)).substring(0, 110);
+    const chain = getStoryImageChain(post);
+
+    return (
+        <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
+            <div className="h-36 overflow-hidden bg-slate-100 dark:bg-neutral-800">
+                {chain[0] ? (
+                    <img
+                        src={chain[0]}
+                        data-fallbacks={JSON.stringify(chain.slice(1))}
+                        alt={post.title}
+                        className="w-full h-full object-cover opacity-0 transition-all duration-700 group-hover:scale-105"
+                        onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
+                        onError={(e) => {
+                            const el = e.currentTarget;
+                            const rest = JSON.parse(el.dataset.fallbacks || '[]') as string[];
+                            if (rest.length > 0) {
+                                const next = rest.shift()!;
+                                el.dataset.fallbacks = JSON.stringify(rest);
+                                el.src = next;
+                            } else {
+                                el.src = '/logo.svg';
+                                el.className = 'w-full h-full object-contain p-10 opacity-20 dark:invert dark:opacity-60';
+                            }
+                        }}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
+                    </div>
+                )}
+            </div>
+            <div className="p-4">
+                <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">{post.author || 'MM Editor'} · {formatDate(post.createdAt, locale)}</div>
+                <h3 className="mt-2 text-base font-black leading-tight line-clamp-2 dark:text-white">{displayTitle}</h3>
+                <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">{displayContent}</p>
+            </div>
+        </button>
+    );
+}
+
+function BlogPageSkeleton({ locale }: { locale: Locale }) {
+    return (
+        <div className="no-back-swipe mm-editorial-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
+                <div className="mm-skel-line w-20 mb-4 opacity-40" />
+                <div className="mm-skel-line h-8 w-52 mb-3 opacity-50" />
+                <div className="mm-skel-line w-64 opacity-40" />
+                <div className="mt-5 flex gap-2 overflow-hidden">
+                    {Array.from({ length: 4 }).map((_, i) => <div key={i} className="mm-skel-pill w-24 opacity-40" />)}
                 </div>
+            </div>
+
+            <div className="mm-section-heading">
+                <h2>{locale === 'ko' ? '여기는 어때요?' : 'How about these?'}</h2>
+                <span>{locale === 'ko' ? '불러오는 중' : 'Loading'}</span>
+            </div>
+            <div className="mm-rail-scroll flex gap-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="mm-actual-skeleton w-[240px] shrink-0">
+                        <div className="mm-skel-block h-36 rounded-none" />
+                        <div className="p-4">
+                            <div className="mm-skel-line w-24 mb-3" />
+                            <div className="mm-skel-line h-5 w-44 mb-2" />
+                            <div className="mm-skel-line h-5 w-32 mb-3" />
+                            <div className="mm-skel-line w-full" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="mm-section-heading">
+                <h2>{locale === 'ko' ? '새 이야기' : 'New stories'}</h2>
+                <span>{locale === 'ko' ? '최근 발행' : 'Recent'}</span>
+            </div>
+            <div className="mm-list-surface">
+                {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="mm-list-row2">
+                        <div className="mm-skel-block h-[72px] w-[84px] shrink-0" />
+                        <div className="min-w-0 flex-1">
+                            <div className="mm-skel-line w-32 mb-2" />
+                            <div className="mm-skel-line h-5 w-11/12 mb-2" />
+                            <div className="mm-skel-line w-2/3" />
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -218,6 +269,7 @@ const SORT_LABELS: Record<SortMode, Record<string, string>> = {
 export default function BlogListPage() {
     const { locale } = useApp();
     const router = useRouter();
+    const { data: session } = useSession();
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [navigating, setNavigating] = useState(false);
@@ -344,63 +396,44 @@ export default function BlogListPage() {
         setPage(1);
     };
 
-    if (loading) return (
-        <div className="no-back-swipe w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8">
-            <div className="mb-6 sm:mb-8">
-                <div className="skeleton skeleton-text w-16 mb-3" />
-                <div className="skeleton skeleton-title w-48 mb-2" />
-                <div className="skeleton skeleton-text w-72 mt-2" />
-            </div>
-            <div className="flex flex-col gap-6 sm:gap-8">
-                {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="skeleton skeleton-card flex flex-col sm:flex-row overflow-hidden">
-                        <div className="w-full sm:w-[280px] h-[180px] sm:h-[200px] shrink-0 skeleton" style={{ borderRadius: 0 }} />
-                        <div className="p-5 sm:p-6 flex-1 flex flex-col justify-center gap-3">
-                            <div className="flex gap-2">
-                                <div className="skeleton skeleton-text w-16" />
-                                <div className="skeleton skeleton-text w-20" />
-                            </div>
-                            <div className="skeleton skeleton-title w-3/4" />
-                            <div className="space-y-2">
-                                <div className="skeleton skeleton-text w-full" />
-                                <div className="skeleton skeleton-text w-2/3" />
-                            </div>
-                            <div className="skeleton skeleton-text w-20 mt-1" />
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+    const curatedPosts = useMemo(() => {
+        const arr = [...filteredPosts];
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr.slice(0, 4);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filteredPosts.length, activeCategory]);
+    const curatedIds = new Set(curatedPosts.map((post: any) => post.id));
+    const freshPosts = [...filteredPosts]
+        .filter((post: any) => !curatedIds.has(post.id))
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 3);
+
+    if (loading) return <BlogPageSkeleton locale={locale} />;
 
     return (
-        <div className="no-back-swipe w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8">
+        <div className="no-back-swipe mm-editorial-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             {navigating && <LoadingAnimation />}
-            <div className="mb-6 sm:mb-8 animate-fadeInUp">
-                <div className="flex items-center gap-2 mb-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                    <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">{locale === 'ko' ? '스토리' : 'Story'}</span>
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight dark:text-white">
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6 animate-fadeInUp">
+                <div className="mm-gallery-kicker mb-3">{locale === 'ko' ? 'Curated' : 'Curated'}</div>
+                <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
                     {t('blog.title', locale)}
                 </h1>
-                <p className="text-gray-400 dark:text-neutral-500 mt-1 text-xs font-medium">
+                <p className="text-blue-100/80 mt-2 text-sm font-medium">
                     {t('blog.subtitle', locale)}
                 </p>
 
                 {/* Category Tabs — 전체 너비, SVG 아이콘 */}
-                <div className="flex mt-4 bg-gray-100 dark:bg-neutral-800 rounded-2xl p-1 gap-1">
+                <div className="flex mt-5 gap-2 overflow-x-auto scrollbar-hide">
                     {CATEGORIES.map(cat => {
                         const isActive = activeCategory === cat.key;
                         return (
                             <button
                                 key={cat.key}
                                 onClick={() => handleCategoryChange(cat.key)}
-                                className={`flex-1 flex items-center justify-center gap-1.5 py-3 lg:py-2.5 rounded-xl text-xs lg:text-sm font-bold whitespace-nowrap transition-all duration-200 active:scale-95 ${
-                                    isActive
-                                        ? 'gradient-btn text-white shadow-lg'
-                                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                                }`}
+                                className={`mm-gallery-chip ${isActive ? 'is-active' : ''}`}
                             >
                                 {cat.icon}
                                 <span>{CATEGORY_LABELS[cat.key]?.[locale] || CATEGORY_LABELS[cat.key]?.en}</span>
@@ -409,18 +442,6 @@ export default function BlogListPage() {
                     })}
                 </div>
 
-                {/* Sort Dropdown — 저장 페이지와 동일 스타일 */}
-                <div className="flex items-center justify-end mt-3">
-                    <select
-                        value={sortMode}
-                        onChange={e => handleSortChange(e.target.value as SortMode)}
-                        className="px-3 py-1.5 rounded-xl text-[10px] lg:text-xs font-semibold border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-700 dark:text-neutral-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-300"
-                    >
-                        {(['random', 'newest', 'oldest', 'distance'] as SortMode[]).map(mode => (
-                            <option key={mode} value={mode}>{SORT_LABELS[mode]?.[locale] || SORT_LABELS[mode]?.en}</option>
-                        ))}
-                    </select>
-                </div>
             </div>
 
             {posts.length === 0 ? (
@@ -443,7 +464,54 @@ export default function BlogListPage() {
                 </div>
             ) : (
                 <>
-                    <div className="flex flex-col gap-6 sm:gap-8 stagger-children">
+                    {curatedPosts.length > 0 && (
+                        <>
+                            <div className="mm-section-heading">
+                                <h2>{locale === 'ko' ? '여기는 어때요?' : 'How about these?'}</h2>
+                                {(session?.user as any)?.role === 'ADMIN' ? (
+                                    <Link href="/admin" className="text-blue-600 dark:text-blue-400">{locale === 'ko' ? '큐레이션 설정' : 'Edit curation'}</Link>
+                                ) : (
+                                    <span>{locale === 'ko' ? '랜덤 추천' : 'Random picks'}</span>
+                                )}
+                            </div>
+                            <div className="mm-rail-scroll stagger-children flex gap-3">
+                                {curatedPosts.map((post: any) => (
+                                    <StoryRailCard key={`curated-${post.id}`} post={post} locale={locale} onNavigate={handleNavigate} />
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    {freshPosts.length > 0 && (
+                        <>
+                            <div className="mm-section-heading">
+                                <h2>{locale === 'ko' ? '새 이야기' : 'New stories'}</h2>
+                                <span>{locale === 'ko' ? '최근 발행' : 'Recently published'}</span>
+                            </div>
+                            <div className="mm-list-surface">
+                                {freshPosts.map((post: any) => (
+                                    <BlogCard key={`fresh-${post.id}`} post={post} locale={locale} onNavigate={handleNavigate} />
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    <div className="mm-section-heading">
+                        <h2>{locale === 'ko' ? '이야기 목록' : 'Story list'}</h2>
+                        <div className="flex items-center gap-2">
+                            <span>{sortedPosts.length.toLocaleString()} {locale === 'ko' ? '편' : 'stories'}</span>
+                            <select
+                                value={sortMode}
+                                onChange={e => handleSortChange(e.target.value as SortMode)}
+                                className="mm-gallery-chip cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300"
+                            >
+                                {(['random', 'newest', 'oldest', 'distance'] as SortMode[]).map(mode => (
+                                    <option key={mode} value={mode}>{SORT_LABELS[mode]?.[locale] || SORT_LABELS[mode]?.en}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <div className="mm-list-surface stagger-children">
                         {paginatedPosts.map((post: any) => (
                             <BlogCard key={post.id} post={post} locale={locale} onNavigate={handleNavigate} />
                         ))}

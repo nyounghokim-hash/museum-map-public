@@ -121,13 +121,13 @@ export default function CalendarPicker({ value, onChange, locale = 'en', minDate
             {/* Range display */}
             {rangeMode && startDate && (
                 <div className="flex items-center gap-2 mb-3 text-xs font-bold">
-                    <span className="px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                         {new Date(startDate + 'T00:00:00').toLocaleDateString(locale === 'ko' ? 'ko-KR' : locale, { month: 'short', day: 'numeric' })}
                     </span>
                     {endDate && (
                         <>
                             <span className="text-gray-300 dark:text-gray-600">→</span>
-                            <span className="px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                            <span className="px-2.5 py-1 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                                 {new Date(endDate + 'T00:00:00').toLocaleDateString(locale === 'ko' ? 'ko-KR' : locale, { month: 'short', day: 'numeric' })}
                             </span>
                         </>
@@ -193,16 +193,16 @@ export default function CalendarPicker({ value, onChange, locale = 'en', minDate
                             className={`
                                 relative w-full aspect-square flex items-center justify-center text-xs font-medium rounded-xl transition-all
                                 ${!cell.isCurrentMonth ? 'text-gray-200 dark:text-neutral-700 cursor-default' : ''}
-                                ${cell.isCurrentMonth && !isSelected && !inRange && !isDisabled ? 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 cursor-pointer active:scale-90' : ''}
-                                ${isSelected ? 'bg-purple-600 text-white font-black shadow-md shadow-purple-500/20 scale-105' : ''}
-                                ${inRange && cell.isCurrentMonth ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-semibold' : ''}
-                                ${isToday && !isSelected ? 'font-black text-purple-600 dark:text-purple-400' : ''}
+                                ${cell.isCurrentMonth && !isSelected && !inRange && !isDisabled ? 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer active:scale-90' : ''}
+                                ${isSelected ? 'bg-blue-600 text-white font-black shadow-md shadow-blue-500/20 scale-105' : ''}
+                                ${inRange && cell.isCurrentMonth ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold' : ''}
+                                ${isToday && !isSelected ? 'font-black text-blue-600 dark:text-blue-400' : ''}
                                 ${isDisabled && cell.isCurrentMonth ? 'text-gray-300 dark:text-neutral-600 cursor-not-allowed line-through' : ''}
                             `}
                         >
                             {cell.day}
                             {isToday && !isSelected && (
-                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-purple-500" />
+                                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500" />
                             )}
                         </button>
                     );

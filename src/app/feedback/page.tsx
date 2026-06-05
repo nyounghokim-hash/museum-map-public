@@ -65,8 +65,8 @@ export default function FeedbackPage() {
                         {/* Textarea Card */}
                         <div className="border rounded-xl px-4 py-3.5" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
-                                    <svg className="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                                    <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                                     </svg>
                                 </div>
@@ -79,7 +79,7 @@ export default function FeedbackPage() {
                                     value={message}
                                     onChange={e => setMessage(e.target.value)}
                                     rows={5}
-                                    className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white p-3 focus:ring-1 focus:ring-purple-400 focus:border-purple-400 dark:focus:ring-purple-500 dark:focus:border-purple-500 resize-none outline-none transition-all"
+                                    className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-sm text-gray-900 dark:text-white p-3 focus:ring-1 focus:ring-blue-400 focus:border-blue-400 dark:focus:ring-blue-500 dark:focus:border-blue-500 resize-none outline-none transition-all"
                                     placeholder={t('feedback.subtitle', locale)}
                                 />
                                 <button

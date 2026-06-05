@@ -82,7 +82,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
                         </div>
                         {/* Body */}
                         <div className="px-5 py-4">
-                            <p className="text-sm text-gray-600 dark:text-gray-300">{modal.message}</p>
+                            <p className="whitespace-pre-line text-sm leading-relaxed text-gray-600 dark:text-gray-300">{modal.message}</p>
                         </div>
                         {/* Actions — gradient buttons */}
                         <div className="flex gap-2 px-5 pb-5">

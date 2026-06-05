@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Cloudy weather">
+  <defs>
+    <linearGradient id="cloud" x1="18" x2="78" y1="32" y2="75" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset=".56" stop-color="#E5E7EB"/>
+      <stop offset="1" stop-color="#C4B5FD"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#cloud)" stroke="#A78BFA" stroke-width="2.5" d="M25.5 72h43A16.5 16.5 0 0 0 70.4 39.1 23 23 0 0 0 26 46.8 12.6 12.6 0 0 0 25.5 72Z"/>
+  <path fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-width="4" d="M27 61h41"/>
+</svg>

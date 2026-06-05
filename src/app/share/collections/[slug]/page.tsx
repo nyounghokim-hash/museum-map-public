@@ -62,7 +62,7 @@ export default function SharedCollectionPage() {
                 <p className="text-blue-100 mb-6 font-medium">{t('share.inspiredDesc', locale)}</p>
                 <button
                     onClick={handleCloneToMap}
-                    className="bg-white text-purple-700 px-8 py-3 rounded-xl font-bold hover:bg-gray-100 transition shadow-md active:scale-95"
+                    className="bg-white text-blue-700 px-8 py-3 rounded-xl font-bold hover:bg-gray-100 transition shadow-md active:scale-95"
                 >
                     {t('share.saveAndOpen', locale)}
                 </button>
@@ -82,7 +82,7 @@ export default function SharedCollectionPage() {
                         </div>
                         <button
                             onClick={() => router.push(`/museums/${item.museumId}`)}
-                            className="text-sm font-bold text-purple-600 hover:text-purple-700 hover:underline px-4 transition-colors"
+                            className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline px-4 transition-colors"
                         >
                             {t('share.viewDetail', locale)}
                         </button>

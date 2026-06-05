@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Thunderstorm weather">
+  <defs>
+    <linearGradient id="cloud" x1="19" x2="79" y1="23" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#EDE9FE"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="37" x2="59" y1="56" y2="91" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDE68A"/>
+      <stop offset="1" stop-color="#F97316"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#cloud)" stroke="#6D28D9" stroke-width="2.3" d="M25 58h43.5A15 15 0 0 0 70 28.1 21 21 0 0 0 29.7 35 11.4 11.4 0 0 0 25 58Z"/>
+  <path fill="url(#bolt)" stroke="#FDBA74" stroke-linejoin="round" stroke-width="1.5" d="M49 56 36 78h12l-3 16 16-25H49l6-13h-6Z"/>
+</svg>

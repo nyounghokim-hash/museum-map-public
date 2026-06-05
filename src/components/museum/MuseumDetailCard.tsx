@@ -115,32 +115,44 @@ function ArtworkCard({ work, locale, cachedTranslations, index, onClick }: { wor
     const cachedTitle = cachedTranslations?.[`artwork_${index}_title`];
     const cachedDesc = cachedTranslations?.[`artwork_${index}_desc`];
     const [imgError, setImgError] = useState(false);
+    const artworkTitle = getLocalizedArtworkTitle(work, locale);
+    const artistName = getLocalizedArtistName(work, locale) || work.artist;
     return (
-        <div
-            className="min-w-[160px] max-w-[180px] sm:min-w-[200px] sm:max-w-[220px] flex-shrink-0 snap-start rounded-2xl overflow-hidden border group cursor-pointer active:scale-[0.98] transition-transform"
-            style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
+        <button
+            type="button"
+            className="mm-featured-art-card p-0 text-left group cursor-pointer appearance-none"
             onClick={onClick}
+            aria-label={artworkTitle || work.title || ''}
         >
-            <div className="h-[100px] sm:h-[140px] overflow-hidden bg-gray-100 dark:bg-neutral-700">
+            <div className="mm-featured-art-image relative">
                 <img
                     src={work.image && !imgError ? work.image : '/logo.svg'}
                     alt={work.title || ''}
-                    className={`w-full h-full transition-transform duration-500 ${work.image && !imgError ? 'object-cover group-hover:scale-105' : 'object-contain p-8 opacity-20 dark:invert dark:opacity-60'}`}
+                    className={`w-full h-full transition-transform duration-500 ${work.image && !imgError ? 'object-cover group-hover:scale-[1.04]' : 'object-contain p-8 opacity-20 dark:invert dark:opacity-60'}`}
                     onError={() => setImgError(true)}
                 />
+                {work.year && (
+                    <span className="mm-chip mm-chip--muted absolute left-2 top-2 px-2 py-1 text-[10px] leading-none shadow-sm backdrop-blur-md">
+                        {work.year}
+                    </span>
+                )}
             </div>
-            <div className="p-2.5 sm:p-3">
-                <p className="text-[9px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest">{getLocalizedArtistName(work, locale) || work.artist}</p>
-                <h4 className="font-bold text-xs dark:text-white leading-tight mt-0.5 line-clamp-1">
-                    {getLocalizedArtworkTitle(work, locale)}
+            <div className="p-3 sm:p-3.5">
+                {artistName && (
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest line-clamp-1" style={{ color: 'var(--mm-brand)' }}>
+                        {artistName}
+                    </p>
+                )}
+                <h4 className="mt-1 text-sm font-extrabold leading-snug line-clamp-2" style={{ color: 'var(--mm-text-primary)' }}>
+                    {artworkTitle || cachedTitle || work.title}
                 </h4>
                 {work.description && (
-                    <p className="text-[10px] text-gray-400 dark:text-neutral-500 mt-1 line-clamp-2 leading-relaxed">
+                    <p className="mt-1.5 text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--mm-text-secondary)' }}>
                         {locale === 'ko' ? (work.descriptionKo || work.description) : locale === 'en' ? work.description : (cachedDesc || <TranslatedText text={work.description} targetLocale={locale} />)}
                     </p>
                 )}
             </div>
-        </div>
+        </button>
     );
 }
 
@@ -155,7 +167,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const [showShrink, setShowShrink] = useState(false);
     const { data: session, status } = useSession();
     const router = useRouter();
-    const { addToCompare, isInCompare } = useCompare();
+    const { addToCompare, removeFromCompare, isInCompare } = useCompare();
     const isSignedInUser = status === 'authenticated' && !session?.user?.name?.startsWith('guest_');
 
     const triggerBurst = () => {
@@ -197,6 +209,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const [compareToastExiting, setCompareToastExiting] = useState(false);
     const [compareToastMessage, setCompareToastMessage] = useState('');
     const [compareToastIsFull, setCompareToastIsFull] = useState(false);
+    const [compareToastShowAction, setCompareToastShowAction] = useState(false);
     const [scrollY, setScrollY] = useState(0);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -208,9 +221,10 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     }, []);
 
     // Trigger compare toast
-    const triggerCompareToast = useCallback((message: string, isFull: boolean) => {
+    const triggerCompareToast = useCallback((message: string, isFull: boolean, showAction = !isFull) => {
         setCompareToastMessage(message);
         setCompareToastIsFull(isFull);
+        setCompareToastShowAction(showAction);
         setShowCompareToast(true);
         setCompareToastExiting(false);
         // Auto-dismiss after 3.5s (longer to give time to click button)
@@ -349,11 +363,78 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         }).catch(() => {/* ignore */ });
     };
 
+    const handleToggleCompare = () => {
+        if (!data) return;
+        if (!isSignedInUser) { router.push('/login'); return; }
+        if (isInCompare(data.id)) {
+            removeFromCompare(data.id);
+            triggerCompareToast(t('compare.removed', locale), false, false);
+        } else {
+            const added = addToCompare(data.id);
+            if (added) triggerCompareToast(t('compare.added', locale), false);
+            else triggerCompareToast(t('compare.full', locale), true);
+        }
+    };
+
+    const handleTogglePick = async (e?: React.MouseEvent<HTMLButtonElement>) => {
+        e?.preventDefault();
+        if (!data) return;
+        if (!isSignedInUser) { router.push('/login'); return; }
+        if (isPicked && saveId) {
+            const prevSaveId = saveId;
+            setIsPicked(false);
+            setSaveId(null);
+            triggerShrink();
+            fetch(`/api/me/saves/${prevSaveId}`, { method: 'DELETE' })
+                .then(() => { onSaveChange?.(); })
+                .catch(() => { setIsPicked(true); setSaveId(prevSaveId); });
+        } else {
+            setIsPicked(true);
+            triggerBurst();
+            fetch('/api/saves', { method: 'POST', body: JSON.stringify({ museumId: data.id }) })
+                .then(r => r.json()).then(res => {
+                    if (res.data) {
+                        setSaveId(res.data.id || res.data._id);
+                        onSaveChange?.();
+                        triggerSaveToast();
+                        gtag.event('save_museum', { category: 'museum', label: data.name, value: 1 });
+                    } else {
+                        setIsPicked(false);
+                    }
+                }).catch(() => { setIsPicked(false); });
+        }
+    };
+
+    const visitorItems = Array.isArray(data.visitorInfo) ? data.visitorInfo : [];
+    const quickHoursItem = visitorItems.find((item: any) => item.icon === '🕐' || item.icon === 'clock' || item.label?.includes('영업') || item.label?.includes('시간'));
+    const quickAccessItem = visitorItems.find((item: any) => item.icon === '🚇' || item.label === '교통' || item.label === '가는 길');
+    const decisionLabels = ({
+        ko: { title: '방문 전에 확인해요', directions: '길찾기', rating: '평점', hours: '운영 정보', access: '가는 길' },
+        en: { title: 'Before you visit', directions: 'Directions', rating: 'Rating', hours: 'Hours', access: 'Getting there' },
+        ja: { title: '訪問前に確認', directions: '経路を見る', rating: '評価', hours: '営業時間', access: 'アクセス' },
+        de: { title: 'Vor dem Besuch', directions: 'Route', rating: 'Bewertung', hours: 'Öffnungszeiten', access: 'Anfahrt' },
+        fr: { title: 'Avant la visite', directions: 'Itinéraire', rating: 'Note', hours: 'Horaires', access: 'Accès' },
+        es: { title: 'Antes de visitar', directions: 'Cómo llegar', rating: 'Valoración', hours: 'Horario', access: 'Acceso' },
+        pt: { title: 'Antes da visita', directions: 'Como chegar', rating: 'Avaliação', hours: 'Horário', access: 'Acesso' },
+        'zh-CN': { title: '到访前确认', directions: '路线', rating: '评分', hours: '开放时间', access: '交通' },
+        'zh-TW': { title: '到訪前確認', directions: '路線', rating: '評分', hours: '開放時間', access: '交通' },
+        da: { title: 'Før besøget', directions: 'Rute', rating: 'Bedømmelse', hours: 'Åbningstider', access: 'Transport' },
+        fi: { title: 'Ennen vierailua', directions: 'Reitti', rating: 'Arvio', hours: 'Aukiolo', access: 'Kulkuyhteydet' },
+        sv: { title: 'Före besöket', directions: 'Vägbeskrivning', rating: 'Betyg', hours: 'Öppettider', access: 'Transport' },
+        et: { title: 'Enne külastust', directions: 'Teekond', rating: 'Hinnang', hours: 'Lahtiolekuajad', access: 'Transport' },
+    } as Record<string, { title: string; directions: string; rating: string; hours: string; access: string }>)[locale] || {
+        title: 'Before you visit',
+        directions: 'Directions',
+        rating: 'Rating',
+        hours: 'Hours',
+        access: 'Getting there',
+    };
+
     const showMiniHeader = scrollY > 260;
 
     return (
         <div
-            className="w-full max-w-full overflow-hidden flex flex-col relative"
+            className="mm-museum-detail2 w-full max-w-full overflow-hidden flex flex-col relative"
             ref={scrollContainerRef}
             onScroll={handleDetailScroll}
         >
@@ -361,7 +442,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
             {/* Sticky Mini Header — appears when scrolled past hero */}
             {showMiniHeader && (
-                <div className="sticky top-0 z-30 animate-mini-header backdrop-blur-xl px-4 py-2.5 flex items-center gap-3" style={{ background: 'var(--glass-bg-heavy)', borderBottom: '1px solid var(--glass-border)' }}>
+                <div className="mm-detail-mini-header sticky top-0 z-30 animate-mini-header backdrop-blur-xl px-4 py-2.5 flex items-center gap-3" style={{ background: 'var(--glass-bg-heavy)', borderBottom: '1px solid var(--glass-border)' }}>
                     {/* Gradient accent at bottom */}
                     <div className="absolute bottom-0 left-0 right-0 h-[1px]" style={{ background: 'var(--gradient-border-subtle)' }} />
                     {onClose && (
@@ -383,35 +464,41 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             )}
 
             {/* Hero Card with Cover Image */}
-            <GlassPanel intensity="heavy" className="mb-8 relative overflow-hidden group border-0 lg:border !rounded-none lg:!rounded-3xl shadow-none lg:shadow">
+            <GlassPanel intensity="heavy" className="mm-detail-hero-card mb-8 relative overflow-hidden group border-0 lg:border !rounded-none lg:!rounded-3xl shadow-none lg:shadow">
                 {/* Cover Image — PhotoCarousel (이미지 영역에서는 스와이프 뒤로가기 비활성화) */}
-                <div data-no-swipe-back>
+                <div data-no-swipe-back className="mm-museum-hero2">
                 <PhotoCarousel
                     photos={(() => { const raw = (data.placePhotos?.length > 0 ? data.placePhotos : (data.imageUrl ? [data.imageUrl] : [])) as string[]; return Array.from(new Set(raw)); })()}
                     alt={data.name}
-                    className="h-72 sm:h-96 w-full bg-gray-900"
+                    className="h-[604px] w-full bg-gray-900"
                 >
-                    {/* PC: Back button on image (top-left) */}
-                    {onClose && (
-                        <button onClick={onClose} className="hidden lg:flex absolute top-4 left-4 z-20 w-12 h-12 items-center justify-center bg-black/40 backdrop-blur-md text-white rounded-full shadow-lg active:scale-95 transition-all hover:bg-black/60">
+                    {/* Back button on image */}
+                    <button onClick={onClose || (() => router.back())} className="mm-museum-round-action absolute top-4 left-4 z-20 active:scale-95 transition-all">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                             </svg>
-                        </button>
-                    )}
-                    {/* PC: Compare button on image */}
+                    </button>
+                    {/* Share button on image */}
                     <button
-                        onClick={() => {
-                            if (!isSignedInUser) { router.push('/login'); return; }
-                            if (isInCompare(data.id)) {
-                                triggerCompareToast(t('compare.added', locale), false);
+                        onClick={async () => {
+                            const url = buildShareUrl(`${window.location.origin}/museums/${museumId}`);
+                            if (navigator.share) {
+                                try { await navigator.share({ title: data.name, url }); } catch { }
                             } else {
-                                const added = addToCompare(data.id);
-                                if (added) triggerCompareToast(t('compare.added', locale), false);
-                                else triggerCompareToast(t('compare.full', locale), true);
+                                await navigator.clipboard.writeText(url);
                             }
                         }}
-                        className={`hidden lg:flex absolute top-4 right-[4.5rem] z-20 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 active:scale-90 ${isInCompare(data.id)
+                        className="mm-museum-round-action absolute top-4 right-4 z-20 active:scale-95 transition-all"
+                        aria-label="Share"
+                    >
+                        <svg className="h-[18px] w-[18px] lg:h-5 lg:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                    </button>
+                    {/* PC: Compare button on image */}
+                    <button
+                        onClick={handleToggleCompare}
+                        className={`hidden lg:flex absolute top-4 right-[8rem] z-20 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 active:scale-90 ${isInCompare(data.id)
                             ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/30'
                             : 'bg-black/40 backdrop-blur-md text-emerald-300 hover:bg-black/60 ring-2 ring-emerald-300/70'
                             }`}
@@ -423,35 +510,19 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     </button>
                     {/* PC: Bookmark button on image (top-right) */}
                     <button
-                        onClick={async (e) => {
-                            e.preventDefault();
-                            if (!isSignedInUser) { router.push('/login'); return; }
-                            if (isPicked && saveId) {
-                                const prevSaveId = saveId;
-                                setIsPicked(false); setSaveId(null); triggerShrink();
-                                fetch(`/api/me/saves/${prevSaveId}`, { method: 'DELETE' }).then(() => { onSaveChange?.(); }).catch(() => { setIsPicked(true); setSaveId(prevSaveId); });
-                            } else {
-                                setIsPicked(true);
-                                triggerBurst();
-                                fetch('/api/saves', { method: 'POST', body: JSON.stringify({ museumId: data.id }) })
-                                    .then(r => r.json()).then(res => {
-                                        if (res.data) { setSaveId(res.data.id || res.data._id); onSaveChange?.(); triggerSaveToast(); gtag.event('save_museum', { category: 'museum', label: data.name, value: 1 }); }
-                                        else { setIsPicked(false); }
-                                    }).catch(() => { setIsPicked(false); });
-                            }
-                        }}
-                        className={`hidden lg:flex absolute top-4 right-4 z-20 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 ${showBurst ? 'animate-bookmark-bounce' : showShrink ? 'animate-bookmark-shrink' : 'active:scale-90'} ${isPicked
-                            ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-orange-500/30'
-                            : 'bg-black/40 backdrop-blur-md text-white/80 hover:bg-black/60 ring-2 ring-orange-300/70'
+                        onClick={handleTogglePick}
+                        className={`flex absolute top-4 right-[4.75rem] z-20 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 ${showBurst ? 'animate-bookmark-bounce' : showShrink ? 'animate-bookmark-shrink' : 'active:scale-90'} ${isPicked
+                            ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-blue-500/30'
+                            : 'bg-black/40 backdrop-blur-md text-white/80 hover:bg-black/60 ring-2 ring-blue-300/70'
                             }`}
                     >
                         {/* Blurred glow burst */}
                         {showBurst && (
                             <>
-                                <span className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(251,146,60,0.5) 0%, transparent 70%)', animation: 'bookmarkRing 600ms ease-out forwards', filter: 'blur(6px)' }} />
+                                <span className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(37,99,235,0.5) 0%, transparent 70%)', animation: 'bookmarkRing 600ms ease-out forwards', filter: 'blur(6px)' }} />
                                 {[0, 1, 2, 3, 4, 5].map(i => (
                                     <span key={i} className="absolute w-2 h-2 rounded-full" style={{
-                                        background: ['rgba(251,146,60,0.8)', 'rgba(234,179,8,0.8)', 'rgba(251,191,36,0.7)', 'rgba(249,115,22,0.8)', 'rgba(234,179,8,0.7)', 'rgba(251,146,60,0.7)'][i],
+                                        background: ['rgba(37,99,235,0.85)', 'rgba(59,130,246,0.8)', 'rgba(96,165,250,0.75)', 'rgba(14,165,233,0.8)', 'rgba(147,197,253,0.78)', 'rgba(30,64,175,0.72)'][i],
                                         filter: 'blur(2px)',
                                         animation: `particleBurst${i} 600ms ${40 + i * 40}ms ease-out forwards`,
                                     }} />
@@ -465,11 +536,12 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
                     {/* Google Places attribution */}
                     {(data.placePhotos?.length > 0 || data.imageUrl?.includes('googleusercontent')) && (
-                        <span className="absolute top-6 right-4 z-20 text-[8px] text-white/40 font-medium tracking-wide pointer-events-none">
-                            📷 Google
+                        <span className="absolute top-20 left-4 lg:top-4 lg:left-[4.5rem] z-20 inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1.5 text-[9px] font-bold tracking-wide text-white/70 backdrop-blur-md ring-1 ring-white/15 pointer-events-none">
+                            <CameraIcon className="h-3 w-3" />
+                            Google
                         </span>
                     )}
-                    <div className="absolute bottom-4 left-4 right-4 sm:left-6 sm:right-6 z-10 flex items-end justify-between">
+                    <div className="mm-museum-hero-copy2 flex items-end justify-between">
                         <div>
                             <p className="text-xs font-bold tracking-widest text-white/80 uppercase mb-1">{translateCategory(data.type, locale)} • {getLocalizedCityName(data, locale) || getCityName(data.city, locale)}, {getCountryName(data.country, locale)}</p>
                             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white leading-tight">{getLocalizedMuseumName(data, locale)}</h1>
@@ -494,7 +566,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 </PhotoCarousel>
                 </div>
 
-                <div className="pt-9 px-5 pb-5 sm:pt-11 sm:px-8 sm:pb-8" style={{ background: 'var(--glass-bg)' }}>
+                <div className="mm-detail-body mm-museum-detail-body2 pt-9 px-5 pb-5 sm:pt-11 sm:px-8 sm:pb-8">
                     {/* One-line Summary */}
                     {data.summary && (
                         <div className="museum-summary-card mb-8 rounded-2xl px-4 py-4 sm:px-5">
@@ -514,6 +586,62 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                         </div>
                     )}
 
+                    <div className="mm-detail-decision-card mb-6 rounded-2xl border border-blue-100/80 bg-white/75 p-4 shadow-sm dark:border-blue-900/40 dark:bg-neutral-900/70">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+                                {decisionLabels.title}
+                            </p>
+                            {data.googleRating && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-black text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-300">
+                                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005z" /></svg>
+                                    {decisionLabels.rating} {data.googleRating.toFixed(1)}
+                                </span>
+                            )}
+                        </div>
+                        <div className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
+                            {quickHoursItem?.value && (
+                                <div className="mm-detail-fact mm-detail-fact--brand rounded-xl bg-blue-50/70 px-3 py-2 dark:bg-blue-950/25">
+                                    <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-blue-500/80">{decisionLabels.hours}</p>
+                                    <p className="line-clamp-2 font-bold leading-snug text-gray-800 dark:text-gray-100">{translateViValue(quickHoursItem.value, locale)}</p>
+                                </div>
+                            )}
+                            {quickAccessItem?.value && (
+                                <div className="mm-detail-fact rounded-xl bg-gray-50 px-3 py-2 dark:bg-neutral-800/70">
+                                    <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-neutral-500">{decisionLabels.access}</p>
+                                    <p className="line-clamp-2 font-bold leading-snug text-gray-800 dark:text-gray-100">{translateViValue(quickAccessItem.value, locale)}</p>
+                                </div>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1">
+                            <a
+                                href={appleFirst ? mapLinks.appleDirections : mapLinks.googleDirections}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => { gtag.event('get_directions', { category: 'navigation', label: appleFirst ? 'Apple Maps' : 'Google Maps', value: 1 }); }}
+                                className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-3 text-sm font-black text-white shadow-sm shadow-blue-500/20 transition-all active:scale-95 hover:bg-blue-700"
+                            >
+                                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
+                                </svg>
+                                <span className="truncate">{decisionLabels.directions}</span>
+                            </a>
+                            {data.website && (
+                                <a
+                                    href={data.website}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={() => { gtag.event('open_website', { category: 'museum', label: data.name, value: 1 }); }}
+                                    className="mt-2 flex min-w-0 items-center justify-center gap-1.5 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5 text-xs font-extrabold text-gray-500 shadow-sm transition-all hover:bg-gray-100 active:scale-95 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                                >
+                                    <svg className="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m-7.843 4.582A11.953 11.953 0 0012 10.5c2.998 0 5.74-1.1 7.843-2.918M3.284 14.253A17.919 17.919 0 0012 16.5c3.162 0 6.133-.815 8.716-2.247" />
+                                    </svg>
+                                    <span className="truncate">{getWebsiteLabels(locale).cta}</span>
+                                </a>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Description */}
                     {locale === 'ko' ? (
                         <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm mb-5">{data.descriptionKo || cachedMuseum.description || translateDescription(data.description, locale)}</p>
@@ -530,55 +658,20 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                         <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm mb-5">{cachedMuseum.description || translatedDesc || translateDescription(data.description, locale)}</p>
                     )}
 
-                    {/* Updated date chip + Share */}
+                    {/* Updated date chip */}
                     {data.updatedAt && (
-                        <div className="mb-3 flex items-center justify-between">
+                        <div className="mb-3 flex items-center">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-50 dark:bg-neutral-800/60 text-[10px] font-bold text-gray-400 dark:text-neutral-500">
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 {getUpdatedLabel(locale)} {new Date(data.updatedAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : locale === 'ja' ? 'ja-JP' : locale === 'zh-CN' ? 'zh-CN' : locale === 'zh-TW' ? 'zh-TW' : locale === 'de' ? 'de-DE' : locale === 'fr' ? 'fr-FR' : locale === 'es' ? 'es-ES' : locale === 'pt' ? 'pt-PT' : locale === 'da' ? 'da-DK' : locale === 'fi' ? 'fi-FI' : locale === 'sv' ? 'sv-SE' : locale === 'et' ? 'et-EE' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                             </span>
-                            <button
-                                onClick={async () => {
-                                    const url = buildShareUrl(`${window.location.origin}/museums/${museumId}`);
-                                    if (navigator.share) {
-                                        try { await navigator.share({ title: data.name, url }); } catch { }
-                                    } else {
-                                        await navigator.clipboard.writeText(url);
-                                    }
-                                }}
-                                className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors shadow-sm active:scale-95"
-                                aria-label="Share"
-                            >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                </svg>
-                            </button>
                         </div>
                     )}
 
                     {/* Map-style Info List */}
                     <div className="border-t border-gray-100 dark:border-neutral-800">
-                        {/* Website */}
-                        {data.website && (
-                            <a href={data.website} target="_blank" rel="noreferrer"
-                                className="flex items-center gap-4 py-3.5 border-b border-gray-50 dark:border-neutral-800/50 hover:bg-gray-50 dark:hover:bg-neutral-800/30 -mx-2 px-2 rounded-lg transition-colors group">
-                                <span className="w-6 flex items-center justify-center flex-shrink-0 text-blue-500">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
-                                    </svg>
-                                </span>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs text-gray-400 dark:text-neutral-500 font-bold">{getWebsiteLabels(locale).label}</p>
-                                    <p className="text-sm text-blue-600 dark:text-blue-400 font-bold group-hover:underline">{getWebsiteLabels(locale).cta}</p>
-                                </div>
-                                <svg className="w-4 h-4 text-gray-300 dark:text-neutral-600 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                                </svg>
-                            </a>
-                        )}
-
                         {/* Visitor Info Items */}
                         {data.visitorInfo && Array.isArray(data.visitorInfo) && data.visitorInfo.map((item: any, i: number) => {
                             const displayLabel = translateViLabel(item.label, locale);
@@ -677,16 +770,21 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
                     {/* Featured Artworks */}
                     {data.artworks && data.artworks.filter((w: any) => w.image).length > 0 && (
-                        <div className="mt-6 pt-4 border-t border-gray-100 dark:border-neutral-800">
-                            <div className="flex items-center mb-4">
-                                <h3 className="text-sm sm:text-base font-extrabold text-gray-500 dark:text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-                                    </svg>
-                                    {getFeaturedWorksTitle(locale)}
+                        <div className="mm-detail-section mt-7 pt-5 border-t border-gray-100 dark:border-neutral-800">
+                            <div className="mb-4 flex items-center justify-between gap-3">
+                                <h3 className="mm-section-title mb-0">
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--mm-brand-bg)', color: 'var(--mm-brand)' }}>
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
+                                        </svg>
+                                    </span>
+                                    <span>{getFeaturedWorksTitle(locale)}</span>
                                 </h3>
+                                <span className="mm-chip mm-chip--muted px-2.5 py-1 text-[10px] leading-none">
+                                    {shuffledArtworks.length}
+                                </span>
                             </div>
-                            <div key={shuffleKey} className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide max-h-[35vh] w-full -mx-2 px-2">
+                            <div key={shuffleKey} className="mm-featured-art-rail scrollbar-hide">
                                 {shuffledArtworks.map((work: any, i: number) => (
                                     <div key={work.id || i} style={{ animation: `fadeInUp 0.4s ${i * 60}ms both` }}>
                                         <ArtworkCard work={work} locale={locale} cachedTranslations={cachedMuseum} index={i} onClick={() => openArtworkDetail(work.id)} />
@@ -706,26 +804,37 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
                     {/* Related Stories */}
                     {relatedStories.length > 0 && (
-                        <div className="mt-6 pt-4 border-t border-gray-100 dark:border-neutral-800">
-                            <h3 className="text-sm sm:text-base font-extrabold text-gray-500 dark:text-neutral-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-                                </svg>
-                                {locale === 'ko' ? 'MM 스토리' : locale === 'ja' ? '関連ストーリー' : locale === 'zh-CN' ? '相关故事' : locale === 'zh-TW' ? '相關故事' : locale === 'de' ? 'Geschichten' : locale === 'fr' ? 'Histoires' : locale === 'es' ? 'Historias' : locale === 'pt' ? 'Histórias' : locale === 'da' ? 'Historier' : locale === 'fi' ? 'Tarinat' : locale === 'sv' ? 'Berättelser' : locale === 'et' ? 'Lood' : 'Stories'}
-                            </h3>
-                            <div className="flex gap-3 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide -mx-2 px-2">
-                                {relatedStories.map((story: any) => (
-                                    <div
+                        <div className="mm-detail-section mt-7 pt-5 border-t border-gray-100 dark:border-neutral-800">
+                            <div className="mb-4 flex items-center justify-between gap-3">
+                                <h3 className="mm-section-title mb-0">
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--mm-brand-bg)', color: 'var(--mm-brand)' }}>
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                                        </svg>
+                                    </span>
+                                    <span>{locale === 'ko' ? 'MM 스토리' : locale === 'ja' ? '関連ストーリー' : locale === 'zh-CN' ? '相关故事' : locale === 'zh-TW' ? '相關故事' : locale === 'de' ? 'Geschichten' : locale === 'fr' ? 'Histoires' : locale === 'es' ? 'Historias' : locale === 'pt' ? 'Histórias' : locale === 'da' ? 'Historier' : locale === 'fi' ? 'Tarinat' : locale === 'sv' ? 'Berättelser' : locale === 'et' ? 'Lood' : 'Stories'}</span>
+                                </h3>
+                                <span className="mm-chip mm-chip--muted px-2.5 py-1 text-[10px] leading-none">
+                                    {relatedStories.length}
+                                </span>
+                            </div>
+                            <div className="flex gap-3.5 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide -mx-2 px-2">
+                                {relatedStories.map((story: any) => {
+                                    const storyTitle = getDisplayStoryTitle(locale === 'ko' ? story.title : (story.titleTranslations?.[locale] || story.titleEn || story.title), [data]);
+                                    return (
+                                    <button
+                                        type="button"
                                         key={story.id}
                                         onClick={() => router.push(`/blog/${story.id}?fromMuseum=${encodeURIComponent(museumId)}`)}
-                                        className="min-w-[220px] max-w-[260px] flex-shrink-0 snap-start rounded-2xl overflow-hidden bg-white dark:bg-neutral-800 border border-gray-100 dark:border-neutral-700 group cursor-pointer active:scale-[0.98] transition-all hover:shadow-lg"
+                                        className="mm-card w-[260px] sm:w-[300px] flex-shrink-0 snap-start p-0 text-left group cursor-pointer appearance-none"
+                                        aria-label={storyTitle}
                                     >
-                                        <div className="h-[120px] overflow-hidden bg-gray-100 dark:bg-neutral-700">
+                                        <div className="relative aspect-[16/9] overflow-hidden bg-gray-100 dark:bg-neutral-800">
                                             {story.previewImage ? (
                                                 <img
                                                     src={story.previewImage}
                                                     alt={story.title}
-                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                                    className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
                                                     onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-8 opacity-20 dark:invert dark:opacity-60'; }}
                                                 />
                                             ) : (
@@ -733,23 +842,23 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                                     <img src="/logo.svg" alt="" className="w-10 h-10 opacity-20 dark:invert dark:opacity-60" />
                                                 </div>
                                             )}
-                                        </div>
-                                        <div className="p-3">
-                                            <p className="text-[9px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1">
-                                                {story.author || 'Editorial'} · {formatDate(story.createdAt, locale as Locale)}
-                                            </p>
-                                            <h4 className="font-bold text-xs dark:text-white leading-tight line-clamp-2">
-                                                {getDisplayStoryTitle(locale === 'ko' ? story.title : (story.titleTranslations?.[locale] || story.titleEn || story.title), [data])}
-                                            </h4>
                                             {story.views > 0 && (
-                                                <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                <span className="mm-chip mm-chip--muted absolute right-2 top-2 px-2 py-1 text-[10px] leading-none shadow-sm backdrop-blur-md">
                                                     {story.views.toLocaleString()}
-                                                </p>
+                                                </span>
                                             )}
                                         </div>
-                                    </div>
-                                ))}
+                                        <div className="p-3.5">
+                                            <p className="text-[10px] font-extrabold uppercase tracking-widest line-clamp-1" style={{ color: 'var(--mm-brand)' }}>
+                                                {story.author || 'Editorial'} · {formatDate(story.createdAt, locale as Locale)}
+                                            </p>
+                                            <h4 className="mt-1.5 text-sm font-extrabold leading-snug line-clamp-2" style={{ color: 'var(--mm-text-primary)' }}>
+                                                {storyTitle}
+                                            </h4>
+                                        </div>
+                                    </button>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -758,7 +867,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     {/* Report Info Update Button */}
                     <button
                         onClick={() => setReportOpen(true)}
-                        className="mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-white/40 dark:border-white/10 bg-white/40 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:text-purple-600 hover:border-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/10 dark:hover:border-purple-800 text-xs font-bold transition-all active:scale-95"
+                        className="mm-detail-report-button mt-2 w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-white/40 dark:border-white/10 bg-white/40 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/10 dark:hover:border-blue-800 text-xs font-bold transition-all active:scale-95"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
@@ -838,7 +947,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                         </div>
                         <div className="p-6 overflow-y-auto max-h-[35vh]">
                             {selectedArtwork.artist && (
-                                <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1">{getLocalizedArtistName(selectedArtwork, locale) || selectedArtwork.artist}</p>
+                                <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">{getLocalizedArtistName(selectedArtwork, locale) || selectedArtwork.artist}</p>
                             )}
                             <h3 className="font-extrabold text-lg dark:text-white leading-tight mb-3">{getLocalizedArtworkTitle(selectedArtwork, locale)}</h3>
                             {selectedArtwork.description && (
@@ -871,16 +980,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     {/* Compare button (top) */}
                     <button
-                        onClick={() => {
-                            if (!isSignedInUser) { router.push('/login'); return; }
-                            if (isInCompare(data.id)) {
-                                triggerCompareToast(t('compare.added', locale), false);
-                            } else {
-                                const added = addToCompare(data.id);
-                                if (added) triggerCompareToast(t('compare.added', locale), false);
-                                else triggerCompareToast(t('compare.full', locale), true);
-                            }
-                        }}
+                        onClick={handleToggleCompare}
                         className={`w-14 h-14 flex items-center justify-center rounded-full shadow-lg transition-all duration-300 active:scale-90 ${isInCompare(data.id)
                             ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/30'
                             : 'bg-white/90 dark:bg-neutral-800/90 backdrop-blur-md text-emerald-500 dark:text-emerald-400 hover:bg-white dark:hover:bg-neutral-700 ring-2 ring-emerald-300 dark:ring-emerald-500/50'
@@ -893,34 +993,18 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     </button>
                     {/* Bookmark button */}
                     <button
-                        onClick={async (e) => {
-                            e.preventDefault();
-                            if (!isSignedInUser) { router.push('/login'); return; }
-                            if (isPicked && saveId) {
-                                const prevSaveId = saveId;
-                                setIsPicked(false); setSaveId(null); triggerShrink();
-                                fetch(`/api/me/saves/${prevSaveId}`, { method: 'DELETE' }).then(() => { onSaveChange?.(); }).catch(() => { setIsPicked(true); setSaveId(prevSaveId); });
-                            } else {
-                                setIsPicked(true);
-                                triggerBurst();
-                                fetch('/api/saves', { method: 'POST', body: JSON.stringify({ museumId: data.id }) })
-                                    .then(r => r.json()).then(res => {
-                                        if (res.data) { setSaveId(res.data.id || res.data._id); onSaveChange?.(); triggerSaveToast(); gtag.event('save_museum', { category: 'museum', label: data.name, value: 1 }); }
-                                        else { setIsPicked(false); }
-                                    }).catch(() => { setIsPicked(false); });
-                            }
-                        }}
+                        onClick={handleTogglePick}
                         className={`w-14 h-14 flex items-center justify-center rounded-full shadow-lg transition-all duration-300 ${showBurst ? 'animate-bookmark-bounce' : showShrink ? 'animate-bookmark-shrink' : 'active:scale-90'} ${isPicked
-                            ? 'bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-orange-500/30'
-                            : 'bg-white/90 dark:bg-neutral-800/90 backdrop-blur-md text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-neutral-700 ring-2 ring-orange-300 dark:ring-orange-500/50'
+                            ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-blue-500/30'
+                            : 'bg-white/90 dark:bg-neutral-800/90 backdrop-blur-md text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-neutral-700 ring-2 ring-blue-300 dark:ring-blue-500/50'
                             }`}
                     >
                         {showBurst && (
                             <>
-                                <span className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(251,146,60,0.5) 0%, transparent 70%)', animation: 'bookmarkRing 600ms ease-out forwards', filter: 'blur(6px)' }} />
+                                <span className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(37,99,235,0.5) 0%, transparent 70%)', animation: 'bookmarkRing 600ms ease-out forwards', filter: 'blur(6px)' }} />
                                 {[0, 1, 2, 3, 4, 5].map(i => (
                                     <span key={i} className="absolute w-2 h-2 rounded-full" style={{
-                                        background: ['rgba(251,146,60,0.8)', 'rgba(234,179,8,0.8)', 'rgba(251,191,36,0.7)', 'rgba(249,115,22,0.8)', 'rgba(234,179,8,0.7)', 'rgba(251,146,60,0.7)'][i],
+                                        background: ['rgba(37,99,235,0.85)', 'rgba(59,130,246,0.8)', 'rgba(96,165,250,0.75)', 'rgba(14,165,233,0.8)', 'rgba(147,197,253,0.78)', 'rgba(30,64,175,0.72)'][i],
                                         filter: 'blur(2px)',
                                         animation: `particleBurst${i} 600ms ${40 + i * 40}ms ease-out forwards`,
                                     }} />
@@ -953,14 +1037,14 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     {!saveToastExiting && [0, 1, 2, 3, 4, 5, 6, 7].map(i => (
                         <span key={i} className="absolute rounded-full" style={{
                             width: 6, height: 6,
-                            background: ['#F97316', '#A855F7', '#EAB308', '#3B82F6', '#EC4899', '#10B981', '#F43F5E', '#6366F1'][i],
+                            background: ['#2563EB', '#3B82F6', '#93C5FD', '#0EA5E9', '#1D4ED8', '#60A5FA', '#38BDF8', '#172554'][i],
                             left: `${50 + (i - 3.5) * 12}%`,
                             top: -4,
                             ['--confetti-rot' as any]: `${90 + i * 45}deg`,
                             animation: `confettiFall ${600 + i * 80}ms ${i * 50}ms ease-out forwards`,
                         }} />
                     ))}
-                    <div className="bg-gradient-to-r from-orange-500 to-purple-600 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-bold text-sm whitespace-nowrap">
+                    <div className="bg-gradient-to-r from-blue-700 to-blue-500 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 font-bold text-sm whitespace-nowrap">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3v18l7-5 7 5V3H5z" /></svg>
                         {locale === 'ko' ? '저장 완료!' : locale === 'ja' ? '保存しました！' : locale === 'zh-CN' ? '已保存！' : locale === 'de' ? 'Gespeichert!' : locale === 'fr' ? 'Sauvegardé !' : 'Saved!'}
                     </div>
@@ -980,7 +1064,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             )}
                         </svg>
                         <span>{compareToastMessage}</span>
-                        {!compareToastIsFull && (
+                        {compareToastShowAction && (
                             <button
                                 onClick={() => {
                                     setShowCompareToast(false);

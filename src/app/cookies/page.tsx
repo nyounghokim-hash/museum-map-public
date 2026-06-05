@@ -109,10 +109,10 @@ export default function CookiePolicyPage() {
 
             {/* Back links */}
             <div className="mt-6 flex gap-3">
-                <Link href="/privacy" className="text-purple-500 hover:underline text-xs font-medium">
+                <Link href="/privacy" className="text-blue-500 hover:underline text-xs font-medium">
                     {locale === 'ko' ? '← 개인정보처리방침' : '← Privacy Policy'}
                 </Link>
-                <Link href="/info" className="text-purple-500 hover:underline text-xs font-medium">
+                <Link href="/info" className="text-blue-500 hover:underline text-xs font-medium">
                     {locale === 'ko' ? '이용 정보' : 'Info'}
                 </Link>
             </div>

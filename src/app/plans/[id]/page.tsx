@@ -304,8 +304,8 @@ export default function PlanDetailPage() {
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <ConfettiCanvas duration={3000} />
                     <div className="relative rounded-3xl p-8 shadow-2xl text-center max-w-sm mx-4 animate-fadeInUp glass-popup">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                            <svg className="w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                             </svg>
                         </div>
@@ -318,8 +318,8 @@ export default function PlanDetailPage() {
             {showPendingModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="relative rounded-3xl p-8 shadow-2xl text-center max-w-sm mx-4 animate-fadeInUp glass-popup">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                            <svg className="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                            <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
@@ -363,7 +363,7 @@ export default function PlanDetailPage() {
                                         onPointerCancel={drag.cancelPress}
                                         onPointerLeave={drag.cancelPress}
                                     >
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${isBeingDragged ? 'bg-purple-600 text-white shadow-md' : 'bg-purple-500 text-white shadow-sm'}`}>{i + 1}</div>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${isBeingDragged ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-sm'}`}>{i + 1}</div>
                                         <div className="min-w-0 flex-1">
                                             <h3 className="font-bold text-base truncate dark:text-white">{getLocalizedMuseumName(stop.museum, locale) || `Stop ${i + 1}`}</h3>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -417,13 +417,13 @@ export default function PlanDetailPage() {
                                     <label className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] mb-2 block">{locale === 'ko' ? '여행기간 설정' : 'Set Travel Period'}</label>
                                     {sd && (
                                         <div className="flex items-center gap-2 mb-2 text-xs font-bold">
-                                            <span className="px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                                            <span className="px-2.5 py-1 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                                                 {sd.toLocaleDateString(locale === 'ko' ? 'ko-KR' : locale, { month: 'short', day: 'numeric' })}
                                             </span>
                                             {ed && (
                                                 <>
                                                     <span className="text-gray-300 dark:text-gray-600">→</span>
-                                                    <span className="px-2.5 py-1 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                                                    <span className="px-2.5 py-1 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
                                                         {ed.toLocaleDateString(locale === 'ko' ? 'ko-KR' : locale, { month: 'short', day: 'numeric' })}
                                                     </span>
                                                 </>
@@ -458,10 +458,10 @@ export default function PlanDetailPage() {
                                                     key={i}
                                                     onClick={() => handleDayClick(day)}
                                                     className={`relative h-8 text-xs font-medium transition-all rounded-lg
-                                                        ${isStart || isEnd ? 'bg-purple-600 text-white font-bold shadow-sm' : ''}
-                                                        ${inRange ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' : ''}
+                                                        ${isStart || isEnd ? 'bg-blue-600 text-white font-bold shadow-sm' : ''}
+                                                        ${inRange ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : ''}
                                                         ${!isStart && !isEnd && !inRange ? 'hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300' : ''}
-                                                        ${isToday && !isStart && !isEnd ? 'ring-1 ring-purple-300 dark:ring-purple-700' : ''}
+                                                        ${isToday && !isStart && !isEnd ? 'ring-1 ring-blue-300 dark:ring-blue-700' : ''}
                                                     `}
                                                 >
                                                     {day}
@@ -477,12 +477,12 @@ export default function PlanDetailPage() {
                     {/* Sticky bottom buttons */}
                     <div className="p-4 border-t space-y-2 shrink-0" style={{ background: 'var(--glass-bg-heavy)', borderColor: 'var(--glass-border)' }}>
                         <button onClick={handleSave} disabled={!isDirty || !plan?.startDate || !plan?.endDate}
-                            className={`w-full py-3 rounded-xl font-bold transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 ${isDirty && plan?.startDate && plan?.endDate ? 'bg-purple-600 text-white hover:bg-purple-700 shadow-md' : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+                            className={`w-full py-3 rounded-xl font-bold transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 ${isDirty && plan?.startDate && plan?.endDate ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
                         >{t('plans.saveButton', locale)}</button>
                         {activeTripId === plan?.id ? (
                             <button onClick={handleEndTrip} className="w-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 py-3 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">{t('plans.endTrip', locale)}</button>
                         ) : (
-                            <button onClick={handleStartTrip} className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">{t('plans.startTripButton', locale)}</button>
+                            <button onClick={handleStartTrip} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">{t('plans.startTripButton', locale)}</button>
                         )}
                     </div>
                 </div>
@@ -532,12 +532,12 @@ export default function PlanDetailPage() {
                     {/* Action buttons — always visible */}
                     <div className="px-4 pb-3 flex gap-2 shrink-0">
                         <button onClick={handleSave} disabled={!isDirty || !plan?.startDate || !plan?.endDate}
-                            className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98] ${isDirty && plan?.startDate && plan?.endDate ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 opacity-50'}`}
+                            className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98] ${isDirty && plan?.startDate && plan?.endDate ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 opacity-50'}`}
                         >{t('plans.saveButton', locale)}</button>
                         {activeTripId === plan?.id ? (
                             <button onClick={handleEndTrip} className="flex-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98]">{t('plans.endTrip', locale)}</button>
                         ) : (
-                            <button onClick={handleStartTrip} className="flex-1 bg-purple-600 text-white py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98]">{t('plans.startTripButton', locale)}</button>
+                            <button onClick={handleStartTrip} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98]">{t('plans.startTripButton', locale)}</button>
                         )}
                     </div>
 
@@ -562,7 +562,7 @@ export default function PlanDetailPage() {
                                         onPointerCancel={drag.cancelPress}
                                         onPointerLeave={drag.cancelPress}
                                     >
-                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isBeingDragged ? 'bg-purple-600 text-white' : 'bg-purple-500 text-white'}`}>{i + 1}</div>
+                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>{i + 1}</div>
                                         <div className="min-w-0 flex-1">
                                             <h3 className="font-bold text-sm truncate dark:text-white">{getLocalizedMuseumName(stop.museum, locale) || `Stop ${i + 1}`}</h3>
                                             <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate flex items-center gap-0.5">

@@ -44,7 +44,7 @@ export default function BlogEditorPage() {
 
     const handleSave = async () => {
         if (!title || !content) {
-            showAlert(locale.startsWith('ko') ? '제목과 내용을 모두 입력해주세요.' : 'Please fill in both title and content.');
+            showAlert(locale.startsWith('ko') ? '제목과 내용을 모두 입력해 주세요.' : 'Please fill in both title and content.');
             return;
         }
         if (infoTable.length === 0 || artworks.length === 0) {
@@ -52,7 +52,7 @@ export default function BlogEditorPage() {
             if (infoTable.length === 0) missing.push(locale.startsWith('ko') ? '하단 정보' : 'Info Table');
             if (artworks.length === 0) missing.push(locale.startsWith('ko') ? '작품' : 'Works');
             const msg = locale.startsWith('ko')
-                ? `${missing.join(', ')}이(가) 비어 있습니다. 조사 후 반드시 입력해주세요. 그래도 게시하시겠습니까?`
+                ? `${missing.join(', ')} 정보가 비어 있어요. 조사 후 입력하는 것이 좋아요. 그래도 게시할까요?`
                 : `${missing.join(', ')} is empty. Please research and add them. Post anyway?`;
             if (!confirm(msg)) return;
         }
@@ -91,7 +91,7 @@ export default function BlogEditorPage() {
                 router.push('/admin');
             } else {
                 const err = await res.json();
-                showAlert(locale.startsWith('ko') ? '저장에 실패했습니다. 다시 시도해주세요.' : 'Failed to save. Please try again.');
+                showAlert(locale.startsWith('ko') ? '저장하지 못했어요. 잠시 후 다시 시도해 주세요.' : 'Failed to save. Please try again.');
             }
         } catch (err) {
             console.error('Save error:', err);
@@ -111,7 +111,7 @@ export default function BlogEditorPage() {
                     </button>
                     <div>
                         <h1 className="text-2xl sm:text-3xl font-black dark:text-white uppercase tracking-tight">새 스토리 작성</h1>
-                        <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mt-0.5">에디터 모드</p>
+                        <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mt-0.5">에디터 모드</p>
                     </div>
                 </div>
                 <div className="flex gap-2">
@@ -215,7 +215,7 @@ export default function BlogEditorPage() {
                                     </button>
                                     <button
                                         onClick={() => setStatus('PUBLISHED')}
-                                        className={`py-3 rounded-2xl text-[11px] font-black tracking-widest uppercase transition-all ${status === 'PUBLISHED' ? 'bg-purple-600 text-white shadow-lg' : 'bg-gray-50 dark:bg-neutral-800 text-gray-400'}`}
+                                        className={`py-3 rounded-2xl text-[11px] font-black tracking-widest uppercase transition-all ${status === 'PUBLISHED' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-50 dark:bg-neutral-800 text-gray-400'}`}
                                     >
                                         전체공개
                                     </button>

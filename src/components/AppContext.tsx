@@ -42,6 +42,14 @@ function persistLocaleCookie(locale: Locale) {
     document.cookie = `mm_locale=${locale}; path=/; max-age=31536000; samesite=lax`;
 }
 
+function applyThemeMode(isDark: boolean) {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.classList.toggle('dark', isDark);
+    root.dataset.theme = isDark ? 'dark' : 'light';
+    root.style.colorScheme = isDark ? 'dark' : 'light';
+}
+
 export function useApp() {
     return useContext(AppContext);
 }
@@ -112,10 +120,9 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
             }
         }
 
-        if (savedDark === 'true') {
-            setDarkModeState(true);
-            document.documentElement.classList.add('dark');
-        }
+        const nextDarkMode = savedDark === 'true';
+        setDarkModeState(nextDarkMode);
+        applyThemeMode(nextDarkMode);
         setInitialized(true);
     }, []);
 
@@ -147,11 +154,7 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
     const setDarkMode = (d: boolean) => {
         setDarkModeState(d);
         localStorage.setItem('darkMode', String(d));
-        if (d) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+        applyThemeMode(d);
     };
 
     return (

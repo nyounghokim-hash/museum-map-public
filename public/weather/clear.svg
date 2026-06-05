@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Clear weather">
+  <defs>
+    <linearGradient id="sun" x1="24" x2="72" y1="20" y2="76" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDE68A"/>
+      <stop offset=".52" stop-color="#FB923C"/>
+      <stop offset="1" stop-color="#F97316"/>
+    </linearGradient>
+    <filter id="glow" x="0" y="0" width="96" height="96" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feColorMatrix in="blur" values="1 0 0 0 0.98 0 1 0 0 0.45 0 0 1 0 0.10 0 0 0 0.35 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+  </defs>
+  <circle cx="48" cy="48" r="22" fill="url(#sun)" filter="url(#glow)"/>
+  <g stroke="#F59E0B" stroke-linecap="round" stroke-width="5">
+    <path d="M48 9v10"/>
+    <path d="M48 77v10"/>
+    <path d="M9 48h10"/>
+    <path d="M77 48h10"/>
+    <path d="m20.4 20.4 7.1 7.1"/>
+    <path d="m68.5 68.5 7.1 7.1"/>
+    <path d="m75.6 20.4-7.1 7.1"/>
+    <path d="m27.5 68.5-7.1 7.1"/>
+  </g>
+</svg>

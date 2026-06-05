@@ -11,6 +11,8 @@ interface Props {
     vertical?: 'below' | 'above';
     mode?: 'popover' | 'fixed-bottom';
     triggerRef?: RefObject<HTMLElement | null>;
+    initialWeather?: { temp: number; code: number } | null;
+    onWeatherLoaded?: (weather: { temp: number; code: number }) => void;
 }
 
 // WMO weather codes → icon + label + indoor recommendation
@@ -125,6 +127,35 @@ const WEATHER_LABELS: Record<number, Partial<Record<Locale, string>>> = {
     99: { en: 'Severe thunderstorm', ko: '강한 뇌우', ja: '激しい雷雨', de: 'Schweres Gewitter', fr: 'Orage violent', es: 'Tormenta severa', pt: 'Trovoada severa', 'zh-CN': '强雷暴', 'zh-TW': '強雷暴', da: 'Kraftigt tordenvejr', fi: 'Voimakas ukkonen', sv: 'Kraftigt åskväder', et: 'Tugev äike' },
 };
 
+type WeatherIconKey = 'clear' | 'partly-cloudy' | 'cloudy' | 'fog' | 'rain' | 'snow' | 'thunder';
+
+const WEATHER_ICON_BY_CODE: Record<number, WeatherIconKey> = {
+    0: 'clear',
+    1: 'partly-cloudy',
+    2: 'partly-cloudy',
+    3: 'cloudy',
+    45: 'fog',
+    48: 'fog',
+    51: 'rain',
+    53: 'rain',
+    55: 'rain',
+    61: 'rain',
+    63: 'rain',
+    65: 'rain',
+    71: 'snow',
+    73: 'snow',
+    75: 'snow',
+    77: 'snow',
+    80: 'rain',
+    81: 'rain',
+    82: 'thunder',
+    85: 'snow',
+    86: 'snow',
+    95: 'thunder',
+    96: 'thunder',
+    99: 'thunder',
+};
+
 function weatherUi(key: keyof typeof WEATHER_UI, locale: string) {
     const loc = locale as Locale;
     return WEATHER_UI[key]?.[loc] || WEATHER_UI[key]?.en || key;
@@ -140,6 +171,10 @@ function weatherLabel(code: number, locale: string) {
 
 function resolveWeather(code: number) {
     return WEATHER_MAP[code] || WEATHER_MAP[3];
+}
+
+function weatherIconSrc(code: number) {
+    return `/weather/${WEATHER_ICON_BY_CODE[code] || 'cloudy'}.svg`;
 }
 
 function UmbrellaIcon({ className }: { className?: string }) {
@@ -161,7 +196,7 @@ function TreeIcon({ className }: { className?: string }) {
     );
 }
 
-export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef }: Props) {
+export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef, initialWeather, onWeatherLoaded }: Props) {
     const { locale } = useApp();
     type State = 'idle' | 'loading' | 'ready' | 'error' | 'denied';
     const [state, setState] = useState<State>('idle');
@@ -186,7 +221,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
         const computePosition = () => {
             const rect = triggerRef.current?.getBoundingClientRect();
             if (!rect) return;
-            const popupWidth = Math.min(280, window.innerWidth - 24);
+            const popupWidth = Math.min(320, window.innerWidth - 24);
             const gap = 8;
             const style: React.CSSProperties = { position: 'fixed', width: popupWidth };
             if (vertical === 'below') style.top = Math.round(rect.bottom + gap);
@@ -206,6 +241,14 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
 
     useEffect(() => {
         if (!isOpen) return;
+        if (initialWeather) {
+            setData(initialWeather);
+            setState('ready');
+        }
+    }, [isOpen, initialWeather?.temp, initialWeather?.code]);
+
+    useEffect(() => {
+        if (!isOpen) return;
         if (state === 'ready' && data) return;
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
             setState('error');
@@ -219,10 +262,12 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
                     const res = await fetch(url);
                     if (!res.ok) throw new Error('weather fetch failed');
                     const json = await res.json();
-                    setData({
+                    const nextWeather = {
                         temp: json.current.temperature_2m,
                         code: json.current.weather_code,
-                    });
+                    };
+                    setData(nextWeather);
+                    onWeatherLoaded?.(nextWeather);
                     setState('ready');
                 } catch {
                     setState('error');
@@ -231,7 +276,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
             () => setState('denied'),
             { enableHighAccuracy: false, timeout: 8000, maximumAge: 300_000 }
         );
-    }, [isOpen, state, data]);
+    }, [isOpen, state, data, onWeatherLoaded]);
 
     if (!isOpen) return null;
     if (mode === 'popover' && !popoverStyle) return null;
@@ -239,8 +284,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
     const info = data ? resolveWeather(data.code) : null;
     const headerText = weatherUi('title', locale);
 
-    // WCAG AA: 다크 지도·이미지 위에서도 팝업이 뚜렷이 구분되도록 완전 불투명 + 경계 강화 + 더 짙은 그림자
-    const commonClass = 'bg-white dark:bg-neutral-900 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.65)] border border-gray-200 dark:border-neutral-700 z-[9999] animate-fadeInUp overflow-hidden';
+    const commonClass = 'mm-weather-popup2 glass-popup rounded-2xl z-[9999] animate-fadeInUp overflow-hidden';
     const panel = (
         <div
             ref={panelRef}
@@ -252,80 +296,94 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
                     ? `fixed bottom-[calc(env(safe-area-inset-bottom,0px)+104px)] left-3 right-3 w-auto max-w-[400px] mx-auto ${commonClass}`
                     : commonClass
             }
+            data-weather-popup
         >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-neutral-700">
-                <h3 className="font-extrabold text-sm text-gray-900 dark:text-white flex items-center gap-2">
-                    <svg className="w-4 h-4 text-purple-500 dark:text-purple-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
-                    </svg>
+            <div className="mm-weather-popup2-head relative flex items-center justify-between px-4 py-3">
+                <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'var(--gradient-border-subtle)' }} />
+                <h3 className="flex min-w-0 items-center gap-2 text-sm font-extrabold" style={{ color: 'var(--mm-text-primary)' }}>
+                    <span className="mm-weather-popup2-head-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                        </svg>
+                    </span>
                     {headerText}
                 </h3>
                 <button
                     onClick={onClose}
-                    className="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-800 active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-900"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition active:scale-95 hover:bg-gray-100 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:text-gray-300 dark:hover:bg-neutral-800 dark:hover:text-white dark:focus-visible:ring-offset-neutral-900"
                     aria-label={weatherUi('close', locale)}
                 >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
 
-            <div className="p-4">
+            <div className="mm-weather-popup2-body p-4">
                 {state === 'loading' && (
-                    <div className="py-6 flex justify-center">
-                        <div className="w-5 h-5 rounded-full border-2 border-purple-300 border-t-purple-600 animate-spin" />
+                    <div className="flex items-center justify-center gap-3 py-8">
+                        <div className="h-5 w-5 rounded-full border-2 border-blue-300 border-t-blue-600 animate-spin" />
+                        <span className="text-xs font-bold" style={{ color: 'var(--mm-text-secondary)' }}>
+                            {headerText}
+                        </span>
                     </div>
                 )}
                 {state === 'denied' && (
-                    <p className="text-[11px] text-gray-600 dark:text-gray-300 text-center py-4">
+                    <p className="rounded-xl px-3 py-4 text-center text-xs font-bold" style={{ background: 'var(--mm-brand-bg)', color: 'var(--mm-brand)' }}>
                         {weatherUi('locationRequired', locale)}
                     </p>
                 )}
                 {state === 'error' && (
-                    <p className="text-[11px] text-gray-600 dark:text-gray-300 text-center py-4">
+                    <p className="rounded-xl px-3 py-4 text-center text-xs font-bold text-gray-600 dark:text-gray-300" style={{ background: 'var(--mm-surface-secondary)' }}>
                         {weatherUi('loadError', locale)}
                     </p>
                 )}
                 {state === 'ready' && data && info && (
                     <>
-                        <div className="flex items-center gap-4 mb-4">
-                            <span className="text-5xl leading-none" aria-hidden>{info.icon}</span>
-                            <div>
-                                <div className="text-3xl font-black text-gray-900 dark:text-white font-mono leading-none">
+                        <div className="mm-weather-popup2-hero mb-4 flex items-center gap-4 rounded-2xl border p-3">
+                            <div className="mm-weather-popup2-iconbox flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl">
+                                <img
+                                    src={weatherIconSrc(data.code)}
+                                    alt=""
+                                    className="h-16 w-16"
+                                    draggable={false}
+                                />
+                            </div>
+                            <div className="min-w-0">
+                                <div className="mm-weather-popup2-temp font-mono text-4xl font-black leading-none">
                                     {Math.round(data.temp)}°
                                 </div>
-                                <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                <div className="mm-weather-popup2-label mt-1 truncate text-xs font-bold">
                                     {weatherLabel(data.code, locale)}
                                 </div>
                             </div>
                         </div>
                         {info.indoor ? (
-                            <div className="rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-900/50 dark:to-purple-900/40 border border-purple-200 dark:border-purple-700/70 p-3">
-                                <p className="text-xs font-extrabold text-purple-700 dark:text-purple-200 mb-1 flex items-center gap-2">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-800/70 text-purple-600 dark:text-purple-200">
-                                        <UmbrellaIcon className="w-3.5 h-3.5" />
+                            <div className="mm-weather-popup2-rec rounded-2xl border p-3">
+                                <p className="mb-1 flex items-center gap-2 text-xs font-extrabold">
+                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/70 dark:bg-white/10">
+                                        <UmbrellaIcon className="h-3.5 w-3.5" />
                                     </span>
                                     {weatherUi('indoorTitle', locale)}
                                 </p>
-                                <p className="text-[11px] text-purple-700/90 dark:text-purple-200/90 leading-relaxed">
+                                <p className="text-[11px] font-medium leading-relaxed">
                                     {weatherUi('indoorDesc', locale)}
                                 </p>
                             </div>
                         ) : (
-                            <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/40 dark:to-orange-900/35 border border-amber-200 dark:border-amber-700/70 p-3">
-                                <p className="text-xs font-extrabold text-amber-800 dark:text-amber-200 mb-1 flex items-center gap-2">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-800/70 text-amber-700 dark:text-amber-200">
-                                        <TreeIcon className="w-3.5 h-3.5" />
+                            <div className="mm-weather-popup2-rec rounded-2xl border p-3">
+                                <p className="mb-1 flex items-center gap-2 text-xs font-extrabold">
+                                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/75 text-blue-600 dark:bg-white/10 dark:text-blue-200">
+                                        <TreeIcon className="h-3.5 w-3.5" />
                                     </span>
                                     {weatherUi('outdoorTitle', locale)}
                                 </p>
-                                <p className="text-[11px] text-amber-700/90 dark:text-amber-200/90 leading-relaxed">
+                                <p className="text-[11px] font-medium leading-relaxed">
                                     {weatherUi('outdoorDesc', locale)}
                                 </p>
                             </div>
                         )}
-                        <p className="mt-3 text-[10px] text-gray-500 dark:text-gray-400 text-center font-medium">
+                        <p className="mt-3 text-center text-[10px] font-bold" style={{ color: 'var(--mm-text-tertiary)' }}>
                             {weatherUi('powered', locale)}
                         </p>
                     </>

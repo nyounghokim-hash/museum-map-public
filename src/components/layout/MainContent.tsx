@@ -29,16 +29,20 @@ export default function MainContent({ children }: { children: React.ReactNode })
     }, [pathname]);
 
     // Mirror the show logic from MobileBottomNav (whitelist)
-    const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections'];
+    const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
     const navHidden = !showNavPages.includes(pathname) || detailOpen;
 
     // Navigation tab pages that get fade animation
     const isNavPage = showNavPages.includes(pathname) || pathname.startsWith('/artworks');
+    const shellClass = pathname === '/'
+        ? 'mm-map-shell'
+        : pathname === '/login'
+            ? 'mm-entry-shell'
+            : 'mm-editorial-shell';
 
     return (
-        <main key={isNavPage ? pathname : undefined} className={`flex-1 flex flex-col relative w-full h-full ${navHidden ? '' : 'pb-[56px]'} lg:pb-0 ${isNavPage ? 'animate-fadeInUp' : ''}`}>
+        <main key={isNavPage ? pathname : undefined} className={`flex-1 flex flex-col relative w-full h-full ${shellClass} ${navHidden ? '' : 'pb-[56px]'} lg:pb-0 ${isNavPage ? 'animate-fadeInUp' : ''}`}>
             {children}
         </main>
     );
 }
-

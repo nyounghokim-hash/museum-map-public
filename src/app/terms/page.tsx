@@ -183,8 +183,6 @@ export default function TermsPage() {
 
     const t = (s: L) => s[locale] || s['en'] || Object.values(s)[0];
     const sections = activeTab === 'terms' ? termsSections : privacySections;
-    const accentColor = activeTab === 'terms' ? 'purple' : 'emerald';
-
     return (
         <div className="w-full max-w-[800px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8 animate-fadeInUp" onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
             {/* PC: Back */}
@@ -215,7 +213,7 @@ export default function TermsPage() {
                         <section key={idx} className={idx < sections.length - 1 ? 'mb-10' : ''}>
                             <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                                 <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${activeTab === 'terms'
-                                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                                     : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
                                     }`}>{idx + 1}</span>
                                 {t(sec.title)}

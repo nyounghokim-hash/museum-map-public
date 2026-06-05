@@ -10,7 +10,7 @@ import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 
 const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string }> = {
-    ko: { title: '작품', subtitle: '세계의 대표 작품을 한눈에', loading: '불러오는 중...', empty: '아직 등록된 작품이 없습니다', viewMuseum: '미술관 보기' },
+    ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기' },
     en: { title: 'Artworks', subtitle: 'Featured artworks from around the world', loading: 'Loading...', empty: 'No artworks yet', viewMuseum: 'View Museum' },
     ja: { title: '作品', subtitle: '世界の代表作品を一目で', loading: '読み込み中...', empty: '作品はまだありません', viewMuseum: '美術館を見る' },
     de: { title: 'Kunstwerke', subtitle: 'Ausgewählte Kunstwerke aus aller Welt', loading: 'Laden...', empty: 'Noch keine Kunstwerke', viewMuseum: 'Museum ansehen' },
@@ -35,12 +35,33 @@ const ARTWORK_SORT_LABELS: Record<ArtworkSortMode, Record<string, string>> = {
 
 function SkeletonCard() {
     return (
-        <div className="skeleton skeleton-card overflow-hidden">
-            <div className="aspect-[4/3] skeleton" style={{ borderRadius: 0 }} />
+        <div className="mm-actual-skeleton overflow-hidden">
+            <div className="aspect-[4/3] mm-skel-block" style={{ borderRadius: 0 }} />
             <div className="p-3.5 space-y-2">
-                <div className="skeleton skeleton-text w-16" />
-                <div className="skeleton skeleton-title w-28" />
-                <div className="skeleton skeleton-text w-20" />
+                <div className="mm-skel-line w-16" />
+                <div className="mm-skel-line h-5 w-28" />
+                <div className="mm-skel-line w-20" />
+            </div>
+        </div>
+    );
+}
+
+function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
+    return (
+        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
+                <div className="mm-skel-line w-20 mb-4 opacity-40" />
+                <div className="mm-skel-line h-8 w-40 mb-3 opacity-50" />
+                <div className="mm-skel-line w-64 opacity-40" />
+            </div>
+            <div className="mb-5">
+                <div className="mm-skel-pill h-12 w-full" />
+                <div className="mt-2 flex justify-end">
+                    <div className="mm-skel-pill w-24" />
+                </div>
+            </div>
+            <div className="mm-artwork-grid2">
+                {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
             </div>
         </div>
     );
@@ -85,15 +106,42 @@ export default function ArtworksPage() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
     const labels = PAGE_LABELS[locale] || PAGE_LABELS.en;
     const sentinelRef = useRef<HTMLDivElement>(null);
     const restoredRef = useRef(false);
+    const searchScrollLockRef = useRef(0);
 
     // Debounce search query (1000ms — 입력 완료 후 1초 뒤 결과 표시)
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedQuery(searchQuery), 1000);
         return () => clearTimeout(timer);
     }, [searchQuery]);
+
+    useEffect(() => {
+        if (!isSearchFocused) return;
+        searchScrollLockRef.current = window.scrollY;
+        const originalBodyPosition = document.body.style.position;
+        const originalBodyTop = document.body.style.top;
+        const originalBodyWidth = document.body.style.width;
+        const originalBodyOverflow = document.body.style.overflow;
+        const originalHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${searchScrollLockRef.current}px`;
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+        document.documentElement.style.overscrollBehavior = 'none';
+        document.body.classList.add('mm-search-locking');
+        return () => {
+            document.body.style.position = originalBodyPosition;
+            document.body.style.top = originalBodyTop;
+            document.body.style.width = originalBodyWidth;
+            document.body.style.overflow = originalBodyOverflow;
+            document.documentElement.style.overscrollBehavior = originalHtmlOverscroll;
+            document.body.classList.remove('mm-search-locking');
+            window.scrollTo(0, searchScrollLockRef.current);
+        };
+    }, [isSearchFocused]);
 
     const fetchArtworks = useCallback(async (nextCursor?: string) => {
         if (nextCursor) setLoadingMore(true); else setLoading(true);
@@ -256,13 +304,17 @@ export default function ArtworksPage() {
             try { await navigator.share({ title: text, text, url }); } catch { }
         } else {
             await navigator.clipboard.writeText(`${text}\n${url}`);
-            alert(locale === 'ko' ? '복사되었습니다' : 'Copied');
+            alert(locale === 'ko' ? '공유 링크를 복사했어요' : 'Copied');
         }
     };
 
+    if (loading && !searchQuery) {
+        return <ArtworkPageSkeleton locale={locale} />;
+    }
+
     return (
-        <div className="no-back-swipe w-full lg:max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8" style={{ scrollbarGutter: 'stable' }}>
-            <div className="mb-6 sm:mb-8">
+        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10" style={{ scrollbarGutter: 'stable' }}>
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 {loading ? (
                     <>
                         <div className="skeleton skeleton-text w-16 mb-3" />
@@ -271,15 +323,12 @@ export default function ArtworksPage() {
                     </>
                 ) : (
                     <>
-                        <div className="flex items-center gap-2 mb-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                            <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">Gallery</span>
-                        </div>
+                        <div className="mm-gallery-kicker mb-3">Collection</div>
                         <div className="flex items-center justify-between">
-                            <h1 className="text-2xl sm:text-3xl font-black tracking-tight dark:text-white">{labels.title}</h1>
+                            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{labels.title}</h1>
                             <button
                                 onClick={reshuffleArtworks}
-                                className="w-9 h-9 flex items-center justify-center rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-500 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 active:scale-90 transition-all"
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/12 text-blue-100 border border-white/15 hover:bg-white/18 active:scale-90 transition-all"
                                 aria-label="Shuffle"
                             >
                                 <svg className={`w-4 h-4 transition-transform duration-500 ${shuffleSpinning ? 'rotate-[360deg]' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -287,7 +336,7 @@ export default function ArtworksPage() {
                                 </svg>
                             </button>
                         </div>
-                        <p className="text-gray-400 dark:text-neutral-500 mt-1 text-xs font-medium">{labels.subtitle}</p>
+                        <p className="text-blue-100/80 mt-2 text-sm font-medium">{labels.subtitle}</p>
                     </>
                 )}
             </div>
@@ -303,9 +352,11 @@ export default function ArtworksPage() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={locale === 'ko' ? '작품, 작가, 미술관 검색...' : locale === 'ja' ? '作品・作家・美術館を検索...' : 'Search artworks, artists, museums...'}
-                            className="w-full pl-9 pr-9 py-3 backdrop-blur-xl rounded-2xl text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
-                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', boxShadow: 'var(--glass-shadow)' }}
+                            onFocus={() => setIsSearchFocused(true)}
+                            onBlur={() => setIsSearchFocused(false)}
+                            placeholder={locale === 'ko' ? '작품, 작가, 미술관 검색' : locale === 'ja' ? '作品・作家・美術館を検索...' : 'Search artworks, artists, museums...'}
+                            className="w-full pl-9 pr-9 py-3 rounded-full text-[16px] sm:text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                            style={{ background: 'rgba(255,255,255,.96)', border: '1px solid rgba(226,232,240,.92)', boxShadow: '0 14px 32px rgba(15,23,42,.08)' }}
                         />
                         {searchQuery && (
                             <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
@@ -321,7 +372,7 @@ export default function ArtworksPage() {
                         <select
                             value={sortMode}
                             onChange={e => handleSortChange(e.target.value as ArtworkSortMode)}
-                            className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-700 dark:text-neutral-200 shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-300"
+                            className="mm-gallery-chip cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300"
                         >
                             {(['random', 'registered', 'year', 'alphabetical'] as ArtworkSortMode[]).map(mode => (
                                 <option key={mode} value={mode}>{ARTWORK_SORT_LABELS[mode]?.[locale] || ARTWORK_SORT_LABELS[mode]?.en}</option>
@@ -331,11 +382,7 @@ export default function ArtworksPage() {
                 </div>
             )}
 
-            {loading && !searchQuery ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-                    {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
-                </div>
-            ) : artworks.length === 0 ? (
+            {artworks.length === 0 ? (
                 <div className="py-20 sm:py-32 flex flex-col items-center justify-center">
                     <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gray-50 dark:bg-neutral-800/50 rounded-full flex items-center justify-center mb-8">
                         <img src="/logo.svg" alt="Museum Map" className="w-16 h-16 sm:w-20 sm:h-20 opacity-20 dark:invert dark:opacity-[0.6]" />
@@ -344,20 +391,20 @@ export default function ArtworksPage() {
                         {labels.empty}
                     </h2>
                     <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base max-w-md text-center mb-10 leading-relaxed">
-                        박물관의 작품들을 둘러보고 저장해보세요
+                        지도를 둘러보며 마음에 드는 작품을 찾아보세요.
                     </p>
                 </div>
             ) : (
                 <>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-5">
+                    <div className="mm-artwork-grid2">
                         {filteredArtworks.map((aw: any, idx: number) => {
                             const museums = getMuseums(aw);
                             return (
                                 <div
                                     key={`${shuffleKey}-${aw.id}`}
-                                    className="group rounded-2xl overflow-hidden border shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.98]"
-                                    style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)', animation: `fadeInUp 0.4s ${Math.min(idx, 11) * 50}ms both` }}
+                                    className="mm-artwork-card2 group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.98]"
+                                    style={{ animation: `fadeInUp 0.4s ${Math.min(idx, 11) * 50}ms both` }}
                                     onClick={() => { gtag.event('view_artwork', { category: 'artwork', label: aw.title || aw.id, value: 1 }); try { sessionStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { } router.push(`/artworks/${aw.id}`); }}
                                 >
                                     <div className="aspect-[4/3] relative overflow-hidden bg-gray-100 dark:bg-neutral-800">
@@ -376,7 +423,7 @@ export default function ArtworksPage() {
                                         </div>
                                     </div>
                                     <div className="p-3.5">
-                                        {(aw.artist || aw.artistKo) && <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-0.5 truncate">{getLocalizedArtistName(aw, locale)}</p>}
+                                        {(aw.artist || aw.artistKo) && <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-0.5 truncate">{getLocalizedArtistName(aw, locale)}</p>}
                                         <h3 className="font-bold text-[15px] truncate dark:text-white leading-tight">{getLocalizedArtworkTitle(aw, locale)}</h3>
                                         {museums.length > 0 && (
                                             <p className="text-xs text-gray-400 dark:text-neutral-500 truncate mt-1.5 flex items-center gap-1">
@@ -449,7 +496,7 @@ export default function ArtworksPage() {
 
                                     <div className="p-6 pb-10">
                                         {(selected.artist || selected.artistKo) && (
-                                            <p className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1">{getLocalizedArtistName(selected, locale)}</p>
+                                            <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">{getLocalizedArtistName(selected, locale)}</p>
                                         )}
                                         <h3 className="font-extrabold text-lg dark:text-white leading-tight mb-3">{getLocalizedArtworkTitle(selected, locale)}</h3>
                                         {selected.description && (
@@ -461,7 +508,7 @@ export default function ArtworksPage() {
                                                     <button
                                                         key={m.id}
                                                         onClick={() => { setSelected(null); router.push(`/museums/${m.id}`); }}
-                                                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-xl transition-colors active:scale-95"
+                                                        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-xl transition-colors active:scale-95"
                                                     >
                                                         <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                                         <span>{getLocalizedMuseumName(m, locale)}</span>

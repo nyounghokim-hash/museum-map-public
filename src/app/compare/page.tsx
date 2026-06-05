@@ -125,7 +125,7 @@ export default function ComparePage() {
         };
     }, [museums]);
 
-    // Detect "free admission" for purple highlight
+    // Detect "free admission" for blue highlight
     const isFreeAdmission = (value: string) => {
         if (!value) return false;
         const s = value.toLowerCase();
@@ -133,30 +133,29 @@ export default function ComparePage() {
     };
 
     return (
-        <div className="no-back-swipe w-full lg:max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8 overflow-hidden">
+        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10 overflow-visible">
             {/* Header */}
-            <div className="mb-6 sm:mb-8">
-                <div className="flex items-center gap-2 mb-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                    <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">Compare</span>
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
+                <div className="mm-gallery-kicker mb-3">
+                    Compare
                     {compareCount > 0 && (
-                        <span className="text-[10px] font-black text-gray-400 dark:text-neutral-500 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full">{compareCount}/3</span>
+                        <span className="ml-2 rounded-full bg-white/12 px-2 py-0.5 text-[10px] text-blue-100">{compareCount}/3</span>
                     )}
                 </div>
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl sm:text-3xl font-black tracking-tight dark:text-white">{t('compare.title', locale)}</h1>
+                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{t('compare.title', locale)}</h1>
                     {compareCount > 0 && (
                         <div className="flex items-center gap-2">
-                            <button onClick={handleShare} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gray-100 dark:bg-neutral-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-neutral-700 transition-colors active:scale-95">
+                            <button onClick={handleShare} className="rounded-full bg-white/12 px-3 py-1.5 text-xs font-semibold text-blue-100 ring-1 ring-white/15 transition-colors active:scale-95 hover:bg-white/18">
                                 {t('compare.share', locale)}
                             </button>
-                            <button onClick={handleReset} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gray-100 dark:bg-neutral-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors active:scale-95">
+                            <button onClick={handleReset} className="rounded-full bg-white/12 px-3 py-1.5 text-xs font-semibold text-blue-100 ring-1 ring-white/15 transition-colors active:scale-95 hover:bg-white/18">
                                 {t('compare.reset', locale)}
                             </button>
                         </div>
                     )}
                 </div>
-                <p className="text-gray-400 dark:text-neutral-500 mt-1 text-xs font-medium">{t('compare.emptyDesc', locale)}</p>
+                <p className="text-blue-100/80 mt-2 text-sm font-medium">{t('compare.emptyDesc', locale)}</p>
             </div>
 
             {/* Empty State — above cards */}
@@ -169,7 +168,7 @@ export default function ComparePage() {
                     <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mb-5">{t('compare.emptyDesc', locale)}</p>
                     <button
                         onClick={() => setSearchOpen(true)}
-                        className="gradient-btn px-5 py-2.5 rounded-xl font-bold text-white text-sm active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="gradient-btn px-5 py-2.5 rounded-xl font-bold text-white text-sm active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         {t('compare.search', locale)}
                     </button>
@@ -178,7 +177,7 @@ export default function ComparePage() {
                     {savedSuggestions.length > 0 && (
                         <div className="mt-8 text-left max-w-xl mx-auto">
                             <div className="flex items-center justify-between mb-3 px-1">
-                                <span className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-[0.2em]">
+                                <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em]">
                                     {t('compare.savedList', locale)}
                                 </span>
                                 <span className="text-[10px] text-gray-400 dark:text-neutral-500 font-medium">
@@ -224,12 +223,12 @@ export default function ComparePage() {
                         {/* Loading placeholders */}
                         {loading && compareIds.length > museums.length && Array.from({ length: compareIds.length - museums.length }).map((_, i) => (
                             <div key={`skel-${i}`} className="w-[224px] sm:w-[248px] shrink-0">
-                                <GlassPanel className="p-3 h-full">
-                                    <div className="skeleton skeleton-title w-full h-[168px] rounded-xl mb-3" />
-                                    <div className="skeleton skeleton-title w-3/4 mb-1.5" />
-                                    <div className="skeleton skeleton-text w-1/2 mb-3" />
+                                <GlassPanel className="p-3 h-full !rounded-3xl">
+                                    <div className="mm-skel-block w-full h-[168px] mb-3" />
+                                    <div className="mm-skel-line h-5 w-3/4 mb-1.5" />
+                                    <div className="mm-skel-line w-1/2 mb-3" />
                                     {Array.from({ length: 2 }).map((_, j) => (
-                                        <div key={j} className="skeleton skeleton-text w-full mb-1.5" />
+                                        <div key={j} className="mm-skel-line w-full mb-1.5" />
                                     ))}
                                 </GlassPanel>
                             </div>
@@ -241,13 +240,13 @@ export default function ComparePage() {
                                 onClick={() => setSearchOpen(true)}
                                 className="w-[224px] sm:w-[248px] shrink-0"
                             >
-                                <GlassPanel className="p-3 h-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 dark:border-neutral-700 hover:border-purple-400 dark:hover:border-purple-500 transition-colors cursor-pointer group">
-                                    <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-neutral-800 flex items-center justify-center group-hover:bg-purple-50 dark:group-hover:bg-purple-900/20 transition-colors">
-                                        <svg className="w-5 h-5 text-gray-300 dark:text-neutral-600 group-hover:text-purple-500 dark:group-hover:text-purple-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <GlassPanel className="p-3 h-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 dark:border-neutral-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer group">
+                                    <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-neutral-800 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+                                        <svg className="w-5 h-5 text-gray-300 dark:text-neutral-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                                         </svg>
                                     </div>
-                                    <span className="text-sm font-bold text-gray-400 dark:text-neutral-500 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                                    <span className="text-sm font-bold text-gray-400 dark:text-neutral-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                         {t('compare.addMore', locale)}
                                     </span>
                                 </GlassPanel>
@@ -334,7 +333,7 @@ function CompareColumn({ museum, locale, rows, onRemove, isRatingMax, isReviewsM
                         <div
                             className={`absolute top-1.5 left-1.5 flex items-center gap-1 px-2 py-1 rounded-full backdrop-blur-md text-[11px] font-extrabold tabular-nums shadow-sm ${
                                 isRatingMax || isReviewsMax
-                                    ? 'bg-purple-600/90 text-white'
+                                    ? 'bg-blue-600/90 text-white'
                                     : 'bg-black/55 text-white'
                             }`}
                             aria-label={`${ratingLabel} ${rating}${reviews ? `, ${reviewsLabel} ${reviews}` : ''}${(isRatingMax || isReviewsMax) ? ` (${bestLabel})` : ''}`}
@@ -351,7 +350,7 @@ function CompareColumn({ museum, locale, rows, onRemove, isRatingMax, isReviewsM
                     <button
                         type="button"
                         onClick={onRemove}
-                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center text-white hover:bg-red-500 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center text-white hover:bg-red-500 transition-colors active:scale-90 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         aria-label={removeLabel}
                     >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
@@ -369,13 +368,13 @@ function CompareColumn({ museum, locale, rows, onRemove, isRatingMax, isReviewsM
                 <div className="px-4 pb-3 flex flex-wrap gap-x-2 gap-y-1 text-[12px] text-gray-600 dark:text-gray-400">
                     {location && (
                         <span className="inline-flex items-center gap-1" title={location}>
-                            <IconPin className="w-3.5 h-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
+                            <IconPin className="w-3.5 h-3.5 shrink-0 text-blue-500 dark:text-blue-400" />
                             <span className="truncate">{location}</span>
                         </span>
                     )}
                     {typeLabel && (
                         <span className="inline-flex items-center gap-1" title={typeLabel}>
-                            <IconBuilding className="w-3.5 h-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
+                            <IconBuilding className="w-3.5 h-3.5 shrink-0 text-blue-500 dark:text-blue-400" />
                             <span className="truncate">{typeLabel}</span>
                         </span>
                     )}
@@ -404,7 +403,7 @@ function CompareColumn({ museum, locale, rows, onRemove, isRatingMax, isReviewsM
                             href={website.startsWith('http') ? website : `https://${website}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="shrink-0 w-8 h-8 rounded-xl bg-gray-100 dark:bg-neutral-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="shrink-0 w-8 h-8 rounded-xl bg-gray-100 dark:bg-neutral-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             aria-label={`${name} ${websiteLabel}`}
                             title={websiteLabel}
                         >
@@ -413,7 +412,7 @@ function CompareColumn({ museum, locale, rows, onRemove, isRatingMax, isReviewsM
                     ) : null}
                     <Link
                         href={`/museums/${museum.id}`}
-                        className="flex-1 block text-center px-3 py-2 rounded-xl text-xs font-bold bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 transition-colors active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="flex-1 block text-center px-3 py-2 rounded-xl text-xs font-bold bg-gray-100 dark:bg-neutral-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         aria-label={`${name} ${t('compare.viewDetail', locale)}`}
                     >
                         {t('compare.viewDetail', locale)}
@@ -435,11 +434,11 @@ function CompareFact({ Icon, label, value, highlighted, highlightLabel }: {
     return (
         <div className="flex items-start gap-2">
             <dt className="sr-only">{label}</dt>
-            <span aria-hidden="true" className="shrink-0 w-4 h-4 mt-0.5 flex items-center justify-center text-purple-500 dark:text-purple-400" title={label}>
+            <span aria-hidden="true" className="shrink-0 w-4 h-4 mt-0.5 flex items-center justify-center text-blue-500 dark:text-blue-400" title={label}>
                 <Icon className="w-full h-full" />
             </span>
             <dd className={`min-w-0 flex-1 text-[13px] leading-snug line-clamp-2 ${highlighted
-                ? 'font-bold text-purple-600 dark:text-purple-300'
+                ? 'font-bold text-blue-600 dark:text-blue-300'
                 : 'font-medium text-gray-700 dark:text-gray-300'}`}>
                 {value}
                 {highlighted && highlightLabel && (
@@ -460,7 +459,7 @@ function SavedSuggestionCard({ museum, locale, onAdd }: { museum: any; locale: L
         <button
             onClick={onAdd}
             aria-label={addLabel}
-            className="group relative flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-gray-100 dark:border-neutral-800 hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-md transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="group relative flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-neutral-900 border border-gray-100 dark:border-neutral-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
             <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-100 dark:bg-neutral-800 shrink-0">
                 {imgSrc && !imgError ? (
@@ -472,7 +471,7 @@ function SavedSuggestionCard({ museum, locale, onAdd }: { museum: any; locale: L
                 )}
             </div>
             <span className="text-[11px] font-bold text-gray-800 dark:text-gray-200 line-clamp-2 text-left flex-1">{name}</span>
-            <span className="shrink-0 w-5 h-5 rounded-full bg-gray-100 dark:bg-neutral-800 group-hover:bg-purple-500 text-gray-400 group-hover:text-white flex items-center justify-center transition-colors">
+            <span className="shrink-0 w-5 h-5 rounded-full bg-gray-100 dark:bg-neutral-800 group-hover:bg-blue-500 text-gray-400 group-hover:text-white flex items-center justify-center transition-colors">
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
@@ -653,7 +652,7 @@ function CompareSearchModal({ locale, onClose, onSelect, isInCompare }: { locale
                             </div>
                             {searching ? (
                                 <div className="flex items-center justify-center py-8">
-                                    <div className="w-5 h-5 border-2 border-gray-300 border-t-purple-500 rounded-full animate-spin" />
+                                    <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
                                 </div>
                             ) : results.length > 0 ? (
                                 results.map(renderMuseumRow)

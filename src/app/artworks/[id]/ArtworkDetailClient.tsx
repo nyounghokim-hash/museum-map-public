@@ -132,7 +132,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             try { await navigator.share({ title, url }); } catch { }
         } else {
             await navigator.clipboard.writeText(url);
-            alert(locale === 'ko' ? '링크가 복사되었습니다' : 'Link copied');
+            alert(locale === 'ko' ? '공유 링크를 복사했어요' : 'Link copied');
         }
     };
 
@@ -147,9 +147,9 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                     <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" />
                 </svg>
                 <p className="text-gray-500 dark:text-gray-400 text-lg font-bold">
-                    {locale === 'ko' ? '작품을 찾을 수 없습니다' : 'Artwork not found'}
+                    {locale === 'ko' ? '작품을 찾지 못했어요' : 'Artwork not found'}
                 </p>
-                <button onClick={() => router.push('/artworks')} className="mt-4 text-sm font-bold text-purple-600 dark:text-purple-400 hover:underline">
+                <button onClick={() => router.push('/artworks')} className="mt-4 text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline">
                     ← {locale === 'ko' ? '작품 목록' : 'Back to artworks'}
                 </button>
             </div>
@@ -182,17 +182,20 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const displayArtist = getDisplayArtist();
 
     return (
-        <div ref={containerRef} className={`w-full lg:max-w-[800px] mx-auto px-0 sm:px-6 pb-56 lg:pb-8 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
-            <div className="w-full aspect-[16/10] bg-gray-100 dark:bg-neutral-800 overflow-hidden sm:rounded-3xl relative mt-0 sm:mt-8">
-                {/* PC: Back button overlay (top-left) */}
-                <button
-                    onClick={handleBack}
-                    className="hidden lg:flex absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md items-center justify-center text-white hover:bg-black/60 transition-all active:scale-95"
-                >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
+        <div ref={containerRef} className={`mm-editorial-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+            <div className="mm-detail-hero2 w-full h-[420px] sm:h-[520px] bg-gray-100 dark:bg-neutral-800 sm:rounded-b-[32px] relative mt-0">
+                <div className="mm-detail-round-actions">
+                    <button onClick={handleBack} aria-label="Back">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <button onClick={handleShare} aria-label="Share">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                    </button>
+                </div>
 
                 {artwork.image ? (
                     <>
@@ -221,6 +224,12 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                         <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
                     </div>
                 )}
+                <div className="mm-detail-hero-copy">
+                    {displayArtist && (
+                        <div className="mm-gallery-kicker mb-3">{displayArtist}{artwork.year ? ` · ${artwork.year}` : ''}</div>
+                    )}
+                    <h1 className="text-3xl sm:text-5xl font-black leading-[1.02] tracking-tight text-white">{displayTitle}</h1>
+                </div>
             </div>
 
             {/* Lightbox Overlay */}
@@ -262,26 +271,12 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             <div className="px-5 sm:px-0 mt-6">
                 {/* Artist badge */}
                 {displayArtist && (
-                    <p className="text-[11px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-2">
+                    <p className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">
                         {displayArtist}
                     </p>
                 )}
 
-                {/* Title + Share */}
-                <div className="flex items-start justify-between gap-4">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold dark:text-white leading-tight">
-                        {displayTitle}
-                    </h1>
-                    <button
-                        onClick={handleShare}
-                        className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors shadow-sm active:scale-95 mt-1"
-                        aria-label="Share"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                        </svg>
-                    </button>
-                </div>
+                <h1 className="mm-hide-when-hero-title">{displayTitle}</h1>
 
                 {/* Year */}
                 {artwork.year && (
@@ -407,22 +402,6 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                     ) : null;
                 })()}
             </div>
-
-            {/* Mobile: Floating back button — rendered via portal to escape transform container */}
-            {typeof document !== 'undefined' && createPortal(
-                <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
-                    <button
-                        onClick={handleBack}
-                        className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                        </svg>
-                    </button>
-                </div>,
-                document.body
-            )}
-
             {/* Bottom spacing */}
             <div className="h-8" />
         </div>

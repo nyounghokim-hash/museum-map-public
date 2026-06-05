@@ -86,7 +86,7 @@ export default function NotificationsPage() {
                     {unreadCount > 0 && (
                         <button
                             onClick={markAllRead}
-                            className="px-4 py-2 text-xs font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                            className="px-4 py-2 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                         >
                             {t('notif.markAllRead', locale)}
                         </button>
@@ -115,13 +115,13 @@ export default function NotificationsPage() {
                                 href={`/notifications/${n.id}`}
                                 onClick={() => { if (!n.isRead) markRead(n.id); }}
                                 className={`block rounded-2xl border shadow-sm transition-all hover:shadow-md active:scale-[0.99] ${!n.isRead
-                                    ? 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/30'
+                                    ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/30'
                                     : 'border'}`}
                                 style={n.isRead ? { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : undefined}
                             >
                                 <div className="p-4 sm:p-5 flex items-center gap-3">
-                                    <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${!n.isRead ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-gray-100 dark:bg-neutral-800'}`}>
-                                        <svg className={`w-5 h-5 ${!n.isRead ? 'text-purple-500 dark:text-purple-400' : 'text-gray-400 dark:text-neutral-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                    <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${!n.isRead ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-neutral-800'}`}>
+                                        <svg className={`w-5 h-5 ${!n.isRead ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-neutral-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                         </svg>
                                     </div>

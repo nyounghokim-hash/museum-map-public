@@ -20,7 +20,7 @@ export default function ChallengesPage() {
                     <div className="bg-orange-500 h-4 rounded-full" style={{ width: '33%' }}></div>
                 </div>
 
-                <button className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl font-bold transition-all hover:opacity-90 active:scale-95 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800">
+                <button className="bg-black dark:bg-white text-white dark:text-black px-8 py-3 rounded-xl font-bold transition-all hover:opacity-90 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-800">
                     Opt-in to Taste Matching
                 </button>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-3">Opt-in to see and compare challenges with other users</p>
