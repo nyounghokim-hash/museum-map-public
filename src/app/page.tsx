@@ -20,7 +20,6 @@ import * as gtag from '@/lib/gtag';
 import { SparkleIcon, StarIcon, AirplaneIcon } from '@/components/ui/Icons';
 import { clearActiveTripForAccount, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
-import { getDisplayStoryTitle } from '@/lib/storyTitle';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
 import type { MapBounds } from '@/components/map/MapLibreViewer';
@@ -67,6 +66,49 @@ function getWeatherChipIcon(code?: number | null) {
   return '☁';
 }
 
+function WeatherChipSvg({ code }: { code?: number | null }) {
+  const isClear = code === 0;
+  const isRain = code != null && [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].includes(code);
+  const isSnow = code != null && [71, 73, 75, 77, 85, 86].includes(code);
+  const isFog = code != null && [45, 48].includes(code);
+
+  return (
+    <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {isClear ? (
+        <>
+          <circle cx="12" cy="12" r="4.2" />
+          <path d="M12 2.8v2.1M12 19.1v2.1M4.2 4.2l1.5 1.5M18.3 18.3l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.2 19.8l1.5-1.5M18.3 5.7l1.5-1.5" />
+        </>
+      ) : (
+        <>
+          <path d="M7.4 17.2h9.1a4.1 4.1 0 0 0 .5-8.2 5.8 5.8 0 0 0-11.1 1.8A3.5 3.5 0 0 0 7.4 17.2Z" />
+          {!isRain && !isSnow && !isFog && <path d="M5.8 7.6a4.5 4.5 0 0 1 5.9-4.2" />}
+        </>
+      )}
+      {isRain && (
+        <>
+          <path d="M8.5 20.7l1-2" />
+          <path d="M13 20.7l1-2" />
+          <path d="M17.5 20.7l1-2" />
+        </>
+      )}
+      {isSnow && (
+        <>
+          <path d="M9 19.6h.01" />
+          <path d="M13 20.6h.01" />
+          <path d="M17 19.6h.01" />
+        </>
+      )}
+      {isFog && (
+        <>
+          <path d="M5.5 19h13" />
+          <path d="M7.5 21h9" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 const mm2 = {
   top: {
     position: 'absolute',
@@ -111,7 +153,7 @@ const mm2 = {
     background: 'transparent',
     color: '#0f172a',
     fontSize: 15,
-    fontWeight: 800,
+    fontWeight: 600,
     lineHeight: 1,
   } satisfies CSSProperties,
   iconPill: {
@@ -143,7 +185,7 @@ const mm2 = {
     overflowY: 'visible',
     marginLeft: -5,
     marginRight: -5,
-    padding: '5px 5px 18px',
+    padding: '5px 5px 20px',
     scrollbarWidth: 'none',
   } satisfies CSSProperties,
   toolPill: {
@@ -158,9 +200,9 @@ const mm2 = {
     borderRadius: 999,
     color: '#0f172a',
     background: 'rgba(255,255,255,.96)',
-    boxShadow: '0 8px 18px rgba(15,23,42,.12), 0 2px 5px rgba(15,23,42,.07), inset 0 1px 0 rgba(255,255,255,.82)',
+    boxShadow: '0 7px 14px rgba(15,23,42,.10), 0 1px 4px rgba(15,23,42,.06), inset 0 1px 0 rgba(255,255,255,.82)',
     fontSize: 14,
-    fontWeight: 850,
+    fontWeight: 500,
     whiteSpace: 'nowrap',
     pointerEvents: 'auto',
   } satisfies CSSProperties,
@@ -182,7 +224,7 @@ const mm2 = {
     position: 'absolute',
     left: 18,
     right: 18,
-    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 124px)',
+    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 134px)',
     zIndex: 120,
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -193,7 +235,7 @@ const mm2 = {
     borderRadius: 24,
     background: 'rgba(255,255,255,.98)',
     border: '1px solid rgba(226,232,240,.82)',
-    boxShadow: '0 26px 60px rgba(15,23,42,.18)',
+    boxShadow: '0 18px 42px rgba(15,23,42,.14)',
     pointerEvents: 'auto',
   } satisfies CSSProperties,
   categoryButton: {
@@ -466,42 +508,22 @@ function AiRecommendationCard({ museum, locale, compact = false, onSelect }: { m
   );
 }
 
-function stripHtml(value: string) {
-  return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function getStorySearchImage(story: any) {
-  if (story?.previewImage) return story.previewImage;
-  const artworkImage = story?.storyArtworks?.[0]?.artwork?.image;
-  if (artworkImage) return artworkImage;
-  const museum = story?.museums?.[0]?.museum;
-  return getMuseumImageSrc(museum) || '';
-}
-
-function getStorySearchTitle(story: any, locale: Locale) {
-  return getDisplayStoryTitle(locale === 'ko' ? story.title : (story.titleEn || story.title), story.museums);
-}
-
-function SearchResultButton({ result, locale, onMuseumSelect, onStorySelect }: {
-  result: { kind: 'museum'; museum: any } | { kind: 'story'; story: any };
+function SearchResultButton({ result, locale, onMuseumSelect }: {
+  result: { kind: 'museum'; museum: any };
   locale: Locale;
   onMuseumSelect: (museum: any) => void;
-  onStorySelect: (story: any) => void;
 }) {
-  const isStory = result.kind === 'story';
-  const item = isStory ? result.story : result.museum;
-  const image = isStory ? getStorySearchImage(item) : getMuseumImageSrc(item);
-  const title = isStory ? getStorySearchTitle(item, locale) : getLocalizedMuseumName(item, locale);
-  const subtitle = isStory
-    ? stripHtml(locale === 'ko' ? item.content : (item.contentEn || item.content)).slice(0, 86)
-    : [getLocalizedCityName(item, locale) || item.city, (() => {
+  const item = result.museum;
+  const image = getMuseumImageSrc(item);
+  const title = getLocalizedMuseumName(item, locale);
+  const subtitle = [getLocalizedCityName(item, locale) || item.city, (() => {
       try { return new Intl.DisplayNames([locale], { type: 'region' }).of(item.country); } catch { return item.country; }
     })()].filter(Boolean).join(', ');
 
   return (
     <button
       className="mm-map2-search-result w-full text-left px-4 py-3 transition-colors border-b last:border-0 flex items-center gap-3"
-      onClick={() => isStory ? onStorySelect(item) : onMuseumSelect(item)}
+      onClick={() => onMuseumSelect(item)}
     >
       <div className="mm-map2-search-result-thumb w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
         {image ? (
@@ -514,7 +536,6 @@ function SearchResultButton({ result, locale, onMuseumSelect, onStorySelect }: {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="mm-map2-search-result-title text-sm truncate">{title}</span>
-          {isStory && <span className="mm-chip mm-chip--brand shrink-0 text-[9px] px-1.5 py-0.5">{locale === 'ko' ? '스토리' : 'Story'}</span>}
         </div>
         <div className="mm-map2-search-result-subtitle text-[10px] mt-0.5 truncate">{subtitle}</div>
       </div>
@@ -526,7 +547,6 @@ export default function MainPage() {
   const { compareIds: compareIdsArr } = useCompare();
   const compareIdsSet = useMemo(() => new Set(compareIdsArr), [compareIdsArr]);
   const [museums, setMuseums] = useState<any[]>([]);
-  const [stories, setStories] = useState<any[]>([]);
   const [selectedMuseum, setSelectedMuseum] = useState<any | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('All');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
@@ -835,34 +855,6 @@ export default function MainPage() {
     return () => { if (timer) clearTimeout(timer); };
   }, []);
 
-  useEffect(() => {
-    const CACHE_KEY = 'mm_stories_search_cache_v1';
-    try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const { data, ts } = JSON.parse(cached);
-        if (Array.isArray(data) && Date.now() - ts < 30 * 60 * 1000) {
-          setStories(data);
-          return;
-        }
-      }
-    } catch { }
-
-    fetch('/api/blog')
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(res => {
-        const data = res.data || [];
-        if (Array.isArray(data)) {
-          setStories(data);
-          try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch { }
-        }
-      })
-      .catch(() => setStories([]));
-  }, []);
-
   // Show loading overlay only after 1s delay (avoids flash for fast loads)
   useEffect(() => {
     if (museums.length > 0) { setShowLoading(false); return; }
@@ -1043,7 +1035,7 @@ export default function MainPage() {
   // Map museums: filtered by category only (search should NOT hide markers)
   const mapMuseums = museums.filter(m => activeFilter === 'All' || m.type === activeFilter);
 
-  // Search results: museums + MM Stories. Map markers are still filtered only by category.
+  // Search results: museums only. Map markers are still filtered only by category.
   const museumSearchResults = mapMuseums.filter(m => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -1062,26 +1054,8 @@ export default function MainPage() {
     ];
     return values.some(value => String(value || '').toLowerCase().includes(q));
   });
-  const storySearchResults = stories.filter(story => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return false;
-    const museumNames = Array.isArray(story.museums)
-      ? story.museums.flatMap((sm: any) => [sm.museum?.name, sm.museum?.nameKo, sm.museum?.nameEn, sm.museum?.city, sm.museum?.cityKo])
-      : [];
-    const values = [
-      story.title,
-      story.titleEn,
-      story.description,
-      stripHtml(story.content || ''),
-      stripHtml(story.contentEn || ''),
-      story.category,
-      ...museumNames,
-    ];
-    return values.some(value => String(value || '').toLowerCase().includes(q));
-  });
   const searchResults = [
-    ...museumSearchResults.slice(0, 6).map(museum => ({ kind: 'museum' as const, museum })),
-    ...storySearchResults.slice(0, 4).map(story => ({ kind: 'story' as const, story })),
+    ...museumSearchResults.slice(0, 8).map(museum => ({ kind: 'museum' as const, museum })),
   ].slice(0, 8);
 
   // Alias for category counts and total display
@@ -1606,16 +1580,12 @@ export default function MainPage() {
               <div className="mm-map2-floating-list" style={mm2.floatingList}>
                 {searchResults.map(result => (
                   <SearchResultButton
-                    key={result.kind === 'story' ? `story-${result.story.id}` : `museum-${result.museum.id}`}
+                    key={`museum-${result.museum.id}`}
                     result={result}
                     locale={locale}
                     onMuseumSelect={(m) => {
                       setSearchQuery('');
                       openMuseumPanel(m, 14);
-                    }}
-                    onStorySelect={(story) => {
-                      setSearchQuery('');
-                      router.push(`/blog/${story.id}?fromMap=1`);
                     }}
                   />
                 ))}
@@ -1634,7 +1604,7 @@ export default function MainPage() {
                 style={{ ...mm2.toolPill, ...(weatherOpen ? mm2.activePill : null) }}
                 aria-expanded={weatherOpen}
               >
-                <span className="text-[18px] leading-none">{getWeatherChipIcon(currentWeather?.code)}</span>
+                <span className="leading-none"><WeatherChipSvg code={currentWeather?.code} /></span>
                 <span>{mobileToolLabels.weather}</span>
                 <strong>{weatherLoading && !currentWeather ? '...' : currentWeather ? `${Math.round(currentWeather.temp)}°` : '--°'}</strong>
               </button>
@@ -1646,7 +1616,7 @@ export default function MainPage() {
                 style={{ ...mm2.toolPill, ...(categoryDropdownOpen ? mm2.activePill : null) }}
                 aria-expanded={categoryDropdownOpen}
               >
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.55}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
                 </svg>
                 <span>{activeFilter === 'All' ? mobileToolLabels.category : translateCategory(activeFilter, locale)}</span>
@@ -1670,7 +1640,7 @@ export default function MainPage() {
                 style={mm2.toolPill}
                 aria-label={mobileToolLabels.currentLocation}
               >
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
                 </svg>
@@ -1762,7 +1732,7 @@ export default function MainPage() {
                       setWeatherOpen(true);
                     }}
                   >
-                    <span>{getWeatherChipIcon(currentWeather?.code)}</span>
+                    <span><WeatherChipSvg code={currentWeather?.code} /></span>
                     {currentWeather ? `${Math.round(currentWeather.temp)}°` : mobileToolLabels.weather}
                   </button>
                 </div>
@@ -1952,16 +1922,12 @@ export default function MainPage() {
                   <div className="absolute top-full left-0 right-0 mt-1 glass-popup gradient-border-subtle rounded-2xl max-h-60 overflow-y-auto z-[100]" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
                     {searchResults.map(result => (
                       <SearchResultButton
-                        key={result.kind === 'story' ? `story-${result.story.id}` : `museum-${result.museum.id}`}
+                        key={`museum-${result.museum.id}`}
                         result={result}
                         locale={locale}
                         onMuseumSelect={(m) => {
                           setSearchQuery('');
                           openMuseumPanel(m, 4);
-                        }}
-                        onStorySelect={(story) => {
-                          setSearchQuery('');
-                          router.push(`/blog/${story.id}?fromMap=1`);
                         }}
                       />
                     ))}
@@ -1973,7 +1939,7 @@ export default function MainPage() {
             {/* New Museums + Category Dropdown row */}
             <div className="flex items-center gap-2 pointer-events-auto w-full">
               {/* New Museums Button */}
-              {newMuseums.length > 0 && (
+              {false && newMuseums.length > 0 && (
                 <div className="relative">
                   <button
                     onClick={() => { if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}

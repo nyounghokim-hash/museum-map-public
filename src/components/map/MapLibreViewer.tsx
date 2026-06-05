@@ -698,7 +698,7 @@ export default function MapLibreViewer({
           root.render(
             <div className="mm-cluster-popup2" style={{ overscrollBehavior: 'contain' }}>
               <div className="mm-cluster-popup2-head">
-                {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
+                {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '박물관 및 미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
               </div>
               {listItems}
             </div>
@@ -1003,7 +1003,7 @@ export default function MapLibreViewer({
           root.render(
             <div className="mm-cluster-popup2" style={{ overscrollBehavior: 'contain' }}>
               <div className="mm-cluster-popup2-head">
-                {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
+                {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '박물관 및 미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
               </div>
               {listItems}
             </div>

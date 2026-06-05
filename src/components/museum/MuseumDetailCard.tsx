@@ -470,10 +470,10 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 <PhotoCarousel
                     photos={(() => { const raw = (data.placePhotos?.length > 0 ? data.placePhotos : (data.imageUrl ? [data.imageUrl] : [])) as string[]; return Array.from(new Set(raw)); })()}
                     alt={data.name}
-                    className="h-[604px] w-full bg-gray-900"
+                    className="h-[302px] sm:h-[360px] w-full bg-gray-900"
                 >
                     {/* Back button on image */}
-                    <button onClick={onClose || (() => router.back())} className="mm-museum-round-action absolute top-4 left-4 z-20 active:scale-95 transition-all">
+                    <button onClick={onClose || (() => router.back())} className="mm-museum-round-action hidden lg:flex absolute top-4 left-4 z-20 active:scale-95 transition-all">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                             </svg>
@@ -512,8 +512,8 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     <button
                         onClick={handleTogglePick}
                         className={`flex absolute top-4 right-[4.75rem] z-20 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 ${showBurst ? 'animate-bookmark-bounce' : showShrink ? 'animate-bookmark-shrink' : 'active:scale-90'} ${isPicked
-                            ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-blue-500/30'
-                            : 'bg-black/40 backdrop-blur-md text-white/80 hover:bg-black/60 ring-2 ring-blue-300/70'
+                            ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-blue-500/30 ring-2 ring-orange-300/85'
+                            : 'bg-black/40 backdrop-blur-md text-white/80 hover:bg-black/60 ring-2 ring-orange-300/85'
                             }`}
                     >
                         {/* Blurred glow burst */}
@@ -993,16 +993,14 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                         </svg>
                     </button>
                     {/* Back button (bottom) */}
-                    {onClose && (
-                        <button
-                            onClick={onClose}
-                            className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
-                        >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                    )}
+                    <button
+                        onClick={onClose || (() => router.back())}
+                        className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
+                    >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
                 </div>,
                 document.body
             )}

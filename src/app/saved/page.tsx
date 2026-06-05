@@ -193,7 +193,7 @@ export default function SavedPage() {
     const getMuseum = (item: any) => activeTab === 'saved' ? item.museum : item;
 
     return (
-        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             {/* Header */}
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
                 {isLoading && activeTab === 'saved' && saves.length === 0 ? (
@@ -383,7 +383,14 @@ export default function SavedPage() {
                 </div>
             ) : (
                 <div className="col-span-full py-16 sm:py-20 text-center text-gray-400 dark:text-gray-500 w-full">
-                    {activeTab === 'saved' ? t('saved.noSaves', locale) : g('noHistory', locale)}
+                    {activeTab === 'saved' && locale === 'ko' ? (
+                        <>
+                            <p>아직 픽한 곳이 없어요.</p>
+                            <p>마음에 드는 박물관이나 미술관을 내 픽에 담아보세요.</p>
+                        </>
+                    ) : (
+                        activeTab === 'saved' ? t('saved.noSaves', locale) : g('noHistory', locale)
+                    )}
                 </div>
             )}
 

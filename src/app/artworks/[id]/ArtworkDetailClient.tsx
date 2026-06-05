@@ -185,7 +185,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
         <div ref={containerRef} className={`mm-editorial-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             <div className="mm-detail-hero2 w-full h-[420px] sm:h-[520px] bg-gray-100 dark:bg-neutral-800 sm:rounded-b-[32px] relative mt-0">
                 <div className="mm-detail-round-actions">
-                    <button onClick={handleBack} aria-label="Back">
+                    <button onClick={handleBack} aria-label="Back" className="mm-detail-top-back">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                         </svg>
@@ -216,12 +216,12 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                             }}
                         />
                         <div className="logo-fallback w-full h-full flex items-center justify-center" style={{ display: 'none' }}>
-                            <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
+                            <img src="/logo.svg" alt="" className="w-2.5 h-2.5 opacity-25 dark:invert dark:opacity-60" />
                         </div>
                     </>
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
+                        <img src="/logo.svg" alt="" className="w-2.5 h-2.5 opacity-25 dark:invert dark:opacity-60" />
                     </div>
                 )}
                 <div className="mm-detail-hero-copy">
@@ -231,6 +231,15 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                     <h1 className="text-3xl sm:text-5xl font-black leading-[1.02] tracking-tight text-white">{displayTitle}</h1>
                 </div>
             </div>
+
+            {typeof document !== 'undefined' && createPortal(
+                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back lg:hidden">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>,
+                document.body
+            )}
 
             {/* Lightbox Overlay */}
             {lightboxOpen && artwork.image && typeof document !== 'undefined' && createPortal(

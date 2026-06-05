@@ -231,6 +231,7 @@ export default function NavHeader() {
         || pathname?.startsWith('/plans/')
         || pathname === '/compare'
         || pathname === '/settings'
+        || pathname === '/profile'
         || pathname === '/login';
 
     if (isMapMobileHome || isHeaderlessEditorialRoute) return null;
@@ -531,7 +532,7 @@ export default function NavHeader() {
                         <div className="px-4 py-2">
                             {session && !session.user?.name?.startsWith('guest_') && (
                                 <Link
-                                    href="/login"
+                                    href="/profile"
                                     onClick={() => setMobileOpen(false)}
                                     className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
                                 >
@@ -718,6 +719,12 @@ export default function NavHeader() {
                         <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{session.user?.name}</p>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{session.user?.email}</p>
                     </div>
+                    <Link
+                        href="/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/25 transition-colors focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-900/25"
+                    >
+                        {locale === 'ko' ? '프로필' : 'Profile'}
+                    </Link>
                     <button
                         onClick={() => {
                             sessionStorage.removeItem('user-email');

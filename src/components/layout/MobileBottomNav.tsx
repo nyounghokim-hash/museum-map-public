@@ -207,6 +207,29 @@ function MenuIcon({ name }: { name: 'plans' | 'collection' | 'compare' }) {
     return <svg className="w-5 h-5" style={{ color }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5 5 0 006 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5 5 0 006 0M18 7l3 9m-3-9l-6-2m0-2v18m0 0H9m3 0h3" /></svg>;
 }
 
+function CenterMuseumIcon({ active }: { active: boolean }) {
+    if (active) {
+        return (
+            <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2.4 3.8 6.8v1.7h16.4V6.8L12 2.4Z" />
+                <path d="M5.2 10h2.5v7.2H5.2V10Zm5.6 0h2.4v7.2h-2.4V10Zm5.5 0h2.5v7.2h-2.5V10Z" />
+                <path d="M4.2 18.5h15.6v2.2H4.2v-2.2Z" />
+            </svg>
+        );
+    }
+    return (
+        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3 4 7.2h16L12 3Z" />
+            <path d="M5.5 9.2v8" />
+            <path d="M10 9.2v8" />
+            <path d="M14 9.2v8" />
+            <path d="M18.5 9.2v8" />
+            <path d="M4.5 18.5h15" />
+            <path d="M3.8 21h16.4" />
+        </svg>
+    );
+}
+
 export default function MobileBottomNav() {
     const pathname = usePathname();
     const router = useRouter();
@@ -358,13 +381,7 @@ export default function MobileBottomNav() {
                                     setMenuOpen((open) => !open);
                                 }}
                             >
-                                <svg className="w-7 h-7" fill={isCenterActive ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isCenterActive ? 0 : 1.8}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 2h4v3h-4z" />
-                                    <rect x="5" y="5" width="14" height="14" rx="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                    <circle cx="9" cy="21.5" r="1.2" />
-                                    <circle cx="15" cy="21.5" r="1.2" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5v14m6-14v14" />
-                                </svg>
+                                <CenterMuseumIcon active={isCenterActive || menuOpen} />
                             </button>
                         </div>
 

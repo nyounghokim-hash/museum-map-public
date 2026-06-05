@@ -9,20 +9,20 @@ import { buildShareUrl } from '@/lib/utm';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 
-const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string }> = {
-    ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기' },
-    en: { title: 'Artworks', subtitle: 'Featured artworks from around the world', loading: 'Loading...', empty: 'No artworks yet', viewMuseum: 'View Museum' },
-    ja: { title: '作品', subtitle: '世界の代表作品を一目で', loading: '読み込み中...', empty: '作品はまだありません', viewMuseum: '美術館を見る' },
-    de: { title: 'Kunstwerke', subtitle: 'Ausgewählte Kunstwerke aus aller Welt', loading: 'Laden...', empty: 'Noch keine Kunstwerke', viewMuseum: 'Museum ansehen' },
-    fr: { title: 'Œuvres', subtitle: 'Œuvres du monde entier', loading: 'Chargement...', empty: 'Aucune œuvre', viewMuseum: 'Voir le musée' },
-    es: { title: 'Obras', subtitle: 'Obras destacadas del mundo', loading: 'Cargando...', empty: 'Sin obras aún', viewMuseum: 'Ver museo' },
-    pt: { title: 'Obras', subtitle: 'Obras em destaque do mundo', loading: 'Carregando...', empty: 'Sem obras ainda', viewMuseum: 'Ver museu' },
-    'zh-CN': { title: '作品', subtitle: '来自世界各地的精选作品', loading: '加载中...', empty: '暂无作品', viewMuseum: '查看博物馆' },
-    'zh-TW': { title: '作品', subtitle: '來自世界各地的精選作品', loading: '載入中...', empty: '暫無作品', viewMuseum: '查看博物館' },
-    da: { title: 'Kunstværker', subtitle: 'Udvalgte kunstværker fra hele verden', loading: 'Indlæser...', empty: 'Ingen kunstværker endnu', viewMuseum: 'Se museum' },
-    fi: { title: 'Teokset', subtitle: 'Valittuja teoksia ympäri maailmaa', loading: 'Ladataan...', empty: 'Ei teoksia vielä', viewMuseum: 'Katso museo' },
-    sv: { title: 'Konstverk', subtitle: 'Utvalda konstverk från hela världen', loading: 'Laddar...', empty: 'Inga konstverk ännu', viewMuseum: 'Visa museum' },
-    et: { title: 'Teosed', subtitle: 'Maailma silmapaistvad teosed', loading: 'Laadimine...', empty: 'Teoseid pole veel', viewMuseum: 'Vaata muuseumi' },
+const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string; listTitle: string; countUnit: string }> = {
+    ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점' },
+    en: { title: 'Artworks', subtitle: 'Featured artworks from around the world', loading: 'Loading...', empty: 'No artworks yet', viewMuseum: 'View Museum', listTitle: 'Artwork list', countUnit: 'works' },
+    ja: { title: '作品', subtitle: '世界の代表作品を一目で', loading: '読み込み中...', empty: '作品はまだありません', viewMuseum: '美術館を見る', listTitle: '作品リスト', countUnit: '点' },
+    de: { title: 'Kunstwerke', subtitle: 'Ausgewählte Kunstwerke aus aller Welt', loading: 'Laden...', empty: 'Noch keine Kunstwerke', viewMuseum: 'Museum ansehen', listTitle: 'Werkverzeichnis', countUnit: 'Werke' },
+    fr: { title: 'Œuvres', subtitle: 'Œuvres du monde entier', loading: 'Chargement...', empty: 'Aucune œuvre', viewMuseum: 'Voir le musée', listTitle: 'Liste des œuvres', countUnit: 'œuvres' },
+    es: { title: 'Obras', subtitle: 'Obras destacadas del mundo', loading: 'Cargando...', empty: 'Sin obras aún', viewMuseum: 'Ver museo', listTitle: 'Lista de obras', countUnit: 'obras' },
+    pt: { title: 'Obras', subtitle: 'Obras em destaque do mundo', loading: 'Carregando...', empty: 'Sem obras ainda', viewMuseum: 'Ver museu', listTitle: 'Lista de obras', countUnit: 'obras' },
+    'zh-CN': { title: '作品', subtitle: '来自世界各地的精选作品', loading: '加载中...', empty: '暂无作品', viewMuseum: '查看博物馆', listTitle: '作品列表', countUnit: '件' },
+    'zh-TW': { title: '作品', subtitle: '來自世界各地的精選作品', loading: '載入中...', empty: '暫無作品', viewMuseum: '查看博物館', listTitle: '作品列表', countUnit: '件' },
+    da: { title: 'Kunstværker', subtitle: 'Udvalgte kunstværker fra hele verden', loading: 'Indlæser...', empty: 'Ingen kunstværker endnu', viewMuseum: 'Se museum', listTitle: 'Liste over værker', countUnit: 'værker' },
+    fi: { title: 'Teokset', subtitle: 'Valittuja teoksia ympäri maailmaa', loading: 'Ladataan...', empty: 'Ei teoksia vielä', viewMuseum: 'Katso museo', listTitle: 'Teoslista', countUnit: 'teosta' },
+    sv: { title: 'Konstverk', subtitle: 'Utvalda konstverk från hela världen', loading: 'Laddar...', empty: 'Inga konstverk ännu', viewMuseum: 'Visa museum', listTitle: 'Verklista', countUnit: 'verk' },
+    et: { title: 'Teosed', subtitle: 'Maailma silmapaistvad teosed', loading: 'Laadimine...', empty: 'Teoseid pole veel', viewMuseum: 'Vaata muuseumi', listTitle: 'Teoste loend', countUnit: 'teost' },
 };
 
 type ArtworkSortMode = 'random' | 'registered' | 'year' | 'alphabetical';
@@ -48,7 +48,7 @@ function SkeletonCard() {
 
 function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
     return (
-        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 <div className="mm-skel-line w-20 mb-4 opacity-40" />
                 <div className="mm-skel-line h-8 w-40 mb-3 opacity-50" />
@@ -56,7 +56,11 @@ function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
             </div>
             <div className="mb-5">
                 <div className="mm-skel-pill h-12 w-full" />
-                <div className="mt-2 flex justify-end">
+            </div>
+            <div className="mm-section-heading">
+                <div className="mm-skel-line h-5 w-24" />
+                <div className="flex items-center gap-2">
+                    <div className="mm-skel-line w-12" />
                     <div className="mm-skel-pill w-24" />
                 </div>
             </div>
@@ -313,7 +317,7 @@ export default function ArtworksPage() {
     }
 
     return (
-        <div className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10" style={{ scrollbarGutter: 'stable' }}>
+        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10" style={{ scrollbarGutter: 'stable' }}>
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 {loading ? (
                     <>
@@ -344,8 +348,8 @@ export default function ArtworksPage() {
             {/* Search Bar */}
             {!loading && artworks.length > 0 && (
                 <div className="mb-5">
-                    <div className="relative">
-                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <div className={`mm-map2-search relative flex h-[58px] items-center gap-2.5 rounded-full px-[18px] transition-all ${isSearchFocused ? 'is-focused' : ''}`}>
+                        <svg className="w-5 h-5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                         <input
@@ -355,11 +359,10 @@ export default function ArtworksPage() {
                             onFocus={() => setIsSearchFocused(true)}
                             onBlur={() => setIsSearchFocused(false)}
                             placeholder={locale === 'ko' ? '작품, 작가, 미술관 검색' : locale === 'ja' ? '作品・作家・美術館を検索...' : 'Search artworks, artists, museums...'}
-                            className="w-full pl-9 pr-9 py-3 rounded-full text-[16px] sm:text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                            style={{ background: 'rgba(255,255,255,.96)', border: '1px solid rgba(226,232,240,.92)', boxShadow: '0 14px 32px rgba(15,23,42,.08)' }}
+                            className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-gray-800 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-blue-100/50"
                         />
                         {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                            <button onClick={() => setSearchQuery('')} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         )}
@@ -367,18 +370,6 @@ export default function ArtworksPage() {
                     {searchQuery && debouncedQuery === searchQuery && (
                         <p className="text-[11px] text-gray-400 mt-2 ml-1 min-w-[60px]">{filteredArtworks.length}{locale === 'ko' ? '개 결과' : ' results'}</p>
                     )}
-                    {/* Sort Dropdown */}
-                    <div className="flex items-center justify-end mt-2">
-                        <select
-                            value={sortMode}
-                            onChange={e => handleSortChange(e.target.value as ArtworkSortMode)}
-                            className="mm-gallery-chip cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300"
-                        >
-                            {(['random', 'registered', 'year', 'alphabetical'] as ArtworkSortMode[]).map(mode => (
-                                <option key={mode} value={mode}>{ARTWORK_SORT_LABELS[mode]?.[locale] || ARTWORK_SORT_LABELS[mode]?.en}</option>
-                            ))}
-                        </select>
-                    </div>
                 </div>
             )}
 
@@ -396,8 +387,23 @@ export default function ArtworksPage() {
                 </div>
             ) : (
                 <>
+                    <div className="mm-section-heading">
+                        <h2>{labels.listTitle}</h2>
+                        <div className="flex items-center gap-2">
+                            <span>{filteredArtworks.length.toLocaleString()} {labels.countUnit}</span>
+                            <select
+                                value={sortMode}
+                                onChange={e => handleSortChange(e.target.value as ArtworkSortMode)}
+                                className="mm-gallery-chip cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-300"
+                            >
+                                {(['random', 'registered', 'year', 'alphabetical'] as ArtworkSortMode[]).map(mode => (
+                                    <option key={mode} value={mode}>{ARTWORK_SORT_LABELS[mode]?.[locale] || ARTWORK_SORT_LABELS[mode]?.en}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
 
-                    <div className="mm-artwork-grid2">
+                    <div className="mm-artwork-grid2 stagger-children">
                         {filteredArtworks.map((aw: any, idx: number) => {
                             const museums = getMuseums(aw);
                             return (
@@ -419,7 +425,7 @@ export default function ArtworksPage() {
                                             />
                                         ) : null}
                                         <div className="logo-fallback w-full h-full flex items-center justify-center" style={{ display: aw.image ? 'none' : 'flex' }}>
-                                            <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
+                                            <img src="/logo.svg" alt="" className="w-2.5 h-2.5 opacity-25 dark:invert dark:opacity-60" />
                                         </div>
                                     </div>
                                     <div className="p-3.5">
@@ -485,11 +491,11 @@ export default function ArtworksPage() {
                                                 src={selected.image}
                                                 alt={selected.title}
                                                 className="w-full h-full object-cover"
-                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-16 opacity-20 dark:invert dark:opacity-60'; }}
+                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-5 h-5 object-contain opacity-25 dark:invert dark:opacity-60 m-auto'; }}
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <img src="/logo.svg" alt="" className="w-24 h-24 opacity-20 dark:invert dark:opacity-60" />
+                                                <img src="/logo.svg" alt="" className="w-5 h-5 opacity-25 dark:invert dark:opacity-60" />
                                             </div>
                                         )}
                                     </div>

@@ -75,7 +75,7 @@ export default function CollectionsPage() {
 
     return (
         <div
-            className="no-back-swipe mm-editorial-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10"
+            className="no-back-swipe mm-editorial-page2 mm-travel-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10"
             onTouchStart={handleSwipeStart}
             onTouchEnd={handleSwipeEnd}
         >

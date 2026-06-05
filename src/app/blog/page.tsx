@@ -39,6 +39,21 @@ function getStoryImageChain(post: any): string[] {
     return [artwork, preview, museumImg].filter(Boolean) as string[];
 }
 
+function getStoryMuseumLine(post: any, locale: Locale): string {
+    const museums = post.museums?.map((item: any) => item?.museum).filter(Boolean) || [];
+    if (museums.length === 0) {
+        return locale === 'ko' ? '박물관 및 미술관' : locale === 'ja' ? '博物館・美術館' : 'Museums and galleries';
+    }
+    const first = getLocalizedMuseumName(museums[0], locale) || museums[0].nameKo || museums[0].name || '';
+    if (museums.length === 1) return first;
+    const moreLabel = locale === 'ko'
+        ? `외 ${museums.length - 1}곳`
+        : locale === 'ja'
+            ? `ほか${museums.length - 1}件`
+            : `+${museums.length - 1} more`;
+    return `${first} ${moreLabel}`;
+}
+
 function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
     // DB-cached translations for non-ko/en
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
@@ -64,6 +79,7 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
         displayContent = sanitizeAI((liveContent || sourceContent).substring(0, 200));
     }
     const chain = getStoryImageChain(post);
+    const museumLine = getStoryMuseumLine(post, locale);
     return (
         <button
             onClick={() => onNavigate(post.id)}
@@ -112,8 +128,8 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                 <h2 className="text-[15px] sm:text-base font-black mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
                     {displayTitle}
                 </h2>
-                <p className="text-xs line-clamp-1 leading-relaxed" style={{ color: 'var(--mm-text-secondary)', wordBreak: 'break-word' }}>
-                    {displayContent}
+                <p className="mm-story-museum-line text-xs line-clamp-1 leading-relaxed" style={{ wordBreak: 'break-word' }}>
+                    {museumLine}
                 </p>
             </div>
         </button>
@@ -137,10 +153,11 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
             ? ((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '')
             : (cached.content || liveContent || sourceContent)).substring(0, 110);
     const chain = getStoryImageChain(post);
+    const museumLine = getStoryMuseumLine(post, locale);
 
     return (
         <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
-            <div className="h-28 sm:h-32 overflow-hidden bg-slate-100 dark:bg-neutral-800">
+            <div className="h-24 sm:h-28 overflow-hidden bg-slate-100 dark:bg-neutral-800">
                 {chain[0] ? (
                     <img
                         src={chain[0]}
@@ -168,9 +185,25 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
                 )}
             </div>
             <div className="p-3.5">
-                <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">{post.author || 'MM Editor'} · {formatDate(post.createdAt, locale)}</div>
-                <h3 className="mt-2 text-base font-black leading-tight line-clamp-2 dark:text-white">{displayTitle}</h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-1">{displayContent}</p>
+                <div className="flex items-center gap-1.5 mb-1 text-[10px] font-black uppercase tracking-widest flex-wrap" style={{ color: 'var(--mm-brand)' }}>
+                    <span>{post.author || 'MM Editor'}</span>
+                    <span style={{ color: 'var(--mm-surface-border)' }}>•</span>
+                    <span className="font-medium" style={{ color: 'var(--mm-text-tertiary)' }}>{formatDate(post.createdAt, locale)}</span>
+                    {post.views > 0 && (
+                        <>
+                            <span style={{ color: 'var(--mm-surface-border)' }}>•</span>
+                            <span className="font-medium normal-case flex items-center gap-1" style={{ color: 'var(--mm-text-tertiary)' }}>
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                {post.views.toLocaleString()}
+                            </span>
+                        </>
+                    )}
+                </div>
+                <h3 className="text-[15px] sm:text-base font-black leading-tight line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>{displayTitle}</h3>
+                <p className="mm-story-museum-line mt-1 text-xs leading-relaxed line-clamp-1" style={{ wordBreak: 'break-word' }}>{museumLine}</p>
             </div>
         </button>
     );
@@ -217,7 +250,11 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
                 )}
             </div>
             <div className="mm-story-mini-body">
-                <div>{formatDate(post.createdAt, locale)}</div>
+                <div>
+                    <span>{post.author || 'MM Editor'}</span>
+                    <span> · </span>
+                    <span>{formatDate(post.createdAt, locale)}</span>
+                </div>
                 <h3>{displayTitle}</h3>
             </div>
         </button>
@@ -226,7 +263,7 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
 
 function BlogPageSkeleton({ locale }: { locale: Locale }) {
     return (
-        <div className="no-back-swipe mm-editorial-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
+        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
                 <div className="mm-skel-line w-20 mb-4 opacity-40" />
                 <div className="mm-skel-line h-8 w-52 mb-3 opacity-50" />
@@ -460,7 +497,7 @@ export default function BlogListPage() {
     if (loading) return <BlogPageSkeleton locale={locale} />;
 
     return (
-        <div className="no-back-swipe mm-editorial-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             {navigating && <LoadingAnimation />}
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6 animate-fadeInUp">
                 <div className="mm-gallery-kicker mb-3">{locale === 'ko' ? 'Curated' : 'Curated'}</div>

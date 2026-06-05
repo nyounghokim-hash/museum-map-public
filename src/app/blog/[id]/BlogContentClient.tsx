@@ -394,7 +394,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
             <div className="mm-detail-hero2 h-[340px] sm:h-[420px] lg:rounded-b-[32px]">
                 <div className="mm-detail-round-actions">
                     {showBackControls ? (
-                        <button onClick={handleBack} aria-label="Back">
+                        <button onClick={handleBack} aria-label="Back" className="mm-detail-top-back">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                             </svg>
@@ -425,6 +425,15 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                     </h1>
                 </div>
             </div>
+
+            {showBackControls && typeof document !== 'undefined' && createPortal(
+                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back lg:hidden">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>,
+                document.body
+            )}
 
             <div className="p-6 sm:p-10 md:p-12">
                 {/* Author & Date */}

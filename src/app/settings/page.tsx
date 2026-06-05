@@ -37,7 +37,7 @@ const LABELS: Record<string, {
     weather: '날씨 표시',
     account: '계정',
     profile: '프로필 관리',
-    saves: '저장 공간 관리',
+    saves: '내 픽 관리',
     alerts: '알림 설정',
     logout: '로그아웃',
     version: '버전 2.0.0',
@@ -154,7 +154,7 @@ export default function SettingsPage() {
       <section>
         <h2 className="mb-3 px-2 text-[15px] font-semibold text-slate-500 dark:text-neutral-400">{labels.account}</h2>
         <div className="mm-settings-card">
-          <SettingsRow href="/login" icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a8.25 8.25 0 0115 0" /></svg>} label={labels.profile} value={isGuest ? '' : session?.user?.name || ''} />
+          <SettingsRow href="/profile" icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a8.25 8.25 0 0115 0" /></svg>} label={labels.profile} value={isGuest ? '' : session?.user?.name || ''} />
           <SettingsRow href="/saved" icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 7.5A2.5 2.5 0 017.5 5h9A2.5 2.5 0 0119 7.5v14l-7-4-7 4v-14z" /></svg>} label={labels.saves} />
           <SettingsRow href="/notifications" icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M14.85 18.25a2.85 2.85 0 01-5.7 0M18 10.5a6 6 0 10-12 0c0 3-1.5 4.5-2 5.5h16c-.5-1-2-2.5-2-5.5z" /></svg>} label={labels.alerts} />
           <button type="button" onClick={() => signOut({ callbackUrl: '/' })} className="mm-settings-row w-full text-left">
