@@ -2,8 +2,12 @@ import { prisma } from './prisma';
 import { NextAuthOptions, getServerSession } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
-// Admin emails — these users automatically get ADMIN role
-const ADMIN_EMAILS = ['nyoungho.kim@gmail.com'];
+// Admin emails — these users automatically get ADMIN role.
+const ADMIN_EMAILS = Array.from(new Set([
+    'nyoungho.kim@gmail.com',
+    'nyounghokim@gmail.com',
+    ...(process.env.ADMIN_EMAILS || '').split(',').map(email => email.trim()).filter(Boolean),
+]));
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -78,22 +82,25 @@ export const authOptions: NextAuthOptions = {
             return true;
         },
         async jwt({ token, user, account }) {
-            if (user) {
-                // Fetch role from DB
+            const email = user?.email || token.email;
+            if (email) {
                 try {
-                    const dbUser = await prisma.user.findFirst({
-                        where: { email: user.email! }
-                    });
+                    const dbUser = await prisma.user.findFirst({ where: { email } });
                     if (dbUser) {
+                        const isAdminEmail = ADMIN_EMAILS.includes(email);
                         token.id = dbUser.id;
-                        token.role = (dbUser as any).role || 'USER';
+                        token.role = isAdminEmail ? 'ADMIN' : ((dbUser as any).role || 'USER');
                         token.termsAgreedAt = (dbUser as any).termsAgreedAt
                             ? (dbUser as any).termsAgreedAt.toISOString() : null;
+                    } else if (user) {
+                        token.id = user.id;
+                        token.role = ADMIN_EMAILS.includes(email) ? 'ADMIN' : 'USER';
+                        token.termsAgreedAt = null;
                     }
                 } catch {
-                    token.id = user.id;
-                    token.role = ADMIN_EMAILS.includes(user.email!) ? 'ADMIN' : 'USER';
-                    token.termsAgreedAt = null;
+                    if (user) token.id = user.id;
+                    token.role = ADMIN_EMAILS.includes(email) ? 'ADMIN' : (token.role || 'USER');
+                    token.termsAgreedAt = token.termsAgreedAt || null;
                 }
             }
             return token;
@@ -138,8 +145,18 @@ export async function requireAuth() {
 
 export async function requireAdmin() {
     const user = await requireAuth();
-    if (user.role !== 'ADMIN') {
+    const session = await getServerSession(authOptions);
+    const sessionEmail = session?.user?.email || '';
+    const isSessionAdmin = (session?.user as any)?.role === 'ADMIN' || ADMIN_EMAILS.includes(sessionEmail);
+    if (user.role !== 'ADMIN' && !isSessionAdmin) {
         throw new Error('FORBIDDEN');
     }
-    return user;
+    if (isSessionAdmin && user.role !== 'ADMIN') {
+        try {
+            await prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+        } catch (err) {
+            console.error('Failed to sync admin role:', err);
+        }
+    }
+    return isSessionAdmin ? { ...user, role: 'ADMIN' as const } : user;
 }

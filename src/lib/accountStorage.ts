@@ -1,6 +1,12 @@
 'use client';
 
 const ACTIVE_TRIP_KEY = 'activeTrip';
+export const ACTIVE_TRIP_CHANGE_EVENT = 'activeTripChange';
+
+function notifyActiveTripChange() {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new Event(ACTIVE_TRIP_CHANGE_EVENT));
+}
 
 function getAccountEmail() {
     if (typeof window === 'undefined') return null;
@@ -31,9 +37,11 @@ export function setActiveTripForAccount<T extends Record<string, any>>(trip: T) 
     const email = getAccountEmail();
     if (!email) return;
     localStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify({ ...trip, userEmail: email }));
+    notifyActiveTripChange();
 }
 
 export function clearActiveTripForAccount() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(ACTIVE_TRIP_KEY);
+    notifyActiveTripChange();
 }

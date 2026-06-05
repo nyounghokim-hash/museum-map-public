@@ -2,15 +2,17 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { t, LOCALE_NAMES, Locale } from '@/lib/i18n';
+import { ACTIVE_TRIP_CHANGE_EVENT, getActiveTripForAccount } from '@/lib/accountStorage';
 import { useTranslatedTexts } from '@/hooks/useTranslation';
 import { useModal } from '@/components/ui/Modal';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 
 export default function NavHeader() {
+    const router = useRouter();
     const { data: session } = useSession();
     const { showAlert, showConfirm } = useModal();
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -32,6 +34,7 @@ export default function NavHeader() {
     const notifRef = useRef<HTMLDivElement>(null);
     const { locale, setLocale, darkMode, setDarkMode } = useApp();
     const [isMapMobileHome, setIsMapMobileHome] = useState(false);
+    const [activeTrip, setActiveTrip] = useState<any>(null);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -44,6 +47,20 @@ export default function NavHeader() {
             window.removeEventListener('orientationchange', update);
         };
     }, [pathname]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const refresh = () => setActiveTrip(getActiveTripForAccount());
+        refresh();
+        window.addEventListener('storage', refresh);
+        window.addEventListener('focus', refresh);
+        window.addEventListener(ACTIVE_TRIP_CHANGE_EVENT, refresh);
+        return () => {
+            window.removeEventListener('storage', refresh);
+            window.removeEventListener('focus', refresh);
+            window.removeEventListener(ACTIVE_TRIP_CHANGE_EVENT, refresh);
+        };
+    }, [session?.user?.email]);
 
     // Translate notification texts for dropdown
     const notifTexts = notifications.flatMap((n: any) => [
@@ -335,6 +352,18 @@ export default function NavHeader() {
                                 </div>
                             )}
                         </div>
+
+                        {activeTrip && !activeTrip.pending && (
+                            <button
+                                type="button"
+                                onClick={() => router.push('/?trip=active')}
+                                className="hidden lg:inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 transition-all hover:bg-blue-100 active:scale-95 dark:border-blue-500/20 dark:bg-blue-500/12 dark:text-blue-300"
+                                aria-label={locale === 'ko' ? '여행 경로 보기' : 'View active trip route'}
+                            >
+                                <span className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_0_4px_rgba(37,99,235,0.14)]" />
+                                {locale === 'ko' ? '여행 중' : 'On trip'}
+                            </button>
+                        )}
 
                         {/* Dark mode toggle - desktop only */}
                         <button

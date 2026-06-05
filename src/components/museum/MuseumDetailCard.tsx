@@ -464,7 +464,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             )}
 
             {/* Hero Card with Cover Image */}
-            <GlassPanel intensity="heavy" className="mm-detail-hero-card mb-8 relative overflow-hidden group border-0 lg:border !rounded-none lg:!rounded-3xl shadow-none lg:shadow">
+            <GlassPanel intensity="heavy" className="mm-detail-hero-card mb-8 relative overflow-hidden group border-0 !rounded-none lg:!rounded-3xl shadow-none lg:shadow">
                 {/* Cover Image — PhotoCarousel (이미지 영역에서는 스와이프 뒤로가기 비활성화) */}
                 <div data-no-swipe-back className="mm-museum-hero2">
                 <PhotoCarousel
@@ -678,6 +678,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             const isLocation = item.label === '위치';
                             const isAccess = item.label === '교통' || item.label === '가는 길';
                             const isHours = item.icon === '🕐' || item.icon === 'clock' || item.label?.includes('영업') || item.label?.includes('시간');
+                            if (isHours || isAccess) return null;
                             const openingHoursRows = isHours ? formatOpeningHoursValue(item.value, locale) : null;
                             // 위치: museum's country locale (or English if not in 13)
                             // 교통/가는길: user's selected locale (full sentence)
@@ -989,30 +990,6 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     >
                         <svg className="w-5 h-5" fill={isInCompare(data.id) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-                        </svg>
-                    </button>
-                    {/* Bookmark button */}
-                    <button
-                        onClick={handleTogglePick}
-                        className={`w-14 h-14 flex items-center justify-center rounded-full shadow-lg transition-all duration-300 ${showBurst ? 'animate-bookmark-bounce' : showShrink ? 'animate-bookmark-shrink' : 'active:scale-90'} ${isPicked
-                            ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-blue-500/30'
-                            : 'bg-white/90 dark:bg-neutral-800/90 backdrop-blur-md text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-neutral-700 ring-2 ring-blue-300 dark:ring-blue-500/50'
-                            }`}
-                    >
-                        {showBurst && (
-                            <>
-                                <span className="absolute inset-0 rounded-full" style={{ background: 'radial-gradient(circle, rgba(37,99,235,0.5) 0%, transparent 70%)', animation: 'bookmarkRing 600ms ease-out forwards', filter: 'blur(6px)' }} />
-                                {[0, 1, 2, 3, 4, 5].map(i => (
-                                    <span key={i} className="absolute w-2 h-2 rounded-full" style={{
-                                        background: ['rgba(37,99,235,0.85)', 'rgba(59,130,246,0.8)', 'rgba(96,165,250,0.75)', 'rgba(14,165,233,0.8)', 'rgba(147,197,253,0.78)', 'rgba(30,64,175,0.72)'][i],
-                                        filter: 'blur(2px)',
-                                        animation: `particleBurst${i} 600ms ${40 + i * 40}ms ease-out forwards`,
-                                    }} />
-                                ))}
-                            </>
-                        )}
-                        <svg className="w-5 h-5" fill={isPicked ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={isPicked ? 'currentColor' : '#fdba74'} strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v18l7-5 7 5V3H5z" />
                         </svg>
                     </button>
                     {/* Back button (bottom) */}

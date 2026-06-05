@@ -225,7 +225,7 @@ export default function LoginPage() {
             <button
                 type="button"
                 onClick={() => router.push('/')}
-                className="fixed right-4 top-[max(16px,env(safe-area-inset-top,0px))] z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-slate-950/42 text-white shadow-xl shadow-blue-950/20 backdrop-blur-xl transition-all active:scale-95 hover:bg-slate-950/58 dark:bg-blue-950/58 dark:hover:bg-blue-950/72"
+                className="fixed right-4 top-[max(16px,env(safe-area-inset-top,0px))] z-50 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/70 bg-white/76 text-slate-700 shadow-xl shadow-blue-950/10 backdrop-blur-xl transition-all active:scale-95 hover:bg-white/90 dark:border-white/20 dark:bg-blue-950/58 dark:text-white dark:shadow-blue-950/20 dark:hover:bg-blue-950/72"
                 aria-label={locale === 'ko' ? '닫기' : 'Close'}
             >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.3}>
@@ -239,21 +239,21 @@ export default function LoginPage() {
             <div className="relative z-10 grid min-h-full grid-rows-[1fr_auto] px-5 pb-8 pt-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:grid-rows-1 lg:items-center lg:gap-16 lg:px-16 lg:py-16">
                 {/* Top — branding */}
                 <div className="flex flex-col items-center justify-center text-center lg:items-start lg:text-left">
-                    <div className="mb-7 flex h-20 w-20 items-center justify-center rounded-[1.65rem] border border-white/12 bg-white/10 text-white shadow-2xl shadow-blue-950/30 backdrop-blur-xl">
+                    <div className="mb-7 flex h-20 w-20 items-center justify-center rounded-[1.65rem] border border-blue-200/70 bg-white/76 text-blue-700 shadow-2xl shadow-blue-950/12 backdrop-blur-xl dark:border-white/12 dark:bg-white/10 dark:text-white dark:shadow-blue-950/30">
                         <svg viewBox="0 0 510 286" className="h-11 w-auto fill-current" aria-hidden="true">
                             <path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" />
                             <path d="M464.31,47.94v50.85c0,7.73-5.23,14.48-12.72,16.41l-44.5,11.47c-16.97,4.37-16.95,28.48.03,32.83l44.45,11.37c7.5,1.92,12.75,8.68,12.75,16.42v50.78c0,9.36-7.59,16.94-16.94,16.94h-165.21c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h.25c19.93,0,23.51-28.42,4.2-33.36l-8.64-2.21c-7.5-1.92-12.75-8.68-12.75-16.42v-19.3c0-7.74,5.25-14.5,12.75-16.42l8.38-2.14c19.31-4.93,15.74-33.36-4.19-33.36h0c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h165.21c9.36,0,16.94,7.59,16.94,16.94Z" />
                         </svg>
                     </div>
                     <div className="h-8 overflow-hidden mb-2">
-                        <p className={`text-xs font-black uppercase tracking-[0.22em] text-blue-200/70 transition-all duration-400 ${museumVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
+                        <p className={`text-xs font-black uppercase tracking-[0.22em] text-blue-700/70 transition-all duration-400 dark:text-blue-200/70 ${museumVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-3'}`}>
                             {FAMOUS_MUSEUMS[museumIdx]}
                         </p>
                     </div>
-                    <h1 className="font-serif text-5xl font-semibold leading-none tracking-normal text-white sm:text-6xl lg:text-7xl">
+                    <h1 className="font-serif text-5xl font-semibold leading-none tracking-normal text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
                         Museum Map
                     </h1>
-                    <p className="mt-5 max-w-sm text-base font-semibold leading-relaxed text-blue-100/78 sm:text-lg">
+                    <p className="mt-5 max-w-sm text-base font-semibold leading-relaxed text-slate-600 sm:text-lg dark:text-blue-100/78">
                         {l.desc}
                     </p>
                 </div>

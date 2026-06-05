@@ -74,7 +74,8 @@ const mm2 = {
     right: 0,
     top: 'max(12px, env(safe-area-inset-top, 0px))',
     zIndex: 80,
-    padding: '0 18px',
+    padding: '8px 18px 22px',
+    overflow: 'visible',
     pointerEvents: 'none',
   } satisfies CSSProperties,
   searchRow: {
@@ -82,6 +83,7 @@ const mm2 = {
     alignItems: 'center',
     gap: 10,
     width: '100%',
+    overflow: 'visible',
   } satisfies CSSProperties,
   search: {
     flex: '1 1 auto',
@@ -139,7 +141,9 @@ const mm2 = {
     marginTop: 16,
     overflowX: 'auto',
     overflowY: 'visible',
-    paddingBottom: 14,
+    marginLeft: -5,
+    marginRight: -5,
+    padding: '5px 5px 18px',
     scrollbarWidth: 'none',
   } satisfies CSSProperties,
   toolPill: {
@@ -1003,6 +1007,12 @@ export default function MainPage() {
     }
   }, [status]);
 
+  useEffect(() => {
+    if (searchParams?.get('trip') !== 'active' || !activeTrip || activeTrip.pending) return;
+    setSelectedMuseum(null);
+    setIsViewingActiveRoute(true);
+  }, [searchParams, activeTrip]);
+
   const handleMuseumClick = async (id: string) => {
     const museum = museums.find(m => m.id === id);
     if (museum) {
@@ -1577,17 +1587,17 @@ export default function MainPage() {
               </div>
               <button
                 type="button"
-                className={`mm-map2-icon-pill ${mapSideMenuOpen ? 'is-active' : ''}`}
-                style={{ ...mm2.iconPill, ...(mapSideMenuOpen ? mm2.activePill : null) }}
+                className="mm-map2-icon-pill"
+                style={mm2.iconPill}
                 onClick={() => {
-                  if (mapSideMenuOpen) setMapSideMenuOpen(false);
-                  else { closeAllPopups('sideMenu'); setMapSideMenuOpen(true); }
+                  closeAllPopups();
+                  router.push('/settings');
                 }}
-                aria-label={locale === 'ko' ? '지도 메뉴' : 'Map menu'}
-                aria-expanded={mapSideMenuOpen}
+                aria-label={locale === 'ko' ? '설정' : 'Settings'}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </button>
             </div>

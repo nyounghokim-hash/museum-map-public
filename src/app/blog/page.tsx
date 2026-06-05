@@ -2,7 +2,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -141,7 +140,7 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
 
     return (
         <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
-            <div className="h-36 overflow-hidden bg-slate-100 dark:bg-neutral-800">
+            <div className="h-28 sm:h-32 overflow-hidden bg-slate-100 dark:bg-neutral-800">
                 {chain[0] ? (
                     <img
                         src={chain[0]}
@@ -168,10 +167,58 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
                     </div>
                 )}
             </div>
-            <div className="p-4">
+            <div className="p-3.5">
                 <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">{post.author || 'MM Editor'} · {formatDate(post.createdAt, locale)}</div>
                 <h3 className="mt-2 text-base font-black leading-tight line-clamp-2 dark:text-white">{displayTitle}</h3>
-                <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">{displayContent}</p>
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-1">{displayContent}</p>
+            </div>
+        </button>
+    );
+}
+
+function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
+    const { translations: cached } = useCachedTranslation('story', post.id, locale);
+    const sourceTitle = post.titleEn || post.title || '';
+    const liveTitle = useTranslatedText(sourceTitle, locale);
+    const displayTitle = getDisplayStoryTitle(sanitizeAI(locale === 'ko'
+        ? post.title
+        : locale === 'en'
+            ? (post.titleEn || post.title)
+            : (cached.title || liveTitle || sourceTitle)), post.museums);
+    const chain = getStoryImageChain(post);
+
+    return (
+        <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
+            <div className="mm-story-mini-thumb">
+                {chain[0] ? (
+                    <img
+                        src={chain[0]}
+                        data-fallbacks={JSON.stringify(chain.slice(1))}
+                        alt={post.title}
+                        className="opacity-0 transition-all duration-500 group-hover:scale-105"
+                        onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
+                        onError={(e) => {
+                            const el = e.currentTarget;
+                            const rest = JSON.parse(el.dataset.fallbacks || '[]') as string[];
+                            if (rest.length > 0) {
+                                const next = rest.shift()!;
+                                el.dataset.fallbacks = JSON.stringify(rest);
+                                el.src = next;
+                            } else {
+                                el.src = '/logo.svg';
+                                el.className = 'w-full h-full object-contain p-5 opacity-20 dark:invert dark:opacity-60';
+                            }
+                        }}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.svg" alt="" className="w-9 h-9 opacity-20 dark:invert dark:opacity-60" />
+                    </div>
+                )}
+            </div>
+            <div className="mm-story-mini-body">
+                <div>{formatDate(post.createdAt, locale)}</div>
+                <h3>{displayTitle}</h3>
             </div>
         </button>
     );
@@ -269,7 +316,6 @@ const SORT_LABELS: Record<SortMode, Record<string, string>> = {
 export default function BlogListPage() {
     const { locale } = useApp();
     const router = useRouter();
-    const { data: session } = useSession();
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [navigating, setNavigating] = useState(false);
@@ -402,14 +448,14 @@ export default function BlogListPage() {
             const j = Math.floor(Math.random() * (i + 1));
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
-        return arr.slice(0, 4);
+        return arr.slice(0, 3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filteredPosts.length, activeCategory]);
     const curatedIds = new Set(curatedPosts.map((post: any) => post.id));
     const freshPosts = [...filteredPosts]
         .filter((post: any) => !curatedIds.has(post.id))
         .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 3);
+        .slice(0, 4);
 
     if (loading) return <BlogPageSkeleton locale={locale} />;
 
@@ -468,11 +514,7 @@ export default function BlogListPage() {
                         <>
                             <div className="mm-section-heading">
                                 <h2>{locale === 'ko' ? '여기는 어때요?' : 'How about these?'}</h2>
-                                {(session?.user as any)?.role === 'ADMIN' ? (
-                                    <Link href="/admin" className="text-blue-600 dark:text-blue-400">{locale === 'ko' ? '큐레이션 설정' : 'Edit curation'}</Link>
-                                ) : (
-                                    <span>{locale === 'ko' ? '랜덤 추천' : 'Random picks'}</span>
-                                )}
+                                <span>{locale === 'ko' ? '랜덤 추천' : 'Random picks'}</span>
                             </div>
                             <div className="mm-rail-scroll stagger-children flex gap-3">
                                 {curatedPosts.map((post: any) => (
@@ -488,9 +530,9 @@ export default function BlogListPage() {
                                 <h2>{locale === 'ko' ? '새 이야기' : 'New stories'}</h2>
                                 <span>{locale === 'ko' ? '최근 발행' : 'Recently published'}</span>
                             </div>
-                            <div className="mm-list-surface">
+                            <div className="mm-story-mini-grid">
                                 {freshPosts.map((post: any) => (
-                                    <BlogCard key={`fresh-${post.id}`} post={post} locale={locale} onNavigate={handleNavigate} />
+                                    <SmallStoryCard key={`fresh-${post.id}`} post={post} locale={locale} onNavigate={handleNavigate} />
                                 ))}
                             </div>
                         </>

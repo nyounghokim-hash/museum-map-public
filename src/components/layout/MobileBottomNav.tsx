@@ -119,6 +119,12 @@ const styles = {
         boxShadow: '0 12px 28px rgba(15,23,42,.14), inset 0 1px 0 rgba(255,255,255,.88)',
         border: '1px solid rgba(226,232,240,.9)',
     } satisfies CSSProperties,
+    centerPressed: {
+        transform: 'translateY(3px) scale(0.94)',
+        background: 'linear-gradient(180deg,#1d4ed8 0%,#0f2f91 100%)',
+        boxShadow: '0 8px 18px rgba(37,99,235,.26), inset 0 4px 10px rgba(15,23,42,.22)',
+        transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
+    } satisfies CSSProperties,
     overlay: {
         position: 'fixed',
         inset: 0,
@@ -342,7 +348,7 @@ export default function MobileBottomNav() {
                                 aria-expanded={menuOpen}
                                 aria-label={labels.plans}
                                 className="mobile-nav-center-button"
-                                style={{ ...styles.centerButton, ...(!isCenterActive ? styles.centerInactive : null), ...(!isCenterActive ? themedCenterInactiveStyle : null) }}
+                                style={{ ...styles.centerButton, ...(!isCenterActive ? styles.centerInactive : null), ...(!isCenterActive ? themedCenterInactiveStyle : null), ...(menuOpen ? styles.centerPressed : null) }}
                                 onClick={() => {
                                     if (isGuest) {
                                         setLoginCallbackUrl('/plans');

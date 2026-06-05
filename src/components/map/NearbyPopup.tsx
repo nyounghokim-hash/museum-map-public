@@ -4,6 +4,30 @@ import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 
+const NEARBY_LABELS: Record<string, {
+    title: string;
+    close: string;
+    locating: string;
+    deniedTitle: string;
+    deniedBody: string;
+    unsupported: string;
+    empty: string;
+}> = {
+    ko: { title: '내 주변 박물관', close: '닫기', locating: '현재 위치를 확인하는 중이에요', deniedTitle: '현재 위치를 사용하려면 권한이 필요해요', deniedBody: '브라우저 설정에서 위치 접근을 허용해 주세요.', unsupported: '이 브라우저에서는 현재 위치를 사용할 수 없어요', empty: '주변에서 표시할 박물관을 찾지 못했어요' },
+    en: { title: 'Nearby Museums', close: 'Close', locating: 'Locating...', deniedTitle: 'Location permission required', deniedBody: 'Allow location access in browser settings', unsupported: 'Geolocation is not supported', empty: 'No museums found nearby' },
+    ja: { title: '周辺のミュージアム', close: '閉じる', locating: '現在地を確認しています', deniedTitle: '位置情報の許可が必要です', deniedBody: 'ブラウザ設定で位置情報アクセスを許可してください。', unsupported: 'このブラウザでは位置情報を使用できません', empty: '周辺に表示できるミュージアムが見つかりません' },
+    de: { title: 'Museen in der Nähe', close: 'Schließen', locating: 'Standort wird ermittelt...', deniedTitle: 'Standortberechtigung erforderlich', deniedBody: 'Erlauben Sie den Standortzugriff in den Browsereinstellungen.', unsupported: 'Geolokalisierung wird nicht unterstützt', empty: 'Keine Museen in der Nähe gefunden' },
+    fr: { title: 'Musées à proximité', close: 'Fermer', locating: 'Localisation...', deniedTitle: 'Autorisation de localisation requise', deniedBody: 'Autorisez l’accès à la position dans les paramètres du navigateur.', unsupported: 'La géolocalisation n’est pas prise en charge', empty: 'Aucun musée trouvé à proximité' },
+    es: { title: 'Museos cercanos', close: 'Cerrar', locating: 'Localizando...', deniedTitle: 'Se requiere permiso de ubicación', deniedBody: 'Permite el acceso a la ubicación en la configuración del navegador.', unsupported: 'La geolocalización no es compatible', empty: 'No se encontraron museos cercanos' },
+    pt: { title: 'Museus próximos', close: 'Fechar', locating: 'Localizando...', deniedTitle: 'Permissão de localização necessária', deniedBody: 'Permita o acesso à localização nas configurações do navegador.', unsupported: 'Geolocalização não suportada', empty: 'Nenhum museu encontrado por perto' },
+    'zh-CN': { title: '附近博物馆', close: '关闭', locating: '正在确认当前位置', deniedTitle: '需要位置权限', deniedBody: '请在浏览器设置中允许位置访问。', unsupported: '此浏览器不支持定位', empty: '附近未找到可显示的博物馆' },
+    'zh-TW': { title: '附近博物館', close: '關閉', locating: '正在確認目前位置', deniedTitle: '需要位置權限', deniedBody: '請在瀏覽器設定中允許位置存取。', unsupported: '此瀏覽器不支援定位', empty: '附近未找到可顯示的博物館' },
+    da: { title: 'Museer i nærheden', close: 'Luk', locating: 'Finder placering...', deniedTitle: 'Placeringstilladelse kræves', deniedBody: 'Tillad placeringsadgang i browserindstillingerne.', unsupported: 'Geolokation understøttes ikke', empty: 'Ingen museer fundet i nærheden' },
+    fi: { title: 'Lähistön museot', close: 'Sulje', locating: 'Haetaan sijaintia...', deniedTitle: 'Sijaintilupa tarvitaan', deniedBody: 'Salli sijainnin käyttö selaimen asetuksissa.', unsupported: 'Sijaintia ei tueta tässä selaimessa', empty: 'Lähistöltä ei löytynyt museoita' },
+    sv: { title: 'Museer i närheten', close: 'Stäng', locating: 'Hämtar plats...', deniedTitle: 'Platsbehörighet krävs', deniedBody: 'Tillåt platsåtkomst i webbläsarens inställningar.', unsupported: 'Geolokalisering stöds inte', empty: 'Inga museer hittades i närheten' },
+    et: { title: 'Lähedal muuseumid', close: 'Sulge', locating: 'Asukoha tuvastamine...', deniedTitle: 'Asukoha luba on vajalik', deniedBody: 'Luba asukoha kasutamine brauseri seadetes.', unsupported: 'Geolokatsioon ei ole toetatud', empty: 'Lähedusest muuseume ei leitud' },
+};
+
 interface Props {
     isOpen: boolean;
     onClose: () => void;
@@ -112,7 +136,8 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
     // a one-frame flash at top-left of body (the absolute-fallback position).
     if (mode === 'popover' && !popoverStyle) return null;
 
-    const headerText = locale === 'ko' ? '내 주변 박물관' : 'Nearby Museums';
+    const labels = NEARBY_LABELS[locale] || NEARBY_LABELS.en;
+    const headerText = labels.title;
 
     // WCAG AA: 다크 지도·이미지 위에서도 팝업이 뚜렷이 구분되도록 완전 불투명 + 경계 강화 + 더 짙은 그림자
     const commonClass = 'bg-white dark:bg-neutral-900 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.65)] border border-gray-200 dark:border-neutral-700 z-[9999] animate-fadeInUp overflow-hidden';
@@ -139,7 +164,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                 <button
                     onClick={onClose}
                     className="w-7 h-7 flex items-center justify-center rounded-full text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-800 active:scale-95 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-900"
-                    aria-label={locale === 'ko' ? '닫기' : 'Close'}
+                    aria-label={labels.close}
                 >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -151,27 +176,27 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                 {state === 'loading' && (
                     <div className="py-10 flex flex-col items-center gap-2 text-gray-500 dark:text-gray-300">
                         <div className="w-5 h-5 rounded-full border-2 border-blue-300 dark:border-blue-600 border-t-blue-600 dark:border-t-blue-300 animate-spin" />
-                        <p className="text-xs">{locale === 'ko' ? '현재 위치를 확인하는 중이에요' : 'Locating…'}</p>
+                        <p className="text-xs">{labels.locating}</p>
                     </div>
                 )}
                 {state === 'denied' && (
                     <div className="py-8 px-5 text-center">
                         <p className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1">
-                            {locale === 'ko' ? '현재 위치를 사용하려면 권한이 필요해요' : 'Location permission required'}
+                            {labels.deniedTitle}
                         </p>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {locale === 'ko' ? '브라우저 설정에서 위치 접근을 허용해 주세요.' : 'Allow location access in browser settings'}
+                            {labels.deniedBody}
                         </p>
                     </div>
                 )}
                 {state === 'unsupported' && (
                     <div className="py-8 px-5 text-center text-[11px] text-gray-600 dark:text-gray-300">
-                        {locale === 'ko' ? '이 브라우저에서는 현재 위치를 사용할 수 없어요' : 'Geolocation is not supported'}
+                        {labels.unsupported}
                     </div>
                 )}
                 {state === 'ready' && nearby.length === 0 && (
                     <div className="py-8 px-5 text-center text-[11px] text-gray-600 dark:text-gray-300">
-                        {locale === 'ko' ? '주변에서 표시할 박물관을 찾지 못했어요' : 'No museums found nearby'}
+                        {labels.empty}
                     </div>
                 )}
                 {state === 'ready' && nearby.map((m: any) => (

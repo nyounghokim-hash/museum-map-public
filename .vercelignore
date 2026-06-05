@@ -1,0 +1,18 @@
+.git
+.next
+.next 2
+.next_stale_20260427
+node_modules
+node_modules 2
+node_modules.nosync
+video-env
+logs
+scratch
+notuploadgithub
+.env
+.env.*
+.DS_Store
+*.log
+*.mp4
+*.tsbuildinfo
+favicon.ico

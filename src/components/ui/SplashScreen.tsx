@@ -1,8 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'v1.6.1';
-const CREATOR_INSTAGRAM = 'https://instagram.com/haerang4a_archive';
+const SPLASH_BACKGROUNDS = [
+    { city: 'London', src: '/splash-map-london.webp' },
+    { city: 'Helsinki', src: '/splash-map-helsinki.webp' },
+    { city: 'Seoul', src: '/splash-map-seoul.webp' },
+    { city: 'Tokyo', src: '/splash-map-tokyo.webp' },
+    { city: 'New York', src: '/splash-map-newyork.webp' },
+];
 
 const SPLASH_SUBTITLES: Record<string, string> = {
     ko: '예술과 여행이 만나는 지도',
@@ -152,6 +157,7 @@ export default function SplashScreen() {
     const [complete, setComplete] = useState(false);
     const [lang, setLang] = useState('en');
     const [progress, setProgress] = useState(0);
+    const [background, setBackground] = useState(SPLASH_BACKGROUNDS[0]);
 
     useEffect(() => {
         if (!shouldShowSplash()) {
@@ -166,6 +172,7 @@ export default function SplashScreen() {
         if (!visible) return;
 
         setLang(getDeviceLang());
+        setBackground(SPLASH_BACKGROUNDS[Math.floor(Math.random() * SPLASH_BACKGROUNDS.length)]);
         setComplete(false);
         try { sessionStorage.setItem('splashShown', '1'); } catch { }
 
@@ -242,24 +249,19 @@ export default function SplashScreen() {
             className={`splash-screen ${entered ? 'is-entered' : ''} ${complete ? 'is-complete' : ''} ${fadeOut ? 'is-exiting' : ''}`}
         >
             <div className="splash-bg" aria-hidden="true">
+                <img className="splash-bg-image" src={background.src} alt="" />
                 <div className="splash-frame" />
             </div>
 
-            <div className="splash-spacer" />
-
             <main className="splash-main">
                 <div className="splash-copy">
-                    <p className="splash-kicker">{labels.kicker}</p>
                     <div className="splash-logo-mark" aria-hidden="true">
                         <svg viewBox="0 0 510 286" fill="currentColor">
                             <path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" />
                             <path d="M464.31,47.94v50.85c0,7.73-5.23,14.48-12.72,16.41l-44.5,11.47c-16.97,4.37-16.95,28.48.03,32.83l44.45,11.37c7.5,1.92,12.75,8.68,12.75,16.42v50.78c0,9.36-7.59,16.94-16.94,16.94h-165.21c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h.25c19.93,0,23.51-28.42,4.2-33.36l-8.64-2.21c-7.5-1.92-12.75-8.68-12.75-16.42v-19.3c0-7.74,5.25-14.5,12.75-16.42l8.38-2.14c19.31-4.93,15.74-33.36-4.19-33.36h0c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h165.21c9.36,0,16.94,7.59,16.94,16.94Z" />
                         </svg>
                     </div>
-                    <h1 className="splash-title">
-                        <span>Museum</span>
-                        <span>Map</span>
-                    </h1>
+                    <h1 className="splash-title">Museum Map</h1>
                     <p className="splash-subtitle">{SPLASH_SUBTITLES[lang] || SPLASH_SUBTITLES.en}</p>
                 </div>
 
@@ -283,28 +285,6 @@ export default function SplashScreen() {
                     </div>
                 </div>
             </main>
-
-            <footer className="splash-footer">
-                <a
-                    href={CREATOR_INSTAGRAM}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Haerangsa Instagram"
-                    className="splash-creator"
-                >
-                    <span className="splash-creator-icon">
-                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
-                        </svg>
-                    </span>
-                    <span className="splash-creator-text">
-                        <span>{labels.madeBy}</span>
-                        <strong>Haerangsa</strong>
-                    </span>
-                </a>
-
-                <span className="splash-version">{APP_VERSION}</span>
-            </footer>
         </div>
     );
 }

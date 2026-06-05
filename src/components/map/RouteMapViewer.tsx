@@ -21,6 +21,7 @@ interface Props {
 
 const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+const ROUTE_COLOR = '#2563EB';
 
 export default function RouteMapViewer({ stops = [], onStopClick, darkMode = false, padding }: Props) {
     const validStops = Array.isArray(stops) ? stops : [];
@@ -64,19 +65,19 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         map.addLayer({
             id: 'route-line-bg', type: 'line', source: 'route-line',
             layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: { 'line-color': '#a855f7', 'line-width': 6, 'line-opacity': 0.15 },
+            paint: { 'line-color': ROUTE_COLOR, 'line-width': 6, 'line-opacity': 0.16 },
         });
         map.addLayer({
             id: 'route-line-layer', type: 'line', source: 'route-line',
             layout: { 'line-join': 'round', 'line-cap': 'round' },
-            paint: { 'line-color': '#a855f7', 'line-width': 3, 'line-opacity': 0.7 },
+            paint: { 'line-color': ROUTE_COLOR, 'line-width': 3, 'line-opacity': 0.78 },
         });
 
         // Stop markers
         map.addSource('route-stops', { type: 'geojson', data: buildStopsGeoJSON(stopsData) as any });
         map.addLayer({
             id: 'route-stop-circles', type: 'circle', source: 'route-stops',
-            paint: { 'circle-color': '#a855f7', 'circle-radius': 16, 'circle-stroke-width': 3, 'circle-stroke-color': '#ffffff' },
+            paint: { 'circle-color': ROUTE_COLOR, 'circle-radius': 16, 'circle-stroke-width': 3, 'circle-stroke-color': '#ffffff' },
         });
         map.addLayer({
             id: 'route-stop-labels', type: 'symbol', source: 'route-stops',
