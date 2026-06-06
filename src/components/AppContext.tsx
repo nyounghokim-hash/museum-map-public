@@ -3,11 +3,15 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { Locale, getLocaleFromCountry, t } from '@/lib/i18n';
 import { useSession, signOut } from 'next-auth/react';
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 interface AppContextType {
     locale: Locale;
     setLocale: (l: Locale) => void;
     darkMode: boolean;
     setDarkMode: (d: boolean) => void;
+    themeMode: ThemeMode;
+    setThemeMode: (mode: ThemeMode) => void;
     t: (key: string, loc?: Locale) => string;
 }
 
@@ -16,6 +20,8 @@ const AppContext = createContext<AppContextType>({
     setLocale: () => { },
     darkMode: false,
     setDarkMode: () => { },
+    themeMode: 'light',
+    setThemeMode: () => { },
     t: (key: string) => key,
 });
 
@@ -42,7 +48,16 @@ function persistLocaleCookie(locale: Locale) {
     document.cookie = `mm_locale=${locale}; path=/; max-age=31536000; samesite=lax`;
 }
 
-function applyThemeMode(isDark: boolean) {
+function getSystemDarkMode() {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function getEffectiveDarkMode(mode: ThemeMode) {
+    return mode === 'system' ? getSystemDarkMode() : mode === 'dark';
+}
+
+function applyEffectiveTheme(isDark: boolean) {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
     root.classList.toggle('dark', isDark);
@@ -58,6 +73,7 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
     const { data: session } = useSession();
     const [locale, setLocaleState] = useState<Locale>(initialLocale);
     const [darkMode, setDarkModeState] = useState(false);
+    const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
     const [initialized, setInitialized] = useState(false);
 
     // Guest Session Guard: Log out if isGuest but sessionStorage is empty (new tab/restart) or IP changed
@@ -92,6 +108,7 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
     // Load from localStorage
     useEffect(() => {
         const savedLocale = localStorage.getItem('locale') as Locale | null;
+        const savedTheme = localStorage.getItem('themeMode') as ThemeMode | null;
         const savedDark = localStorage.getItem('darkMode');
 
         if (isLocale(savedLocale)) {
@@ -120,11 +137,30 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
             }
         }
 
-        const nextDarkMode = savedDark === 'true';
+        const nextThemeMode: ThemeMode = savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system'
+            ? savedTheme
+            : savedDark === 'true'
+                ? 'dark'
+                : 'light';
+        const nextDarkMode = getEffectiveDarkMode(nextThemeMode);
+        setThemeModeState(nextThemeMode);
         setDarkModeState(nextDarkMode);
-        applyThemeMode(nextDarkMode);
+        applyEffectiveTheme(nextDarkMode);
         setInitialized(true);
     }, []);
+
+    useEffect(() => {
+        if (themeMode !== 'system' || typeof window === 'undefined') return;
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        const syncSystemTheme = () => {
+            const nextDark = media.matches;
+            setDarkModeState(nextDark);
+            applyEffectiveTheme(nextDark);
+        };
+        syncSystemTheme();
+        media.addEventListener('change', syncSystemTheme);
+        return () => media.removeEventListener('change', syncSystemTheme);
+    }, [themeMode]);
 
     // Persist locale to DB when it changes or on first load
     useEffect(() => {
@@ -152,13 +188,25 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
     };
 
     const setDarkMode = (d: boolean) => {
+        const mode: ThemeMode = d ? 'dark' : 'light';
+        setThemeModeState(mode);
         setDarkModeState(d);
+        localStorage.setItem('themeMode', mode);
         localStorage.setItem('darkMode', String(d));
-        applyThemeMode(d);
+        applyEffectiveTheme(d);
+    };
+
+    const setThemeMode = (mode: ThemeMode) => {
+        const nextDark = getEffectiveDarkMode(mode);
+        setThemeModeState(mode);
+        setDarkModeState(nextDark);
+        localStorage.setItem('themeMode', mode);
+        localStorage.setItem('darkMode', String(nextDark));
+        applyEffectiveTheme(nextDark);
     };
 
     return (
-        <AppContext.Provider value={{ locale, setLocale, darkMode, setDarkMode, t: (key, loc) => t(key as any, loc || locale) }}>
+        <AppContext.Provider value={{ locale, setLocale, darkMode, setDarkMode, themeMode, setThemeMode, t: (key, loc) => t(key as any, loc || locale) }}>
             {children}
         </AppContext.Provider>
     );

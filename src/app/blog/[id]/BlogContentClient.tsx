@@ -389,9 +389,9 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const showBackControls = pathname?.startsWith('/blog/') && pathname !== '/blog';
 
     return (
-        <div className={`mm-editorial-page2 w-full lg:max-w-[860px] mx-auto ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div className={`mm-editorial-page2 mm-story-detail-page2 w-full lg:max-w-[1180px] mx-auto lg:px-8 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             {/* Preview Image with fallback */}
-            <div className="mm-detail-hero2 h-[340px] sm:h-[420px] lg:rounded-b-[32px]">
+            <div className="mm-detail-hero2 mm-story-detail-hero2 h-[340px] sm:h-[420px] lg:h-[520px] lg:rounded-[32px]">
                 <div className="mm-detail-round-actions">
                     {showBackControls ? (
                         <button onClick={handleBack} aria-label="Back" className="mm-detail-top-back">
@@ -435,7 +435,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 document.body
             )}
 
-            <div className="p-6 sm:p-10 md:p-12">
+            <div className="mm-story-detail-body2 p-6 sm:p-10 md:p-12">
                 {/* Author & Date */}
                 <div className="flex items-center gap-2 mb-4 text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
                     <span>{post.author || 'MM Editor'}</span>

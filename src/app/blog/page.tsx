@@ -54,6 +54,41 @@ function getStoryMuseumLine(post: any, locale: Locale): string {
     return `${first} ${moreLabel}`;
 }
 
+function StoryMuseumMeta({ post, locale, className = '' }: { post: any; locale: Locale; className?: string }) {
+    return (
+        <p className={`mm-story-museum-line ${className}`}>
+            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M5.25 21V9.75L12 4.5l6.75 5.25V21M9 21v-6h6v6M8.25 10.5h.008v.008H8.25v-.008Zm3.75 0h.008v.008H12v-.008Zm3.75 0h.008v.008h-.008v-.008Z" />
+            </svg>
+            <span className="truncate">{getStoryMuseumLine(post, locale)}</span>
+        </p>
+    );
+}
+
+const STORY_SECTION_LABELS: Record<string, {
+    curated: string;
+    curatedSub: string;
+    fresh: string;
+    freshSub: string;
+    list: string;
+    count: string;
+    loading: string;
+}> = {
+    ko: { curated: '여기는 어때요?', curatedSub: '랜덤 추천', fresh: '새 이야기', freshSub: '최근 발행', list: '이야기 목록', count: '편', loading: '불러오는 중' },
+    en: { curated: 'How about these?', curatedSub: 'Random picks', fresh: 'New stories', freshSub: 'Recently published', list: 'Story list', count: 'stories', loading: 'Loading' },
+    ja: { curated: 'ここはどうですか？', curatedSub: 'ランダム推薦', fresh: '新しいストーリー', freshSub: '最近公開', list: 'ストーリー一覧', count: '件', loading: '読み込み中' },
+    de: { curated: 'Wie wäre es hier?', curatedSub: 'Zufällige Tipps', fresh: 'Neue Geschichten', freshSub: 'Kürzlich veröffentlicht', list: 'Geschichten', count: 'Stories', loading: 'Wird geladen' },
+    fr: { curated: 'Et ces lieux ?', curatedSub: 'Sélection aléatoire', fresh: 'Nouvelles histoires', freshSub: 'Publié récemment', list: 'Liste des histoires', count: 'histoires', loading: 'Chargement' },
+    es: { curated: '¿Qué tal estos?', curatedSub: 'Selección aleatoria', fresh: 'Nuevas historias', freshSub: 'Publicadas recientemente', list: 'Lista de historias', count: 'historias', loading: 'Cargando' },
+    pt: { curated: 'Que tal estes?', curatedSub: 'Sugestões aleatórias', fresh: 'Novas histórias', freshSub: 'Publicadas recentemente', list: 'Lista de histórias', count: 'histórias', loading: 'Carregando' },
+    'zh-CN': { curated: '这里怎么样？', curatedSub: '随机推荐', fresh: '新故事', freshSub: '最近发布', list: '故事列表', count: '篇', loading: '加载中' },
+    'zh-TW': { curated: '這裡怎麼樣？', curatedSub: '隨機推薦', fresh: '新故事', freshSub: '最近發佈', list: '故事列表', count: '篇', loading: '載入中' },
+    da: { curated: 'Hvad med disse?', curatedSub: 'Tilfældige valg', fresh: 'Nye historier', freshSub: 'Nyligt udgivet', list: 'Historieliste', count: 'historier', loading: 'Indlæser' },
+    fi: { curated: 'Entä nämä?', curatedSub: 'Satunnaiset nostot', fresh: 'Uudet tarinat', freshSub: 'Äskettäin julkaistu', list: 'Tarinat', count: 'tarinaa', loading: 'Ladataan' },
+    sv: { curated: 'Vad sägs om dessa?', curatedSub: 'Slumpade tips', fresh: 'Nya berättelser', freshSub: 'Nyligen publicerat', list: 'Berättelselista', count: 'berättelser', loading: 'Laddar' },
+    et: { curated: 'Kuidas oleks nendega?', curatedSub: 'Juhuslikud valikud', fresh: 'Uued lood', freshSub: 'Hiljuti avaldatud', list: 'Lugude nimekiri', count: 'lugu', loading: 'Laadimine' },
+};
+
 function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
     // DB-cached translations for non-ko/en
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
@@ -79,7 +114,6 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
         displayContent = sanitizeAI((liveContent || sourceContent).substring(0, 200));
     }
     const chain = getStoryImageChain(post);
-    const museumLine = getStoryMuseumLine(post, locale);
     return (
         <button
             onClick={() => onNavigate(post.id)}
@@ -125,12 +159,10 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                         </>
                     )}
                 </div>
-                <h2 className="text-[15px] sm:text-base font-black mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
+                <h2 className="text-[16px] sm:text-[17px] font-black mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
                     {displayTitle}
                 </h2>
-                <p className="mm-story-museum-line text-xs line-clamp-1 leading-relaxed" style={{ wordBreak: 'break-word' }}>
-                    {museumLine}
-                </p>
+                <StoryMuseumMeta post={post} locale={locale} className="text-xs leading-relaxed" />
             </div>
         </button>
     );
@@ -147,13 +179,7 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
         : locale === 'en'
             ? (post.titleEn || post.title)
             : (cached.title || liveTitle || sourceTitle)), post.museums);
-    const displayContent = sanitizeAI(locale === 'ko'
-        ? (post.content || '').replace(/<[^>]*>/g, '')
-        : locale === 'en'
-            ? ((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '')
-            : (cached.content || liveContent || sourceContent)).substring(0, 110);
     const chain = getStoryImageChain(post);
-    const museumLine = getStoryMuseumLine(post, locale);
 
     return (
         <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
@@ -202,8 +228,8 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
                         </>
                     )}
                 </div>
-                <h3 className="text-[15px] sm:text-base font-black leading-tight line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>{displayTitle}</h3>
-                <p className="mm-story-museum-line mt-1 text-xs leading-relaxed line-clamp-1" style={{ wordBreak: 'break-word' }}>{museumLine}</p>
+                <h3 className="text-[16px] sm:text-[17px] font-black leading-tight line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>{displayTitle}</h3>
+                <StoryMuseumMeta post={post} locale={locale} className="mt-1 text-xs leading-relaxed" />
             </div>
         </button>
     );
@@ -219,6 +245,7 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
             ? (post.titleEn || post.title)
             : (cached.title || liveTitle || sourceTitle)), post.museums);
     const chain = getStoryImageChain(post);
+    const museumLine = getStoryMuseumLine(post, locale);
 
     return (
         <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
@@ -256,12 +283,14 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
                     <span>{formatDate(post.createdAt, locale)}</span>
                 </div>
                 <h3>{displayTitle}</h3>
+                <StoryMuseumMeta post={post} locale={locale} className="mt-1.5 text-[11px] leading-snug" />
             </div>
         </button>
     );
 }
 
 function BlogPageSkeleton({ locale }: { locale: Locale }) {
+    const sectionLabels = STORY_SECTION_LABELS[locale] || STORY_SECTION_LABELS.en;
     return (
         <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
@@ -274,8 +303,8 @@ function BlogPageSkeleton({ locale }: { locale: Locale }) {
             </div>
 
             <div className="mm-section-heading">
-                <h2>{locale === 'ko' ? '여기는 어때요?' : 'How about these?'}</h2>
-                <span>{locale === 'ko' ? '불러오는 중' : 'Loading'}</span>
+                <h2>{sectionLabels.curated}</h2>
+                <span>{sectionLabels.loading}</span>
             </div>
             <div className="mm-rail-scroll flex gap-3">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -292,8 +321,8 @@ function BlogPageSkeleton({ locale }: { locale: Locale }) {
             </div>
 
             <div className="mm-section-heading">
-                <h2>{locale === 'ko' ? '새 이야기' : 'New stories'}</h2>
-                <span>{locale === 'ko' ? '최근 발행' : 'Recent'}</span>
+                <h2>{sectionLabels.fresh}</h2>
+                <span>{sectionLabels.freshSub}</span>
             </div>
             <div className="mm-list-surface">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -360,6 +389,7 @@ export default function BlogListPage() {
     const [activeCategory, setActiveCategory] = useState<string>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('random');
     const [userLocation, setUserLocation] = useState<{lat: number; lng: number} | null>(null);
+    const sectionLabels = STORY_SECTION_LABELS[locale] || STORY_SECTION_LABELS.en;
     const PER_PAGE = 10;
     const SCROLL_KEY = 'blog_scroll_pos';
     const PAGE_KEY = 'blog_page';
@@ -550,8 +580,8 @@ export default function BlogListPage() {
                     {curatedPosts.length > 0 && (
                         <>
                             <div className="mm-section-heading">
-                                <h2>{locale === 'ko' ? '여기는 어때요?' : 'How about these?'}</h2>
-                                <span>{locale === 'ko' ? '랜덤 추천' : 'Random picks'}</span>
+                                <h2>{sectionLabels.curated}</h2>
+                                <span>{sectionLabels.curatedSub}</span>
                             </div>
                             <div className="mm-rail-scroll stagger-children flex gap-3">
                                 {curatedPosts.map((post: any) => (
@@ -564,8 +594,8 @@ export default function BlogListPage() {
                     {freshPosts.length > 0 && (
                         <>
                             <div className="mm-section-heading">
-                                <h2>{locale === 'ko' ? '새 이야기' : 'New stories'}</h2>
-                                <span>{locale === 'ko' ? '최근 발행' : 'Recently published'}</span>
+                                <h2>{sectionLabels.fresh}</h2>
+                                <span>{sectionLabels.freshSub}</span>
                             </div>
                             <div className="mm-story-mini-grid">
                                 {freshPosts.map((post: any) => (
@@ -576,9 +606,9 @@ export default function BlogListPage() {
                     )}
 
                     <div className="mm-section-heading">
-                        <h2>{locale === 'ko' ? '이야기 목록' : 'Story list'}</h2>
+                        <h2>{sectionLabels.list}</h2>
                         <div className="flex items-center gap-2">
-                            <span>{sortedPosts.length.toLocaleString()} {locale === 'ko' ? '편' : 'stories'}</span>
+                            <span>{sortedPosts.length.toLocaleString()} {sectionLabels.count}</span>
                             <select
                                 value={sortMode}
                                 onChange={e => handleSortChange(e.target.value as SortMode)}

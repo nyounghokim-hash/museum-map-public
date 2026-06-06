@@ -34,6 +34,7 @@ export default function NavHeader() {
     const notifRef = useRef<HTMLDivElement>(null);
     const { locale, setLocale, darkMode, setDarkMode } = useApp();
     const [isMapMobileHome, setIsMapMobileHome] = useState(false);
+    const [isDesktopViewport, setIsDesktopViewport] = useState(false);
     const [activeTrip, setActiveTrip] = useState<any>(null);
 
     useEffect(() => {
@@ -47,6 +48,18 @@ export default function NavHeader() {
             window.removeEventListener('orientationchange', update);
         };
     }, [pathname]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const update = () => setIsDesktopViewport(window.innerWidth >= 1024);
+        update();
+        window.addEventListener('resize', update, { passive: true });
+        window.addEventListener('orientationchange', update, { passive: true });
+        return () => {
+            window.removeEventListener('resize', update);
+            window.removeEventListener('orientationchange', update);
+        };
+    }, []);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -232,9 +245,10 @@ export default function NavHeader() {
         || pathname === '/compare'
         || pathname === '/settings'
         || pathname === '/profile'
+        || pathname === '/admin'
         || pathname === '/login';
 
-    if (isMapMobileHome || isHeaderlessEditorialRoute) return null;
+    if (!isDesktopViewport && (isMapMobileHome || isHeaderlessEditorialRoute)) return null;
 
     return (
         <>

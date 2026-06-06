@@ -103,6 +103,67 @@ function formatOpeningHoursValue(value: string, locale: string) {
     return rows.length >= 2 ? rows : null;
 }
 
+const COUNTRY_TIMEZONES: Record<string, string> = {
+    KR: 'Asia/Seoul', KOR: 'Asia/Seoul', Korea: 'Asia/Seoul', 'South Korea': 'Asia/Seoul', 대한민국: 'Asia/Seoul',
+    JP: 'Asia/Tokyo', JPN: 'Asia/Tokyo', Japan: 'Asia/Tokyo', 일본: 'Asia/Tokyo',
+    US: 'America/New_York', USA: 'America/New_York', 'United States': 'America/New_York', 미국: 'America/New_York',
+    GB: 'Europe/London', UK: 'Europe/London', GBR: 'Europe/London', 'United Kingdom': 'Europe/London', 영국: 'Europe/London',
+    FI: 'Europe/Helsinki', FIN: 'Europe/Helsinki', Finland: 'Europe/Helsinki', 핀란드: 'Europe/Helsinki',
+    FR: 'Europe/Paris', France: 'Europe/Paris',
+    DE: 'Europe/Berlin', Germany: 'Europe/Berlin',
+    ES: 'Europe/Madrid', Spain: 'Europe/Madrid',
+    PT: 'Europe/Lisbon', Portugal: 'Europe/Lisbon',
+    CN: 'Asia/Shanghai', China: 'Asia/Shanghai',
+    TW: 'Asia/Taipei', Taiwan: 'Asia/Taipei',
+    DK: 'Europe/Copenhagen', Denmark: 'Europe/Copenhagen',
+    SE: 'Europe/Stockholm', Sweden: 'Europe/Stockholm',
+    EE: 'Europe/Tallinn', Estonia: 'Europe/Tallinn',
+};
+
+const WEEKDAY_KEYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
+
+function parseLocalParts(timeZone: string) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    }).formatToParts(new Date());
+    const weekday = parts.find(p => p.type === 'weekday')?.value || 'Monday';
+    const hour = Number(parts.find(p => p.type === 'hour')?.value || 0);
+    const minute = Number(parts.find(p => p.type === 'minute')?.value || 0);
+    return { weekday, minutes: hour * 60 + minute };
+}
+
+function getOpenStatus(hoursValue: string | undefined, country: string | undefined, locale: string) {
+    const labels = {
+        open: locale === 'ko' ? '오늘 운영중' : 'Open today',
+        ended: locale === 'ko' ? '오늘 운영 종료' : 'Closed for today',
+        closed: locale === 'ko' ? '휴관 중' : 'Closed',
+    };
+    if (!hoursValue) return null;
+    const timeZone = COUNTRY_TIMEZONES[country || ''] || 'UTC';
+    const local = parseLocalParts(timeZone);
+    const dayIndex = WEEKDAY_KEYS.indexOf(local.weekday as any);
+    const koDay = WEEKDAY_KO[dayIndex < 0 ? 1 : dayIndex];
+    const dayName = local.weekday;
+    const normalized = hoursValue.replace(/\s+/g, ' ');
+    const closedRegex = new RegExp(`(${dayName}|${koDay}(요일)?)\\s*[:：]?\\s*(Closed|휴관|정기\\s*휴관|closed)`, 'i');
+    if (closedRegex.test(normalized) || new RegExp(`${koDay}(요일)?\\s*휴관`, 'i').test(normalized)) {
+        return { kind: 'closed' as const, label: labels.closed };
+    }
+    const ranges = Array.from(normalized.matchAll(/(\d{1,2})[:：](\d{2})\s*[-~–]\s*(\d{1,2})[:：](\d{2})/g));
+    if (ranges.length === 0) return null;
+    const anyOpen = ranges.some(match => {
+        const start = Number(match[1]) * 60 + Number(match[2]);
+        const end = Number(match[3]) * 60 + Number(match[4]);
+        return local.minutes >= start && local.minutes <= end;
+    });
+    return anyOpen ? { kind: 'open' as const, label: labels.open } : { kind: 'ended' as const, label: labels.ended };
+}
+
 // Sub-component for translating general text (titles, descriptions)
 function TranslatedText({ text, targetLocale }: { text: string; targetLocale: string }) {
     const { text: translated, isTranslating } = useTranslatedText(text, targetLocale as Locale, { withLoading: true });
@@ -113,7 +174,6 @@ function TranslatedText({ text, targetLocale }: { text: string; targetLocale: st
 // Sub-component for rendering a single artwork card with translated text
 function ArtworkCard({ work, locale, cachedTranslations, index, onClick }: { work: any; locale: string; cachedTranslations?: Record<string, string>; index: number; onClick?: () => void }) {
     const cachedTitle = cachedTranslations?.[`artwork_${index}_title`];
-    const cachedDesc = cachedTranslations?.[`artwork_${index}_desc`];
     const [imgError, setImgError] = useState(false);
     const artworkTitle = getLocalizedArtworkTitle(work, locale);
     const artistName = getLocalizedArtistName(work, locale) || work.artist;
@@ -128,7 +188,7 @@ function ArtworkCard({ work, locale, cachedTranslations, index, onClick }: { wor
                 <img
                     src={work.image && !imgError ? work.image : '/logo.svg'}
                     alt={work.title || ''}
-                    className={`w-full h-full transition-transform duration-500 ${work.image && !imgError ? 'object-cover group-hover:scale-[1.04]' : 'object-contain p-8 opacity-20 dark:invert dark:opacity-60'}`}
+                    className={`w-full h-full transition-transform duration-500 ${work.image && !imgError ? 'object-cover group-hover:scale-[1.04]' : 'mm-featured-art-fallback-logo object-contain opacity-50 dark:invert dark:opacity-50'}`}
                     onError={() => setImgError(true)}
                 />
                 {work.year && (
@@ -137,7 +197,7 @@ function ArtworkCard({ work, locale, cachedTranslations, index, onClick }: { wor
                     </span>
                 )}
             </div>
-            <div className="p-3 sm:p-3.5">
+            <div className="mm-featured-art-body p-3 sm:p-3.5">
                 {artistName && (
                     <p className="text-[10px] font-extrabold uppercase tracking-widest line-clamp-1" style={{ color: 'var(--mm-brand)' }}>
                         {artistName}
@@ -146,11 +206,6 @@ function ArtworkCard({ work, locale, cachedTranslations, index, onClick }: { wor
                 <h4 className="mt-1 text-sm font-extrabold leading-snug line-clamp-2" style={{ color: 'var(--mm-text-primary)' }}>
                     {artworkTitle || cachedTitle || work.title}
                 </h4>
-                {work.description && (
-                    <p className="mt-1.5 text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--mm-text-secondary)' }}>
-                        {locale === 'ko' ? (work.descriptionKo || work.description) : locale === 'en' ? work.description : (cachedDesc || <TranslatedText text={work.description} targetLocale={locale} />)}
-                    </p>
-                )}
             </div>
         </button>
     );
@@ -200,6 +255,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const [exhibitions, setExhibitions] = useState<any[]>([]);
     const [loadingLive, setLoadingLive] = useState(false);
     const [reportOpen, setReportOpen] = useState(false);
+    const [fullDescriptionOpen, setFullDescriptionOpen] = useState(false);
     const [copyToast, setCopyToast] = useState(false);
     const [selectedArtwork, setSelectedArtwork] = useState<any>(null);
     const [relatedStories, setRelatedStories] = useState<any[]>([]);
@@ -408,6 +464,16 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const visitorItems = Array.isArray(data.visitorInfo) ? data.visitorInfo : [];
     const quickHoursItem = visitorItems.find((item: any) => item.icon === '🕐' || item.icon === 'clock' || item.label?.includes('영업') || item.label?.includes('시간'));
     const quickAccessItem = visitorItems.find((item: any) => item.icon === '🚇' || item.label === '교통' || item.label === '가는 길');
+    const decisionInfoItems = visitorItems.filter((item: any) => {
+        const isLocation = item.label === '위치';
+        return !isLocation && item !== quickHoursItem && item !== quickAccessItem;
+    }).slice(0, 4);
+    const openStatus = getOpenStatus(quickHoursItem?.value, data.country, locale);
+    const detailDescription = locale === 'ko'
+        ? (data.descriptionKo || cachedMuseum.description || translateDescription(data.description, locale))
+        : locale === 'en'
+            ? data.description
+            : (cachedMuseum.description || translatedDesc || translateDescription(data.description, locale));
     const decisionLabels = ({
         ko: { title: '방문 전에 확인해요', directions: '길찾기', rating: '평점', hours: '운영 정보', access: '가는 길' },
         en: { title: 'Before you visit', directions: 'Directions', rating: 'Rating', hours: 'Hours', access: 'Getting there' },
@@ -430,7 +496,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         access: 'Getting there',
     };
 
-    const showMiniHeader = scrollY > 260;
+    const showMiniHeader = false;
 
     return (
         <div
@@ -472,12 +538,6 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     alt={data.name}
                     className="h-[302px] sm:h-[360px] w-full bg-gray-900"
                 >
-                    {/* Back button on image */}
-                    <button onClick={onClose || (() => router.back())} className="mm-museum-round-action hidden lg:flex absolute top-4 left-4 z-20 active:scale-95 transition-all">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                            </svg>
-                    </button>
                     {/* Share button on image */}
                     <button
                         onClick={async () => {
@@ -536,7 +596,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
                     {/* Google Places attribution */}
                     {(data.placePhotos?.length > 0 || data.imageUrl?.includes('googleusercontent')) && (
-                        <span className="absolute top-20 left-4 lg:top-4 lg:left-[4.5rem] z-20 inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1.5 text-[9px] font-bold tracking-wide text-white/70 backdrop-blur-md ring-1 ring-white/15 pointer-events-none">
+                        <span className="absolute left-4 top-4 z-20 inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1.5 text-[9px] font-bold tracking-wide text-white/70 backdrop-blur-md ring-1 ring-white/15 pointer-events-none">
                             <CameraIcon className="h-3 w-3" />
                             Google
                         </span>
@@ -548,18 +608,6 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             {locale === 'ko' && data.nameEn && <p className="text-sm text-white/60 mt-0.5">{data.nameEn}</p>}
                             {locale !== 'ko' && <p className="text-sm text-white/60 mt-0.5">{data.nameKo || data.name}</p>}
                         </div>
-                        {/* Rating badge — bottom right on image */}
-                        {data.googleRating && (
-                            <div className="flex flex-col items-end shrink-0 ml-3">
-                                <div className="flex items-center gap-1">
-                                    <svg className="w-5 h-5 text-yellow-400 drop-shadow-lg" fill="currentColor" viewBox="0 0 24 24"><path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005z" /></svg>
-                                    <span className="text-xl font-extrabold text-yellow-400 drop-shadow-lg">{data.googleRating.toFixed(1)}</span>
-                                </div>
-                                {data.googleRatingsTotal && (
-                                    <span className="text-xs text-yellow-300/90 mt-0.5 font-medium">{data.googleRatingsTotal.toLocaleString()} {getReviewsLabel(locale)}</span>
-                                )}
-                            </div>
-                        )}
                     </div>
 
 
@@ -570,7 +618,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     {/* One-line Summary */}
                     {data.summary && (
                         <div className="museum-summary-card mb-8 rounded-2xl px-4 py-4 sm:px-5">
-                            <p className="museum-summary-label mb-2 text-[11px] font-black uppercase tracking-[0.2em]">
+                            <p className="museum-summary-label mb-2 text-[13px] font-black uppercase tracking-[0.16em]">
                                 {summaryLabel}
                             </p>
                             {locale !== 'ko' && isSummaryTranslating ? (
@@ -583,18 +631,23 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                     {locale === 'ko' ? data.summary : translatedSummary || data.summary}
                                 </p>
                             )}
+                            {detailDescription && (
+                                <button type="button" onClick={() => setFullDescriptionOpen(true)} className="mt-4 inline-flex items-center gap-1 text-xs font-black text-blue-600 dark:text-blue-300">
+                                    {locale === 'ko' ? '전체 설명 텍스트' : 'Full description'}
+                                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                </button>
+                            )}
                         </div>
                     )}
 
                     <div className="mm-detail-decision-card mb-6 rounded-2xl border border-blue-100/80 bg-white/75 p-4 shadow-sm dark:border-blue-900/40 dark:bg-neutral-900/70">
                         <div className="mb-3 flex items-center justify-between gap-3">
-                            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+                            <p className="text-[13px] font-black uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
                                 {decisionLabels.title}
                             </p>
-                            {data.googleRating && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-black text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-300">
-                                    <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005z" /></svg>
-                                    {decisionLabels.rating} {data.googleRating.toFixed(1)}
+                            {openStatus && (
+                                <span className={`mm-open-status mm-open-status--${openStatus.kind}`}>
+                                    {openStatus.label}
                                 </span>
                             )}
                         </div>
@@ -611,14 +664,20 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                     <p className="line-clamp-2 font-bold leading-snug text-gray-800 dark:text-gray-100">{translateViValue(quickAccessItem.value, locale)}</p>
                                 </div>
                             )}
+                            {decisionInfoItems.map((item: any, i: number) => (
+                                <div key={`${item.label}-${i}`} className="mm-detail-fact rounded-xl bg-gray-50 px-3 py-2 dark:bg-neutral-800/70">
+                                    <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-neutral-500">{translateViLabel(item.label, locale)}</p>
+                                    <p className="line-clamp-2 font-bold leading-snug text-gray-800 dark:text-gray-100">{translateViValue(item.value, locale)}</p>
+                                </div>
+                            ))}
                         </div>
-                        <div className="grid grid-cols-1">
+                        <div className={`grid gap-2 ${data.website ? 'grid-cols-2' : 'grid-cols-1'}`}>
                             <a
                                 href={appleFirst ? mapLinks.appleDirections : mapLinks.googleDirections}
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={() => { gtag.event('get_directions', { category: 'navigation', label: appleFirst ? 'Apple Maps' : 'Google Maps', value: 1 }); }}
-                                className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-3 text-sm font-black text-white shadow-sm shadow-blue-500/20 transition-all active:scale-95 hover:bg-blue-700"
+                                className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3 py-4 text-sm font-black text-white shadow-sm shadow-blue-500/20 transition-all active:scale-95 hover:bg-blue-700"
                             >
                                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
@@ -631,7 +690,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={() => { gtag.event('open_website', { category: 'museum', label: data.name, value: 1 }); }}
-                                    className="mt-2 flex min-w-0 items-center justify-center gap-1.5 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5 text-xs font-extrabold text-gray-500 shadow-sm transition-all hover:bg-gray-100 active:scale-95 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
+                                    className="flex min-w-0 items-center justify-center gap-1.5 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-4 text-xs font-extrabold text-gray-500 shadow-sm transition-all hover:bg-gray-100 active:scale-95 dark:border-neutral-800 dark:bg-neutral-800/50 dark:text-neutral-400 dark:hover:bg-neutral-800"
                                 >
                                     <svg className="h-3.5 w-3.5 shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m-7.843 4.582A11.953 11.953 0 0012 10.5c2.998 0 5.74-1.1 7.843-2.918M3.284 14.253A17.919 17.919 0 0012 16.5c3.162 0 6.133-.815 8.716-2.247" />
@@ -642,20 +701,14 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                         </div>
                     </div>
 
-                    {/* Description */}
-                    {locale === 'ko' ? (
-                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm mb-5">{data.descriptionKo || cachedMuseum.description || translateDescription(data.description, locale)}</p>
-                    ) : locale === 'en' ? (
-                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm mb-5">{data.description}</p>
-                    ) : isDescTranslating && !cachedMuseum.description ? (
+                    {/* Description loading placeholder */}
+                    {isDescTranslating && !cachedMuseum.description && locale !== 'ko' && locale !== 'en' && (
                         <div className="mb-5 space-y-2">
                             <div className="skeleton h-4 w-full rounded" />
                             <div className="skeleton h-4 w-full rounded" />
                             <div className="skeleton h-4 w-5/6 rounded" />
                             <div className="skeleton h-4 w-3/4 rounded" />
                         </div>
-                    ) : (
-                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm mb-5">{cachedMuseum.description || translatedDesc || translateDescription(data.description, locale)}</p>
                     )}
 
                     {/* Updated date chip */}
@@ -678,7 +731,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             const isLocation = item.label === '위치';
                             const isAccess = item.label === '교통' || item.label === '가는 길';
                             const isHours = item.icon === '🕐' || item.icon === 'clock' || item.label?.includes('영업') || item.label?.includes('시간');
-                            if (isHours || isAccess) return null;
+                            if (!isLocation || isHours || isAccess) return null;
                             const openingHoursRows = isHours ? formatOpeningHoursValue(item.value, locale) : null;
                             // 위치: museum's country locale (or English if not in 13)
                             // 교통/가는길: user's selected locale (full sentence)
@@ -919,6 +972,23 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     </p>
                 </div>
             </GlassPanel>
+
+            {fullDescriptionOpen && createPortal(
+                <div className="fixed inset-0 z-[140] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6" onClick={() => setFullDescriptionOpen(false)}>
+                    <div className="w-full max-w-xl rounded-t-[28px] bg-white p-5 shadow-2xl dark:bg-slate-950 sm:rounded-[28px]" onClick={(e) => e.stopPropagation()}>
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <h3 className="text-base font-black text-slate-900 dark:text-white">{locale === 'ko' ? '전체 설명 텍스트' : 'Full description'}</h3>
+                            <button type="button" onClick={() => setFullDescriptionOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-300">
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                        <p className="max-h-[58vh] overflow-y-auto text-sm font-medium leading-7 text-slate-600 dark:text-slate-300">
+                            {detailDescription}
+                        </p>
+                    </div>
+                </div>,
+                document.body
+            )}
 
 
             {/* Mobile bottom spacer */}

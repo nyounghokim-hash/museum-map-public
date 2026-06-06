@@ -27,6 +27,7 @@ type ProfileLabels = {
   notificationsDesc: string;
   preferences: string;
   preferencesDesc: string;
+  adminDesc: string;
   logout: string;
   loading: string;
 };
@@ -53,6 +54,7 @@ const LABELS: Record<string, ProfileLabels> = {
     notificationsDesc: '최근 받은 소식',
     preferences: '설정',
     preferencesDesc: '언어, 테마, 계정 관리',
+    adminDesc: '관리자 센터로 이동',
     logout: '로그아웃',
     loading: '불러오는 중',
   },
@@ -77,6 +79,7 @@ const LABELS: Record<string, ProfileLabels> = {
     notificationsDesc: 'Recent updates',
     preferences: 'Settings',
     preferencesDesc: 'Language, theme, and account',
+    adminDesc: 'Open admin center',
     logout: 'Log out',
     loading: 'Loading',
   },
@@ -210,6 +213,15 @@ export default function ProfilePage() {
 
       <section className="mt-8">
         <div className="mm-profile-action-list2">
+          {isAdmin && (
+            <Link href="/admin" className="mm-profile-action-row2">
+              <span>
+                <strong>{labels.admin}</strong>
+                <em>{labels.adminDesc}</em>
+              </span>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+            </Link>
+          )}
           <Link href="/settings" className="mm-profile-action-row2">
             <span>
               <strong>{labels.preferences}</strong>

@@ -28,6 +28,22 @@ const TripDetailPanel = dynamic(() => import('@/components/map/TripDetailPanel')
 const NearbyPopup = dynamic(() => import('@/components/map/NearbyPopup'), { ssr: false });
 const WeatherPopup = dynamic(() => import('@/components/map/WeatherPopup'), { ssr: false });
 const RETURN_TO_MUSEUM_DETAIL_KEY = 'mm-return-to-museum-detail';
+type MapSettingKey = 'location' | 'nearby' | 'weather';
+type MapPrefs = Record<MapSettingKey, boolean>;
+const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
+  location: 'mm_map_show_location',
+  nearby: 'mm_map_show_nearby',
+  weather: 'mm_map_show_weather',
+};
+const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true };
+function readMapPrefs(): MapPrefs {
+  if (typeof window === 'undefined') return DEFAULT_MAP_PREFS;
+  return {
+    location: localStorage.getItem(MAP_PREF_KEYS.location) !== 'false',
+    nearby: localStorage.getItem(MAP_PREF_KEYS.nearby) !== 'false',
+    weather: localStorage.getItem(MAP_PREF_KEYS.weather) !== 'false',
+  };
+}
 const MOBILE_TOOL_LABELS: Record<string, {
   currentLocation: string;
   nearby: string;
@@ -1074,6 +1090,7 @@ export default function MainPage() {
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [currentWeather, setCurrentWeather] = useState<CurrentWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
+  const [mapPrefs, setMapPrefs] = useState<MapPrefs>(DEFAULT_MAP_PREFS);
   const nearbyBtnRefMobile = useRef<HTMLButtonElement>(null);
   const weatherBtnRefMobile = useRef<HTMLButtonElement>(null);
   const nearbyBtnRefPC = useRef<HTMLButtonElement>(null);
@@ -1088,6 +1105,23 @@ export default function MainPage() {
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncPrefs = () => {
+      const next = readMapPrefs();
+      setMapPrefs(next);
+      if (!next.nearby) setNearbyOpen(false);
+      if (!next.weather) setWeatherOpen(false);
+    };
+    syncPrefs();
+    window.addEventListener('storage', syncPrefs);
+    window.addEventListener('mm-map-prefs-change', syncPrefs as EventListener);
+    return () => {
+      window.removeEventListener('storage', syncPrefs);
+      window.removeEventListener('mm-map-prefs-change', syncPrefs as EventListener);
+    };
   }, []);
 
   useEffect(() => {
@@ -1271,10 +1305,10 @@ export default function MainPage() {
     const dDayText = dDayNum !== null ? (dDayNum > 0 ? `D-${dDayNum}` : dDayNum === 0 ? 'D-DAY' : '') : '';
     const tripDateRange = activeTrip.startDate ? (() => { const s = new Date(activeTrip.startDate); const e = activeTrip.endDate ? new Date(activeTrip.endDate) : null; const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`; return e ? `${fmt(s)} ~ ${fmt(e)}` : fmt(s); })() : '';
     return (
-      <div style={{ animation: tripExiting ? 'slideToRight 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards' : 'slideFromRight 0.4s cubic-bezier(0.32, 0.72, 0, 1)' }}>
+      <div className="mm-active-trip-view2" style={{ animation: tripExiting ? 'slideToRight 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards' : 'slideFromRight 0.4s cubic-bezier(0.32, 0.72, 0, 1)' }}>
         {/* Desktop: side-by-side */}
         <div className="hidden sm:flex sm:flex-row h-[calc(100vh-3.5rem)]">
-          <div className="flex flex-col w-96 shrink-0" style={{ background: 'var(--glass-bg-heavy)', backdropFilter: 'blur(24px) saturate(180%)', WebkitBackdropFilter: 'blur(24px) saturate(180%)', borderRight: '1px solid var(--glass-border)' }}>
+          <div className="mm-active-trip-panel2 flex flex-col w-96 shrink-0">
             <div className="p-6 pb-0 flex flex-col shrink-0">
               <button onClick={() => { setTripExiting(true); setTimeout(() => { setTripExiting(false); setIsViewingActiveRoute(false); setReturnFromDetail(true); setTimeout(() => setReturnFromDetail(false), 500); }, 300); }} className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-full mb-4 transition-colors shadow-sm active:scale-95 shrink-0">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -1317,7 +1351,7 @@ export default function MainPage() {
                     <div key={stop.museumId + '-' + i}
                       data-drag-index={i}
                       data-drag-scope="active-trip-stops"
-                      className={`relative z-10 flex gap-4 p-3 rounded-xl border transition-all select-none cursor-pointer touch-none
+                      className={`mm-active-trip-stop2 relative z-10 flex gap-4 p-3 rounded-xl border transition-all select-none cursor-pointer touch-none
                         ${isBeingDragged ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 shadow-lg scale-[1.02] opacity-80'
                           : isDropTarget ? 'bg-green-50 dark:bg-green-900/20 border-green-300 border-dashed'
                             : 'border shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800'}`} style={!isBeingDragged && !isDropTarget ? { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : undefined}
@@ -1341,7 +1375,7 @@ export default function MainPage() {
               {tripIsDragging && <p className="text-xs text-blue-500 dark:text-blue-400 text-center mt-3 animate-pulse">{t('plans.dragReorder', locale)}</p>}
             </div>
             {/* Bottom buttons */}
-            <div className="p-4 border-t space-y-2 shrink-0" style={{ background: 'var(--glass-bg-heavy)', borderColor: 'var(--glass-border)' }}>
+            <div className="mm-active-trip-footer2 p-4 border-t space-y-2 shrink-0">
               {isPendingTrip && dDayText && (
                 <div className="text-center py-2 mb-1">
                   <span className="text-4xl font-black text-blue-500 dark:text-blue-400">{dDayText}</span>
@@ -1361,7 +1395,7 @@ export default function MainPage() {
             <RouteMapViewer stops={tripStops.map((s: any) => { const m = museums.find((x: any) => x.id === s.museumId); return m ? { ...s, name: getLocalizedMuseumName(m, locale) } : s; })} darkMode={isDarkMode} onStopClick={(stop) => { if (stop.museumId) handleMuseumClick(stop.museumId); }} padding={tripMobileMapPadding} />
           </div>
           {/* Top drawer — slides down from top */}
-          <div className={`absolute left-0 right-0 top-0 z-30 rounded-b-3xl shadow-[0_4px_20px_rgba(0,0,0,0.1)] flex flex-col transition-[max-height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${tripSheetOpen ? 'max-h-[55vh]' : 'max-h-[56px]'}`} style={{ background: 'var(--glass-bg-heavy)', backdropFilter: 'blur(24px) saturate(200%)', WebkitBackdropFilter: 'blur(24px) saturate(200%)' }}>
+          <div className={`mm-active-trip-drawer2 absolute left-0 right-0 top-0 z-30 rounded-b-3xl shadow-[0_4px_20px_rgba(0,0,0,0.1)] flex flex-col transition-[max-height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${tripSheetOpen ? 'max-h-[55vh]' : 'max-h-[56px]'}`}>
             {/* Scrollable stop list */}
             <div className={`px-4 pt-3 overflow-y-auto flex-1 min-h-0 transition-opacity duration-300 ${tripSheetOpen ? 'opacity-100' : 'opacity-0 h-0'}`}>
               <div className="space-y-2.5 relative">
@@ -1373,7 +1407,7 @@ export default function MainPage() {
                     <div key={stop.museumId + '-' + i}
                       data-drag-index={i}
                       data-drag-scope="active-trip-stops"
-                      className={`relative z-10 flex gap-3 p-2.5 rounded-xl border transition-all select-none cursor-pointer touch-none
+                      className={`mm-active-trip-stop2 relative z-10 flex gap-3 p-2.5 rounded-xl border transition-all select-none cursor-pointer touch-none
                         ${isBeingDragged ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 shadow-lg scale-[1.02] opacity-80'
                           : isDropTarget ? 'bg-green-50 dark:bg-green-900/20 border-green-300 border-dashed'
                             : 'border shadow-sm'}`} style={!isBeingDragged && !isDropTarget ? { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : undefined}
@@ -1551,7 +1585,7 @@ export default function MainPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => { setSearchFocused(true); closeCategoryDropdown(); closeNewMuseums(); setMapSideMenuOpen(false); }}
                   onBlur={() => setSearchFocused(false)}
-                  placeholder={locale === 'ko' ? '미술관 및 박물관 또는 지역 검색' : 'Search museums, galleries, or places'}
+                  placeholder={t('map.search', locale)}
                 />
                 {searchQuery && (
                   <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear search">
@@ -1593,21 +1627,38 @@ export default function MainPage() {
             )}
 
             <div className="mm-map2-pill-row" style={mm2.pillRow}>
-              <button
-                ref={weatherBtnRefMobile}
-                type="button"
-                onClick={() => {
-                  if (weatherOpen) setWeatherOpen(false);
-                  else { closeAllPopups('weather'); fetchCurrentWeather(); setWeatherOpen(true); }
-                }}
-                className={`mm-map2-tool-pill ${weatherOpen ? 'is-active' : ''}`}
-                style={{ ...mm2.toolPill, ...(weatherOpen ? mm2.activePill : null) }}
-                aria-expanded={weatherOpen}
-              >
-                <span className="leading-none"><WeatherChipSvg code={currentWeather?.code} /></span>
-                <span>{mobileToolLabels.weather}</span>
-                <strong>{weatherLoading && !currentWeather ? '...' : currentWeather ? `${Math.round(currentWeather.temp)}°` : '--°'}</strong>
-              </button>
+              {activeTrip && !activeTrip.pending && (
+                <button
+                  type="button"
+                  onClick={() => setIsViewingActiveRoute(true)}
+                  className="mm-map2-tool-pill mm-map2-trip-pill"
+                  style={mm2.toolPill}
+                  aria-label={locale === 'ko' ? '여행 중 경로 보기' : 'View active trip route'}
+                >
+                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
+                  </svg>
+                  <span>{locale === 'ko' ? '여행 중' : 'On trip'}</span>
+                </button>
+              )}
+
+              {mapPrefs.weather && (
+                <button
+                  ref={weatherBtnRefMobile}
+                  type="button"
+                  onClick={() => {
+                    if (weatherOpen) setWeatherOpen(false);
+                    else { closeAllPopups('weather'); fetchCurrentWeather(); setWeatherOpen(true); }
+                  }}
+                  className={`mm-map2-tool-pill mm-map2-tool-pill-compact ${weatherOpen ? 'is-active' : ''}`}
+                  style={{ ...mm2.toolPill, ...(weatherOpen ? mm2.activePill : null) }}
+                  aria-label={mobileToolLabels.weather}
+                  aria-expanded={weatherOpen}
+                >
+                  <strong>{weatherLoading && !currentWeather ? '...' : currentWeather ? `${Math.round(currentWeather.temp)}°` : '--°'}</strong>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1619,32 +1670,50 @@ export default function MainPage() {
                 <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.55}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
                 </svg>
-                <span>{activeFilter === 'All' ? mobileToolLabels.category : translateCategory(activeFilter, locale)}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                      (pos) => {
-                        const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
-                        setUserLocation(nextLocation);
-                        setMapFlyTo({ ...nextLocation, zoom: 13 });
-                      },
-                      () => { showAlert(mobileToolLabels.locationError); }
-                    );
-                  }
-                }}
-                className="mm-map2-tool-pill mm-map2-tool-pill-icon"
-                style={mm2.toolPill}
-                aria-label={mobileToolLabels.currentLocation}
-              >
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                </svg>
-              </button>
+              {mapPrefs.nearby && (
+                <button
+                  ref={nearbyBtnRefMobile}
+                  type="button"
+                  onClick={() => { if (nearbyOpen) { setNearbyOpen(false); } else { closeAllPopups('nearby'); setNearbyOpen(true); } }}
+                  className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${nearbyOpen ? 'is-active' : ''}`}
+                  style={{ ...mm2.toolPill, ...(nearbyOpen ? mm2.activePill : null) }}
+                  aria-label={mobileToolLabels.nearby}
+                  aria-expanded={nearbyOpen}
+                >
+                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657 13.414 20.9a2 2 0 0 1-2.828 0l-4.243-4.243a8 8 0 1 1 11.314 0Z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                </button>
+              )}
+
+              {mapPrefs.location && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+                          setUserLocation(nextLocation);
+                          setMapFlyTo({ ...nextLocation, zoom: 13 });
+                        },
+                        () => { showAlert(mobileToolLabels.locationError); }
+                      );
+                    }
+                  }}
+                  className="mm-map2-tool-pill mm-map2-tool-pill-icon"
+                  style={mm2.toolPill}
+                  aria-label={mobileToolLabels.currentLocation}
+                >
+                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                  </svg>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2049,30 +2118,32 @@ export default function MainPage() {
               </div>
 
               {/* My Location — Mobile */}
-              <button
-                onClick={() => {
-                  if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                      (pos) => {
-                        const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
-                        setUserLocation(nextLocation);
-                        setMapFlyTo({ ...nextLocation, zoom: 13 });
-                      },
-                      () => { showAlert(locale === 'ko' ? '현재 위치를 불러오지 못했어요' : 'Unable to get your location'); }
-                    );
-                  }
-                }}
-                className="w-10 h-10 flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-100/50 dark:border-neutral-800/50 transition-all active:scale-95 shrink-0"
-                aria-label="My Location"
-              >
-                <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                </svg>
-              </button>
+              {mapPrefs.location && (
+                <button
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+                          setUserLocation(nextLocation);
+                          setMapFlyTo({ ...nextLocation, zoom: 13 });
+                        },
+                        () => { showAlert(locale === 'ko' ? '현재 위치를 불러오지 못했어요' : 'Unable to get your location'); }
+                      );
+                    }
+                  }}
+                  className="w-10 h-10 flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-100/50 dark:border-neutral-800/50 transition-all active:scale-95 shrink-0"
+                  aria-label="My Location"
+                >
+                  <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                  </svg>
+                </button>
+              )}
 
               {/* Nearby Museums (PC filter overlay) */}
-              <div className="relative shrink-0">
+              {mapPrefs.nearby && <div className="relative shrink-0">
                 <button
                   ref={nearbyBtnRefPC}
                   onClick={() => { if (nearbyOpen) { setNearbyOpen(false); } else { closeAllPopups('nearby'); setNearbyOpen(true); } }}
@@ -2085,10 +2156,10 @@ export default function MainPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </button>
-              </div>
+              </div>}
 
               {/* Weather (PC filter overlay) */}
-              <div className="relative shrink-0">
+              {mapPrefs.weather && <div className="relative shrink-0">
                 <button
                   ref={weatherBtnRefPC}
                   onClick={() => { if (weatherOpen) { setWeatherOpen(false); } else { closeAllPopups('weather'); setWeatherOpen(true); } }}
@@ -2100,7 +2171,7 @@ export default function MainPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                   </svg>
                 </button>
-              </div>
+              </div>}
             </div>
           </div>
         )}

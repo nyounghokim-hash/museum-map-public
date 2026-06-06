@@ -9,20 +9,20 @@ import { buildShareUrl } from '@/lib/utm';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 
-const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string; listTitle: string; countUnit: string }> = {
-    ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점' },
-    en: { title: 'Artworks', subtitle: 'Featured artworks from around the world', loading: 'Loading...', empty: 'No artworks yet', viewMuseum: 'View Museum', listTitle: 'Artwork list', countUnit: 'works' },
-    ja: { title: '作品', subtitle: '世界の代表作品を一目で', loading: '読み込み中...', empty: '作品はまだありません', viewMuseum: '美術館を見る', listTitle: '作品リスト', countUnit: '点' },
-    de: { title: 'Kunstwerke', subtitle: 'Ausgewählte Kunstwerke aus aller Welt', loading: 'Laden...', empty: 'Noch keine Kunstwerke', viewMuseum: 'Museum ansehen', listTitle: 'Werkverzeichnis', countUnit: 'Werke' },
-    fr: { title: 'Œuvres', subtitle: 'Œuvres du monde entier', loading: 'Chargement...', empty: 'Aucune œuvre', viewMuseum: 'Voir le musée', listTitle: 'Liste des œuvres', countUnit: 'œuvres' },
-    es: { title: 'Obras', subtitle: 'Obras destacadas del mundo', loading: 'Cargando...', empty: 'Sin obras aún', viewMuseum: 'Ver museo', listTitle: 'Lista de obras', countUnit: 'obras' },
-    pt: { title: 'Obras', subtitle: 'Obras em destaque do mundo', loading: 'Carregando...', empty: 'Sem obras ainda', viewMuseum: 'Ver museu', listTitle: 'Lista de obras', countUnit: 'obras' },
-    'zh-CN': { title: '作品', subtitle: '来自世界各地的精选作品', loading: '加载中...', empty: '暂无作品', viewMuseum: '查看博物馆', listTitle: '作品列表', countUnit: '件' },
-    'zh-TW': { title: '作品', subtitle: '來自世界各地的精選作品', loading: '載入中...', empty: '暫無作品', viewMuseum: '查看博物館', listTitle: '作品列表', countUnit: '件' },
-    da: { title: 'Kunstværker', subtitle: 'Udvalgte kunstværker fra hele verden', loading: 'Indlæser...', empty: 'Ingen kunstværker endnu', viewMuseum: 'Se museum', listTitle: 'Liste over værker', countUnit: 'værker' },
-    fi: { title: 'Teokset', subtitle: 'Valittuja teoksia ympäri maailmaa', loading: 'Ladataan...', empty: 'Ei teoksia vielä', viewMuseum: 'Katso museo', listTitle: 'Teoslista', countUnit: 'teosta' },
-    sv: { title: 'Konstverk', subtitle: 'Utvalda konstverk från hela världen', loading: 'Laddar...', empty: 'Inga konstverk ännu', viewMuseum: 'Visa museum', listTitle: 'Verklista', countUnit: 'verk' },
-    et: { title: 'Teosed', subtitle: 'Maailma silmapaistvad teosed', loading: 'Laadimine...', empty: 'Teoseid pole veel', viewMuseum: 'Vaata muuseumi', listTitle: 'Teoste loend', countUnit: 'teost' },
+const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string; listTitle: string; countUnit: string; searchPlaceholder: string }> = {
+    ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점', searchPlaceholder: '작품, 작가, 미술관 검색' },
+    en: { title: 'Artworks', subtitle: 'Featured artworks from around the world', loading: 'Loading...', empty: 'No artworks yet', viewMuseum: 'View Museum', listTitle: 'Artwork list', countUnit: 'works', searchPlaceholder: 'Search artworks, artists, museums...' },
+    ja: { title: '作品', subtitle: '世界の代表作品を一目で', loading: '読み込み中...', empty: '作品はまだありません', viewMuseum: '美術館を見る', listTitle: '作品リスト', countUnit: '点', searchPlaceholder: '作品・作家・美術館を検索...' },
+    de: { title: 'Kunstwerke', subtitle: 'Ausgewählte Kunstwerke aus aller Welt', loading: 'Laden...', empty: 'Noch keine Kunstwerke', viewMuseum: 'Museum ansehen', listTitle: 'Werkverzeichnis', countUnit: 'Werke', searchPlaceholder: 'Kunstwerke, Künstler, Museen suchen...' },
+    fr: { title: 'Œuvres', subtitle: 'Œuvres du monde entier', loading: 'Chargement...', empty: 'Aucune œuvre', viewMuseum: 'Voir le musée', listTitle: 'Liste des œuvres', countUnit: 'œuvres', searchPlaceholder: 'Rechercher œuvres, artistes, musées...' },
+    es: { title: 'Obras', subtitle: 'Obras destacadas del mundo', loading: 'Cargando...', empty: 'Sin obras aún', viewMuseum: 'Ver museo', listTitle: 'Lista de obras', countUnit: 'obras', searchPlaceholder: 'Buscar obras, artistas, museos...' },
+    pt: { title: 'Obras', subtitle: 'Obras em destaque do mundo', loading: 'Carregando...', empty: 'Sem obras ainda', viewMuseum: 'Ver museu', listTitle: 'Lista de obras', countUnit: 'obras', searchPlaceholder: 'Pesquisar obras, artistas, museus...' },
+    'zh-CN': { title: '作品', subtitle: '来自世界各地的精选作品', loading: '加载中...', empty: '暂无作品', viewMuseum: '查看博物馆', listTitle: '作品列表', countUnit: '件', searchPlaceholder: '搜索作品、艺术家、博物馆...' },
+    'zh-TW': { title: '作品', subtitle: '來自世界各地的精選作品', loading: '載入中...', empty: '暫無作品', viewMuseum: '查看博物館', listTitle: '作品列表', countUnit: '件', searchPlaceholder: '搜尋作品、藝術家、博物館...' },
+    da: { title: 'Kunstværker', subtitle: 'Udvalgte kunstværker fra hele verden', loading: 'Indlæser...', empty: 'Ingen kunstværker endnu', viewMuseum: 'Se museum', listTitle: 'Liste over værker', countUnit: 'værker', searchPlaceholder: 'Søg kunstværker, kunstnere, museer...' },
+    fi: { title: 'Teokset', subtitle: 'Valittuja teoksia ympäri maailmaa', loading: 'Ladataan...', empty: 'Ei teoksia vielä', viewMuseum: 'Katso museo', listTitle: 'Teoslista', countUnit: 'teosta', searchPlaceholder: 'Hae teoksia, taiteilijoita, museoita...' },
+    sv: { title: 'Konstverk', subtitle: 'Utvalda konstverk från hela världen', loading: 'Laddar...', empty: 'Inga konstverk ännu', viewMuseum: 'Visa museum', listTitle: 'Verklista', countUnit: 'verk', searchPlaceholder: 'Sök konstverk, konstnärer, museer...' },
+    et: { title: 'Teosed', subtitle: 'Maailma silmapaistvad teosed', loading: 'Laadimine...', empty: 'Teoseid pole veel', viewMuseum: 'Vaata muuseumi', listTitle: 'Teoste loend', countUnit: 'teost', searchPlaceholder: 'Otsi teoseid, kunstnikke, muuseume...' },
 };
 
 type ArtworkSortMode = 'random' | 'registered' | 'year' | 'alphabetical';
@@ -358,7 +358,7 @@ export default function ArtworksPage() {
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onFocus={() => setIsSearchFocused(true)}
                             onBlur={() => setIsSearchFocused(false)}
-                            placeholder={locale === 'ko' ? '작품, 작가, 미술관 검색' : locale === 'ja' ? '作品・作家・美術館を検索...' : 'Search artworks, artists, museums...'}
+                            placeholder={labels.searchPlaceholder}
                             className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-gray-800 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-blue-100/50"
                         />
                         {searchQuery && (
