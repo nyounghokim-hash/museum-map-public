@@ -39,7 +39,7 @@ export default function NavHeader() {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const update = () => setIsMapMobileHome(pathname === '/' && window.innerWidth < 1024);
+        const update = () => setIsMapMobileHome(pathname === '/' && window.innerWidth < 768);
         update();
         window.addEventListener('resize', update, { passive: true });
         window.addEventListener('orientationchange', update, { passive: true });
@@ -51,7 +51,7 @@ export default function NavHeader() {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const update = () => setIsDesktopViewport(window.innerWidth >= 1024);
+        const update = () => setIsDesktopViewport(window.innerWidth >= 768);
         update();
         window.addEventListener('resize', update, { passive: true });
         window.addEventListener('orientationchange', update, { passive: true });
@@ -233,11 +233,16 @@ export default function NavHeader() {
         return () => window.removeEventListener('scroll', onScroll);
     }, [isDetailPage]);
 
+    const isStandaloneDetailRoute = pathname?.startsWith('/museums/')
+        || pathname?.startsWith('/artworks/')
+        || (pathname?.startsWith('/blog/') && pathname !== '/blog');
+
     const isHeaderlessEditorialRoute = pathname === '/saved'
         || pathname === '/blog'
         || pathname?.startsWith('/blog/')
         || pathname === '/artworks'
         || pathname?.startsWith('/artworks/')
+        || pathname?.startsWith('/museums/')
         || pathname === '/collections'
         || pathname?.startsWith('/collections/')
         || pathname === '/plans'
@@ -246,17 +251,24 @@ export default function NavHeader() {
         || pathname === '/settings'
         || pathname === '/profile'
         || pathname === '/admin'
-        || pathname === '/login';
+        || pathname === '/login'
+        || pathname === '/notifications'
+        || pathname?.startsWith('/notifications/')
+        || pathname === '/privacy'
+        || pathname === '/terms'
+        || pathname === '/cookies'
+        || pathname === '/info'
+        || pathname === '/feedback';
 
-    if (!isDesktopViewport && (isMapMobileHome || isHeaderlessEditorialRoute)) return null;
+    if (!isDesktopViewport && (isStandaloneDetailRoute || isMapMobileHome || isHeaderlessEditorialRoute)) return null;
 
     return (
         <>
-            <header className={`sticky top-0 z-50 w-full glass-nav app-header transition-transform duration-300 ease-in-out ${pathname === '/' ? 'max-lg:hidden mm-map-home-header' : ''} ${headerHidden ? '-translate-y-full' : 'translate-y-0'}`}>
+            <header className={`sticky top-0 z-50 w-full glass-nav app-header transition-transform duration-300 ease-in-out ${pathname === '/' ? 'max-md:hidden mm-map-home-header' : ''} ${headerHidden ? '-translate-y-full' : 'translate-y-0'}`}>
                 <div className="w-full xl:max-w-screen-xl xl:mx-auto flex h-14 items-center gap-2 lg:gap-4 px-3 lg:px-8">
-                    <Link href="/" className="font-bold text-lg flex items-center gap-2 shrink-0 dark:text-white">
-                        <svg viewBox="0 0 510 286" className="h-6 w-auto fill-current" aria-label="Museum Map"><path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" /><path d="M464.31,47.94v50.85c0,7.73-5.23,14.48-12.72,16.41l-44.5,11.47c-16.97,4.37-16.95,28.48.03,32.83l44.45,11.37c7.5,1.92,12.75,8.68,12.75,16.42v50.78c0,9.36-7.59,16.94-16.94,16.94h-165.21c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h.25c19.93,0,23.51-28.42,4.2-33.36l-8.64-2.21c-7.5-1.92-12.75-8.68-12.75-16.42v-19.3c0-7.74,5.25-14.5,12.75-16.42l8.38-2.14c19.31-4.93,15.74-33.36-4.19-33.36h0c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h165.21c9.36,0,16.94,7.59,16.94,16.94Z" /></svg>
-                        <span className="hidden sm:inline">Museum Map</span>
+                    <Link href="/" className="font-bold text-lg flex items-center gap-1.5 shrink-0 dark:text-white">
+                        <svg viewBox="0 0 510 286" className="h-4 w-auto fill-current lg:h-4" aria-label="Museum Map"><path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" /><path d="M464.31,47.94v50.85c0,7.73-5.23,14.48-12.72,16.41l-44.5,11.47c-16.97,4.37-16.95,28.48.03,32.83l44.45,11.37c7.5,1.92,12.75,8.68,12.75,16.42v50.78c0,9.36-7.59,16.94-16.94,16.94h-165.21c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h.25c19.93,0,23.51-28.42,4.2-33.36l-8.64-2.21c-7.5-1.92-12.75-8.68-12.75-16.42v-19.3c0-7.74,5.25-14.5,12.75-16.42l8.38-2.14c19.31-4.93,15.74-33.36-4.19-33.36h0c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h165.21c9.36,0,16.94,7.59,16.94,16.94Z" /></svg>
+                        <span className="mm-brand-word hidden sm:inline">Museum Map</span>
                     </Link>
 
                     <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">

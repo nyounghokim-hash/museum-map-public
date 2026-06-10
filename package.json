@@ -7,6 +7,8 @@
     "build": "prisma generate && NODE_OPTIONS=\"--max-old-space-size=4096\" next build",
     "start": "next start",
     "lint": "eslint",
+    "hours:template": "tsx scripts/template-opening-hours.ts",
+    "hours:audit": "tsx scripts/audit-official-opening-hours.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -34,7 +36,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-quill": "^2.0.0",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "tz-lookup": "^6.1.25"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

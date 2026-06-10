@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 
@@ -30,8 +31,13 @@ export default function LoginRequiredModal({ isOpen, onClose, callbackUrl }: Log
     const router = useRouter();
     const { locale } = useApp();
     const [closing, setClosing] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
-    if (!isOpen) return null;
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!isOpen || !mounted) return null;
 
     const t = TEXTS[locale] || TEXTS.en;
 
@@ -46,11 +52,14 @@ export default function LoginRequiredModal({ isOpen, onClose, callbackUrl }: Log
         onClose();
     };
 
-    return (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center" onClick={handleClose}>
+    return createPortal(
+        <div
+            className="fixed inset-0 z-[2147483000] flex min-h-dvh items-center justify-center p-5"
+            onClick={handleClose}
+        >
             <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm ${closing ? 'animate-fadeOut' : 'animate-backdropIn'}`} />
             <div
-                className={`relative glass-popup gradient-border rounded-2xl p-6 sm:p-8 mx-6 max-w-sm w-full text-center ${closing ? 'animate-scaleDown' : 'animate-scaleUp'}`}
+                className={`relative glass-popup gradient-border w-full max-w-sm rounded-2xl p-6 text-center sm:p-8 ${closing ? 'animate-scaleDown' : 'animate-scaleUp'}`}
                 style={{ boxShadow: 'var(--glass-shadow-lg)' }}
                 onClick={e => e.stopPropagation()}
             >
@@ -92,6 +101,7 @@ export default function LoginRequiredModal({ isOpen, onClose, callbackUrl }: Log
                 .animate-scaleUp { animation: scaleUp 150ms ease-out; }
                 .animate-scaleDown { animation: scaleDown 200ms ease-in forwards; }
             `}</style>
-        </div>
+        </div>,
+        document.body
     );
 }

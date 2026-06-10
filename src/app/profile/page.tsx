@@ -214,7 +214,7 @@ export default function ProfilePage() {
       <section className="mt-8">
         <div className="mm-profile-action-list2">
           {isAdmin && (
-            <Link href="/admin" className="mm-profile-action-row2">
+            <Link href="/admin" replace className="mm-profile-action-row2">
               <span>
                 <strong>{labels.admin}</strong>
                 <em>{labels.adminDesc}</em>

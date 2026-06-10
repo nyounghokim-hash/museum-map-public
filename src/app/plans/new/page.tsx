@@ -157,34 +157,34 @@ function AutoRouteContent() {
     if (loading) return <div className="flex flex-col items-center justify-center p-20 min-h-[400px]"><LoadingAnimation size={120} /></div>;
 
     return (
-        <div className={`w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div className={`mm-route-create2 w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-3 sm:mt-6 pb-32 lg:pb-8 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             {/* Sticky header */}
-            <div className="-mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 py-3 mb-4">
+            <div className="mm-route-create2-head mb-4">
                 <div className="flex items-center gap-3">
                     <div>
                         <div className="flex items-center gap-2">
                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                            <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-[0.2em]">Route</span>
+                            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-[0.18em]">Route</span>
                         </div>
-                        <h1 className="text-lg sm:text-xl font-black tracking-tight dark:text-white leading-tight">{t('plans.reviewAutoRoute', locale)}</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-tight" style={{ color: 'var(--mm-text-primary)' }}>{t('plans.reviewAutoRoute', locale)}</h1>
                     </div>
                 </div>
+                <p className="mt-2 text-xs font-medium" style={{ color: 'var(--mm-text-tertiary)' }}>{t('plans.reviewAutoRouteDesc', locale)}</p>
             </div>
-            <p className="text-gray-400 dark:text-neutral-500 mb-6 text-xs font-medium">{t('plans.reviewAutoRouteDesc', locale)}</p>
 
             {/* Mini Route Map Preview */}
             {routeStops.length > 0 && (
-                <div className="w-full h-80 sm:h-96 rounded-2xl overflow-hidden border border-gray-200 shadow-sm mb-8">
-                    <RouteMapViewer stops={routeStops} darkMode={darkMode} />
+                <div className="mm-route-create2-map w-full h-80 sm:h-[420px] rounded-[28px] overflow-hidden mb-6">
+                    <RouteMapViewer stops={routeStops} darkMode={darkMode} padding={{ top: 52, bottom: 52, left: 52, right: 52 }} />
                 </div>
             )}
 
-            <div className="flex flex-col md:flex-row gap-6 md:gap-8">
+            <div className="flex flex-col md:flex-row gap-5 md:gap-6">
                 {/* Route Itinerary — mobile: first (order-1), desktop: second (md:order-2) */}
                 <div className="w-full md:w-96 order-1 md:order-2">
-                    <GlassPanel className="p-5 md:p-6 relative max-h-[50vh] md:max-h-[calc(100vh-8rem)] overflow-y-auto hide-scrollbar shadow-sm" intensity="light">
-                        <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] mb-4">{t('plans.routeItinerary', locale)}</h3>
-                        <div className="absolute left-9 md:left-10 top-16 bottom-8 w-0.5 bg-gray-200 dark:bg-neutral-700 z-0"></div>
+                    <GlassPanel className="mm-route-create2-panel p-5 md:p-6 relative max-h-[50vh] md:max-h-[calc(100vh-8rem)] overflow-y-auto hide-scrollbar" intensity="light">
+                        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] mb-4" style={{ color: 'var(--mm-text-tertiary)' }}>{t('plans.routeItinerary', locale)}</h3>
+                        <div className="absolute left-9 md:left-10 top-16 bottom-8 w-0.5 bg-blue-100 dark:bg-blue-950/80 z-0"></div>
 
                         <div className="space-y-2.5 relative z-10">
                             {route.map((stop, i) => {
@@ -205,14 +205,14 @@ function AutoRouteContent() {
                                         onPointerCancel={drag.cancelPress}
                                         onPointerLeave={drag.cancelPress}
                                     >
-                                        <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-bold text-xs md:text-sm shrink-0 shadow-md ${isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>
+                                        <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center font-semibold text-xs md:text-sm shrink-0 shadow-sm ${isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>
                                             {i + 1}
                                         </div>
-                                        <div className={`flex-1 p-2.5 md:p-3 rounded-lg border flex justify-between items-center shadow-sm backdrop-blur-sm
+                                        <div className={`flex-1 p-3 md:p-3.5 rounded-2xl border flex justify-between items-center backdrop-blur-sm
                                             ${isBeingDragged ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-900/30 dark:border-blue-700' : 'border'}`} style={!isBeingDragged ? { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : undefined}>
                                             <div>
-                                                <h4 className="font-bold text-sm dark:text-white">{getLocalizedMuseumName(stop, locale)}</h4>
-                                                <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-0.5">
+                                                <h4 className="font-semibold text-sm" style={{ color: 'var(--mm-text-primary)' }}>{getLocalizedMuseumName(stop, locale)}</h4>
+                                                <p className="text-[11px] mt-0.5 flex items-center gap-0.5 font-medium" style={{ color: 'var(--mm-text-tertiary)' }}>
                                                     <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                     {(() => {
                                                         const tp = (stop.type || '').toLowerCase();
@@ -248,14 +248,14 @@ function AutoRouteContent() {
 
                 {/* Form — mobile: second (order-2), desktop: first (md:order-1) */}
                 <div className="flex-1 order-2 md:order-1">
-                    <form onSubmit={handleSavePlan} className="glass-panel gradient-border-subtle p-5 md:p-6 rounded-2xl">
+                    <form onSubmit={handleSavePlan} className="mm-route-create2-form glass-panel gradient-border-subtle p-5 md:p-6 rounded-[26px]">
                         <div className="space-y-5 mb-6">
                             <div>
-                                <label className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] mb-2 block">{t('plans.tripTitle', locale)}</label>
-                                <input name="title" required type="text" placeholder={t('plans.tripTitlePlaceholder', locale)} className="w-full border-gray-300 dark:border-neutral-700 rounded-xl p-3 bg-gray-50 dark:bg-neutral-800 border focus:bg-white dark:focus:bg-neutral-900 focus:ring-blue-500 focus:border-blue-500 transition dark:text-white text-sm" />
+                                <label className="text-xs font-semibold uppercase tracking-[0.14em] mb-2 block" style={{ color: 'var(--mm-text-tertiary)' }}>{t('plans.tripTitle', locale)}</label>
+                                <input name="title" required type="text" placeholder={t('plans.tripTitlePlaceholder', locale)} className="w-full rounded-2xl p-3.5 border focus:ring-blue-500 focus:border-blue-500 transition text-sm font-medium" style={{ background: 'var(--mm-surface-secondary)', borderColor: 'var(--mm-surface-border)', color: 'var(--mm-text-primary)' }} />
                             </div>
                             <div>
-                                <label className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] mb-2 block">{locale === 'ko' ? '여행기간 설정' : 'Set Travel Period'}</label>
+                                <label className="text-xs font-semibold uppercase tracking-[0.14em] mb-2 block" style={{ color: 'var(--mm-text-tertiary)' }}>{locale === 'ko' ? '여행기간 설정' : 'Set Travel Period'}</label>
                                 <input type="hidden" name="date" value={startDate} />
                                 <CalendarPicker
                                     rangeMode
@@ -274,7 +274,7 @@ function AutoRouteContent() {
                         <button
                             type="submit"
                             disabled={saving || !startDate || !endDate}
-                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-blue-600 text-white font-semibold py-3.5 rounded-2xl shadow-[0_14px_28px_rgba(37,99,235,0.18)] hover:bg-blue-700 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving ? t('plans.saving', locale) : t('plans.saveButton', locale)}
                         </button>
@@ -286,7 +286,7 @@ function AutoRouteContent() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); setTimeout(() => router.back(), 200); }}
+                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); router.back(); }}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

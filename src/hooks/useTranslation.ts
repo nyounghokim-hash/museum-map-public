@@ -38,20 +38,25 @@ export function useTranslatedText(text: string | null | undefined, locale: Local
 
         // Check memory cache first
         if (memoryCache.has(key)) {
-            setTranslated(memoryCache.get(key)!);
-            setIsTranslating(false);
-            return;
+            const cached = memoryCache.get(key)!;
+            if (cached && cached !== text) {
+                setTranslated(cached);
+                setIsTranslating(false);
+                return;
+            }
+            memoryCache.delete(key);
         }
 
         // Check localStorage
         try {
             const cached = localStorage.getItem(key);
-            if (cached) {
+            if (cached && cached !== text) {
                 memoryCache.set(key, cached);
                 setTranslated(cached);
                 setIsTranslating(false);
                 return;
             }
+            if (cached === text) localStorage.removeItem(key);
         } catch { }
 
         // No cache — mark as translating and fetch
@@ -66,15 +71,19 @@ export function useTranslatedText(text: string | null | undefined, locale: Local
             .then(r => r.json())
             .then(data => {
                 if (cancelled) return;
-                const result = data.translated || text;
-                memoryCache.set(key, result);
-                try { localStorage.setItem(key, result); } catch { }
-                setTranslated(result);
+                const result = data.translated || '';
+                if (result && result !== text) {
+                    memoryCache.set(key, result);
+                    try { localStorage.setItem(key, result); } catch { }
+                    setTranslated(result);
+                } else {
+                    setTranslated(prev => (prev && prev !== text ? prev : ''));
+                }
                 setIsTranslating(false);
             })
             .catch(() => {
                 if (!cancelled) {
-                    setTranslated(text);
+                    setTranslated(prev => (prev && prev !== text ? prev : ''));
                     setIsTranslating(false);
                 }
             });
@@ -114,15 +123,23 @@ export function useTranslatedTexts(texts: string[], locale: Locale): Map<string,
             }
             const key = getCacheKey(text, locale);
             if (memoryCache.has(key)) {
-                result.set(text, memoryCache.get(key)!);
+                const cached = memoryCache.get(key)!;
+                if (cached && cached !== text) {
+                    result.set(text, cached);
+                } else {
+                    memoryCache.delete(key);
+                    toFetch.push(text);
+                    result.set(text, text);
+                }
             } else {
                 try {
                     const cached = localStorage.getItem(key);
-                    if (cached) {
+                    if (cached && cached !== text) {
                         memoryCache.set(key, cached);
                         result.set(text, cached);
                         continue;
                     }
+                    if (cached === text) localStorage.removeItem(key);
                 } catch { }
                 toFetch.push(text);
                 result.set(text, text); // default to original while loading
@@ -142,17 +159,19 @@ export function useTranslatedTexts(texts: string[], locale: Locale): Map<string,
                     body: JSON.stringify({ text, targetLang: locale }),
                 })
                     .then(r => r.json())
-                    .then(data => ({ text, translated: data.translated || text }))
-                    .catch(() => ({ text, translated: text }))
+                    .then(data => ({ text, translated: data.translated || '' }))
+                    .catch(() => ({ text, translated: '' }))
             )
         ).then(results => {
             if (cancelled) return;
             const updated = new Map(result);
             for (const { text, translated } of results) {
-                updated.set(text, translated);
-                const key = getCacheKey(text, locale);
-                memoryCache.set(key, translated);
-                try { localStorage.setItem(key, translated); } catch { }
+                if (translated && translated !== text) {
+                    updated.set(text, translated);
+                    const key = getCacheKey(text, locale);
+                    memoryCache.set(key, translated);
+                    try { localStorage.setItem(key, translated); } catch { }
+                }
             }
             setMap(updated);
         });

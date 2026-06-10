@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, RefObject } from 'react';
 import { useCompare } from '@/hooks/useCompare';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { createPortal } from 'react-dom';
@@ -18,8 +18,9 @@ import MuseumDetailCard from '@/components/museum/MuseumDetailCard';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import * as gtag from '@/lib/gtag';
 import { SparkleIcon, StarIcon, AirplaneIcon } from '@/components/ui/Icons';
-import { clearActiveTripForAccount, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
+import { ACTIVE_TRIP_CHANGE_EVENT, clearActiveTripForAccount, getActiveTripForAccount, getStoredActiveTrip, setActiveTripForAccount } from '@/lib/accountStorage';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
+import { fetchLocationLabel } from '@/lib/locationLabel';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
 import type { MapBounds } from '@/components/map/MapLibreViewer';
@@ -30,12 +31,33 @@ const WeatherPopup = dynamic(() => import('@/components/map/WeatherPopup'), { ss
 const RETURN_TO_MUSEUM_DETAIL_KEY = 'mm-return-to-museum-detail';
 type MapSettingKey = 'location' | 'nearby' | 'weather';
 type MapPrefs = Record<MapSettingKey, boolean>;
+type MapLocationSource = 'current' | 'manual';
+type MapLocation = { lat: number; lng: number };
 const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
   location: 'mm_map_show_location',
   nearby: 'mm_map_show_nearby',
   weather: 'mm_map_show_weather',
 };
+const MAP_LOCATION_SOURCE_KEY = 'mm_map_location_source';
+const MAP_MANUAL_LOCATION_KEY = 'mm_map_manual_location';
+const MAP_LOCATION_PICK_MODE_KEY = 'mm_map_location_pick_mode';
+const MAP_CATEGORY_FILTER_KEY = 'mm_map_category_filter';
+const MUSEUMS_CACHE_KEY = 'museums_cache_v4_opening_hours';
 const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true };
+
+function hasMuseumHoursPayload(museum: any) {
+  return museum && (
+    museum.openingHours !== undefined
+    || museum.visitorInfo !== undefined
+  );
+}
+
+function isUsableMuseumsCache(data: unknown) {
+  if (!Array.isArray(data) || data.length === 0) return false;
+  // A small sample is enough to catch old map-only caches without carrying an
+  // O(n) validation cost on every home load.
+  return data.slice(0, 24).some(hasMuseumHoursPayload);
+}
 function readMapPrefs(): MapPrefs {
   if (typeof window === 'undefined') return DEFAULT_MAP_PREFS;
   return {
@@ -44,6 +66,48 @@ function readMapPrefs(): MapPrefs {
     weather: localStorage.getItem(MAP_PREF_KEYS.weather) !== 'false',
   };
 }
+
+function readMapLocationSource(): MapLocationSource {
+  if (typeof window === 'undefined') return 'current';
+  return localStorage.getItem(MAP_LOCATION_SOURCE_KEY) === 'manual' ? 'manual' : 'current';
+}
+
+function readManualMapLocation(): MapLocation | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MAP_MANUAL_LOCATION_KEY) || 'null');
+    if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') {
+      return { lat: parsed.lat, lng: parsed.lng };
+    }
+  } catch { }
+  return null;
+}
+
+function mapLocationAccountKey(email: string, kind: 'source' | 'manual') {
+  return `mm_map_location_${kind}:${email.trim().toLowerCase()}`;
+}
+
+function readMapLocationSourceForAccount(email?: string | null): MapLocationSource {
+  if (typeof window === 'undefined') return 'current';
+  if (!email) return 'current';
+  const accountSource = localStorage.getItem(mapLocationAccountKey(email, 'source'));
+  if (accountSource === 'current' || accountSource === 'manual') return accountSource;
+  const globalSource = readMapLocationSource();
+  if (globalSource === 'current' || globalSource === 'manual') return globalSource;
+  return 'current';
+}
+
+function readManualMapLocationForAccount(email?: string | null): MapLocation | null {
+  if (typeof window === 'undefined' || !email) return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(mapLocationAccountKey(email, 'manual')) || 'null');
+    if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') {
+      return { lat: parsed.lat, lng: parsed.lng };
+    }
+  } catch { }
+  return null;
+}
+
 const MOBILE_TOOL_LABELS: Record<string, {
   currentLocation: string;
   nearby: string;
@@ -52,24 +116,75 @@ const MOBILE_TOOL_LABELS: Record<string, {
   category: string;
   categories: string;
   locationError: string;
+  close: string;
 }> = {
-  ko: { currentLocation: '내 위치', nearby: '주변', weather: '오늘 날씨', newMuseums: '새로 추가된 곳', category: '카테고리', categories: '카테고리', locationError: '현재 위치를 불러오지 못했어요' },
-  en: { currentLocation: 'My location', nearby: 'Nearby', weather: "Today's weather", newMuseums: 'Newly Added', category: 'Category', categories: 'Categories', locationError: 'Unable to get your location' },
-  ja: { currentLocation: '現在地', nearby: '周辺', weather: '今日の天気', newMuseums: '新しく追加', category: 'カテゴリ', categories: 'カテゴリ', locationError: '現在地を取得できませんでした' },
-  de: { currentLocation: 'Mein Standort', nearby: 'In der Nähe', weather: 'Wetter heute', newMuseums: 'Neu hinzugefügt', category: 'Kategorie', categories: 'Kategorien', locationError: 'Standort konnte nicht abgerufen werden' },
-  fr: { currentLocation: 'Ma position', nearby: 'À proximité', weather: "Météo du jour", newMuseums: 'Nouveautés', category: 'Catégorie', categories: 'Catégories', locationError: 'Impossible de récupérer votre position' },
-  es: { currentLocation: 'Mi ubicación', nearby: 'Cerca', weather: 'Tiempo de hoy', newMuseums: 'Recién añadidos', category: 'Categoría', categories: 'Categorías', locationError: 'No se pudo obtener tu ubicación' },
-  pt: { currentLocation: 'Minha localização', nearby: 'Perto', weather: 'Tempo de hoje', newMuseums: 'Recém-adicionados', category: 'Categoria', categories: 'Categorias', locationError: 'Não foi possível obter sua localização' },
-  'zh-CN': { currentLocation: '当前位置', nearby: '附近', weather: '今日天气', newMuseums: '新增地点', category: '分类', categories: '分类', locationError: '无法获取当前位置' },
-  'zh-TW': { currentLocation: '目前位置', nearby: '附近', weather: '今日天氣', newMuseums: '新增地點', category: '分類', categories: '分類', locationError: '無法取得目前位置' },
-  da: { currentLocation: 'Min placering', nearby: 'I nærheden', weather: 'Dagens vejr', newMuseums: 'Nyt', category: 'Kategori', categories: 'Kategorier', locationError: 'Kunne ikke hente din placering' },
-  fi: { currentLocation: 'Sijaintini', nearby: 'Lähellä', weather: 'Tämän päivän sää', newMuseums: 'Uudet', category: 'Kategoria', categories: 'Kategoriat', locationError: 'Sijaintiasi ei voitu hakea' },
-  sv: { currentLocation: 'Min plats', nearby: 'Nära', weather: 'Dagens väder', newMuseums: 'Nya platser', category: 'Kategori', categories: 'Kategorier', locationError: 'Det gick inte att hämta din plats' },
-  et: { currentLocation: 'Minu asukoht', nearby: 'Lähedal', weather: 'Tänane ilm', newMuseums: 'Uued kohad', category: 'Kategooria', categories: 'Kategooriad', locationError: 'Asukohta ei õnnestunud laadida' },
+  ko: { currentLocation: '내 위치', nearby: '주변', weather: '오늘 날씨', newMuseums: '새로 추가된 곳', category: '카테고리', categories: '카테고리', locationError: '현재 위치를 불러오지 못했어요', close: '닫기' },
+  en: { currentLocation: 'My location', nearby: 'Nearby', weather: "Today's weather", newMuseums: 'Newly Added', category: 'Category', categories: 'Categories', locationError: 'Unable to get your location', close: 'Close' },
+  ja: { currentLocation: '現在地', nearby: '周辺', weather: '今日の天気', newMuseums: '新しく追加', category: 'カテゴリ', categories: 'カテゴリ', locationError: '現在地を取得できませんでした', close: '閉じる' },
+  de: { currentLocation: 'Mein Standort', nearby: 'In der Nähe', weather: 'Wetter heute', newMuseums: 'Neu hinzugefügt', category: 'Kategorie', categories: 'Kategorien', locationError: 'Standort konnte nicht abgerufen werden', close: 'Schließen' },
+  fr: { currentLocation: 'Ma position', nearby: 'À proximité', weather: "Météo du jour", newMuseums: 'Nouveautés', category: 'Catégorie', categories: 'Catégories', locationError: 'Impossible de récupérer votre position', close: 'Fermer' },
+  es: { currentLocation: 'Mi ubicación', nearby: 'Cerca', weather: 'Tiempo de hoy', newMuseums: 'Recién añadidos', category: 'Categoría', categories: 'Categorías', locationError: 'No se pudo obtener tu ubicación', close: 'Cerrar' },
+  pt: { currentLocation: 'Minha localização', nearby: 'Perto', weather: 'Tempo de hoje', newMuseums: 'Recém-adicionados', category: 'Categoria', categories: 'Categorias', locationError: 'Não foi possível obter sua localização', close: 'Fechar' },
+  'zh-CN': { currentLocation: '当前位置', nearby: '附近', weather: '今日天气', newMuseums: '新增地点', category: '分类', categories: '分类', locationError: '无法获取当前位置', close: '关闭' },
+  'zh-TW': { currentLocation: '目前位置', nearby: '附近', weather: '今日天氣', newMuseums: '新增地點', category: '分類', categories: '分類', locationError: '無法取得目前位置', close: '關閉' },
+  da: { currentLocation: 'Min placering', nearby: 'I nærheden', weather: 'Dagens vejr', newMuseums: 'Nyt', category: 'Kategori', categories: 'Kategorier', locationError: 'Kunne ikke hente din placering', close: 'Luk' },
+  fi: { currentLocation: 'Sijaintini', nearby: 'Lähellä', weather: 'Tämän päivän sää', newMuseums: 'Uudet', category: 'Kategoria', categories: 'Kategoriat', locationError: 'Sijaintiasi ei voitu hakea', close: 'Sulje' },
+  sv: { currentLocation: 'Min plats', nearby: 'Nära', weather: 'Dagens väder', newMuseums: 'Nya platser', category: 'Kategori', categories: 'Kategorier', locationError: 'Det gick inte att hämta din plats', close: 'Stäng' },
+  et: { currentLocation: 'Minu asukoht', nearby: 'Lähedal', weather: 'Tänane ilm', newMuseums: 'Uued kohad', category: 'Kategooria', categories: 'Kategooriad', locationError: 'Asukohta ei õnnestunud laadida', close: 'Sulge' },
+};
+
+const MAP_LOCATION_LABELS: Record<string, {
+  pickPrompt: string;
+  pickCancel: string;
+  pickIntroTitle: string;
+  pickIntroBody: string;
+  pickIntroCancel: string;
+  pickIntroConfirm: string;
+  manualSaved: string;
+  switchTitle: string;
+  switchBody: string;
+  switchCancel: string;
+  switchConfirm: string;
+  pickButton: string;
+}> = {
+  ko: { pickPrompt: '지도에서 기준 위치를 선택해 주세요', pickCancel: '취소', pickIntroTitle: '원하는 위치를 선택하세요', pickIntroBody: '지도를 누르면 날씨와 주변 박물관을 계산할 기준 위치로 저장돼요.', pickIntroCancel: '나중에', pickIntroConfirm: '위치 선택하기', manualSaved: '지도 기준 위치를 저장했어요', switchTitle: '현재 위치로 바꿀까요?', switchBody: '현위치 버튼을 사용하려면 위치 기준을 현재 위치로 변경해야 해요.', switchCancel: '나중에', switchConfirm: '현재 위치로 변경', pickButton: '선택위치 지정' },
+  en: { pickPrompt: 'Choose your map location', pickCancel: 'Cancel', pickIntroTitle: 'Choose the location you want', pickIntroBody: 'Tap the map to save the reference location for weather and nearby museums.', pickIntroCancel: 'Not now', pickIntroConfirm: 'Choose location', manualSaved: 'Map location saved', switchTitle: 'Use current location?', switchBody: 'To use this button, switch your location setting to current location.', switchCancel: 'Not now', switchConfirm: 'Use current location', pickButton: 'Set selected place' },
+  ja: { pickPrompt: '地図で基準位置を選択してください', pickCancel: 'キャンセル', pickIntroTitle: '使いたい位置を選択してください', pickIntroBody: '地図をタップすると、天気と周辺ミュージアムの基準位置として保存されます。', pickIntroCancel: '後で', pickIntroConfirm: '位置を選択', manualSaved: '地図の基準位置を保存しました', switchTitle: '現在地に変更しますか？', switchBody: 'このボタンを使うには、位置設定を現在地に変更する必要があります。', switchCancel: '後で', switchConfirm: '現在地に変更', pickButton: '選択位置を指定' },
+  de: { pickPrompt: 'Wähle deinen Kartenstandort', pickCancel: 'Abbrechen', pickIntroTitle: 'Gewünschten Standort wählen', pickIntroBody: 'Tippe auf die Karte, um den Referenzstandort für Wetter und nahe Museen zu speichern.', pickIntroCancel: 'Später', pickIntroConfirm: 'Standort wählen', manualSaved: 'Kartenstandort gespeichert', switchTitle: 'Aktuellen Standort verwenden?', switchBody: 'Für diese Taste muss die Standortquelle auf aktuellen Standort wechseln.', switchCancel: 'Später', switchConfirm: 'Aktuellen Standort nutzen', pickButton: 'Gewählten Standort setzen' },
+  fr: { pickPrompt: 'Choisissez la position sur la carte', pickCancel: 'Annuler', pickIntroTitle: 'Choisissez la position voulue', pickIntroBody: 'Touchez la carte pour enregistrer la position utilisée pour la météo et les musées proches.', pickIntroCancel: 'Plus tard', pickIntroConfirm: 'Choisir la position', manualSaved: 'Position de carte enregistrée', switchTitle: 'Utiliser votre position actuelle ?', switchBody: 'Pour utiliser ce bouton, passez la position sur votre position actuelle.', switchCancel: 'Plus tard', switchConfirm: 'Utiliser ma position', pickButton: 'Définir la position choisie' },
+  es: { pickPrompt: 'Elige tu ubicación en el mapa', pickCancel: 'Cancelar', pickIntroTitle: 'Elige la ubicación que quieras', pickIntroBody: 'Toca el mapa para guardar la ubicación de referencia del clima y museos cercanos.', pickIntroCancel: 'Ahora no', pickIntroConfirm: 'Elegir ubicación', manualSaved: 'Ubicación del mapa guardada', switchTitle: '¿Usar ubicación actual?', switchBody: 'Para usar este botón, cambia la ubicación a tu ubicación actual.', switchCancel: 'Ahora no', switchConfirm: 'Usar ubicación actual', pickButton: 'Definir ubicación elegida' },
+  pt: { pickPrompt: 'Escolha sua localização no mapa', pickCancel: 'Cancelar', pickIntroTitle: 'Escolha a localização desejada', pickIntroBody: 'Toque no mapa para salvar a localização usada em clima e museus próximos.', pickIntroCancel: 'Agora não', pickIntroConfirm: 'Escolher localização', manualSaved: 'Localização do mapa salva', switchTitle: 'Usar localização atual?', switchBody: 'Para usar este botão, altere a configuração para localização atual.', switchCancel: 'Agora não', switchConfirm: 'Usar localização atual', pickButton: 'Definir local escolhido' },
+  'zh-CN': { pickPrompt: '请在地图上选择基准位置', pickCancel: '取消', pickIntroTitle: '请选择想使用的位置', pickIntroBody: '点击地图即可保存天气和附近博物馆使用的基准位置。', pickIntroCancel: '稍后', pickIntroConfirm: '选择位置', manualSaved: '地图基准位置已保存', switchTitle: '切换为当前位置？', switchBody: '要使用此按钮，需要将位置设置切换为当前位置。', switchCancel: '稍后', switchConfirm: '使用当前位置', pickButton: '设置所选位置' },
+  'zh-TW': { pickPrompt: '請在地圖上選擇基準位置', pickCancel: '取消', pickIntroTitle: '請選擇想使用的位置', pickIntroBody: '點選地圖即可儲存天氣和附近博物館使用的基準位置。', pickIntroCancel: '稍後', pickIntroConfirm: '選擇位置', manualSaved: '地圖基準位置已儲存', switchTitle: '切換為目前位置？', switchBody: '要使用此按鈕，需要將位置設定切換為目前位置。', switchCancel: '稍後', switchConfirm: '使用目前位置', pickButton: '設定所選位置' },
+  da: { pickPrompt: 'Vælg din kortplacering', pickCancel: 'Annuller', pickIntroTitle: 'Vælg den ønskede placering', pickIntroBody: 'Tryk på kortet for at gemme referenceplaceringen til vejr og museer i nærheden.', pickIntroCancel: 'Senere', pickIntroConfirm: 'Vælg placering', manualSaved: 'Kortplacering gemt', switchTitle: 'Brug aktuel placering?', switchBody: 'For at bruge knappen skal placering skiftes til aktuel placering.', switchCancel: 'Senere', switchConfirm: 'Brug aktuel placering', pickButton: 'Sæt valgt placering' },
+  fi: { pickPrompt: 'Valitse sijainti kartalta', pickCancel: 'Peruuta', pickIntroTitle: 'Valitse haluamasi sijainti', pickIntroBody: 'Napauta karttaa tallentaaksesi säässä ja lähimuseoissa käytettävän sijainnin.', pickIntroCancel: 'Myöhemmin', pickIntroConfirm: 'Valitse sijainti', manualSaved: 'Karttasijainti tallennettu', switchTitle: 'Käytetäänkö nykyistä sijaintia?', switchBody: 'Tämän painikkeen käyttö vaatii sijaintiasetukseksi nykyisen sijainnin.', switchCancel: 'Myöhemmin', switchConfirm: 'Käytä nykyistä sijaintia', pickButton: 'Aseta valittu sijainti' },
+  sv: { pickPrompt: 'Välj plats på kartan', pickCancel: 'Avbryt', pickIntroTitle: 'Välj platsen du vill använda', pickIntroBody: 'Tryck på kartan för att spara platsen för väder och museer i närheten.', pickIntroCancel: 'Senare', pickIntroConfirm: 'Välj plats', manualSaved: 'Kartplats sparad', switchTitle: 'Använd aktuell plats?', switchBody: 'För att använda knappen behöver platsinställningen bytas till aktuell plats.', switchCancel: 'Senare', switchConfirm: 'Använd aktuell plats', pickButton: 'Ange vald plats' },
+  et: { pickPrompt: 'Vali asukoht kaardil', pickCancel: 'Tühista', pickIntroTitle: 'Vali soovitud asukoht', pickIntroBody: 'Puuduta kaarti, et salvestada ilma ja lähedal muuseumide lähteasukoht.', pickIntroCancel: 'Hiljem', pickIntroConfirm: 'Vali asukoht', manualSaved: 'Kaardi asukoht salvestatud', switchTitle: 'Kas kasutada praegust asukohta?', switchBody: 'Selle nupu kasutamiseks tuleb asukoha seade muuta praeguseks asukohaks.', switchCancel: 'Hiljem', switchConfirm: 'Kasuta praegust asukohta', pickButton: 'Määra valitud asukoht' },
 };
 const MOBILE_FILTERS = ['All', 'Art Gallery', 'Contemporary Art', 'Modern Art', 'Fine Arts', 'General Museum', 'History Museum', 'Natural History', 'Science Museum', 'Maritime Museum', 'Archaeological Museum', 'Photography Museum', 'Design Museum', 'Cultural Center', 'Unusual Museum'];
+function readMapCategoryFilter() {
+  if (typeof window === 'undefined') return 'All';
+  const saved = localStorage.getItem(MAP_CATEGORY_FILTER_KEY);
+  return saved && MOBILE_FILTERS.includes(saved) ? saved : 'All';
+}
 
-type CurrentWeather = { temp: number; code: number };
+const TRIP_REORDER_LABELS: Record<Locale, { title: string; message: string; saved: string; failed: string }> = {
+  ko: { title: '여행 순서를 바꿀까요?', message: '변경한 순서를 내 여행에도 저장할게요.', saved: '여행 순서를 저장했어요', failed: '여행 순서를 저장하지 못했어요' },
+  en: { title: 'Update trip order?', message: 'The new order will also be saved to My Trips.', saved: 'Trip order saved', failed: 'Failed to save trip order' },
+  ja: { title: '旅行の順序を変更しますか？', message: '変更した順序をマイトリップにも保存します。', saved: '旅行順序を保存しました', failed: '旅行順序を保存できませんでした' },
+  de: { title: 'Reihenfolge ändern?', message: 'Die neue Reihenfolge wird auch in Meine Reisen gespeichert.', saved: 'Reihenfolge gespeichert', failed: 'Reihenfolge konnte nicht gespeichert werden' },
+  fr: { title: 'Modifier l’ordre du voyage ?', message: 'Le nouvel ordre sera aussi enregistré dans Mes voyages.', saved: 'Ordre du voyage enregistré', failed: 'Impossible d’enregistrer l’ordre' },
+  es: { title: '¿Actualizar el orden?', message: 'El nuevo orden también se guardará en Mis viajes.', saved: 'Orden guardado', failed: 'No se pudo guardar el orden' },
+  pt: { title: 'Atualizar ordem da viagem?', message: 'A nova ordem também será salva em Minhas viagens.', saved: 'Ordem salva', failed: 'Não foi possível salvar a ordem' },
+  'zh-CN': { title: '更新旅行顺序？', message: '新的顺序也会保存到我的旅行。', saved: '旅行顺序已保存', failed: '无法保存旅行顺序' },
+  'zh-TW': { title: '更新旅行順序？', message: '新的順序也會儲存到我的旅行。', saved: '旅行順序已儲存', failed: '無法儲存旅行順序' },
+  da: { title: 'Opdater rækkefølge?', message: 'Den nye rækkefølge gemmes også i Mine rejser.', saved: 'Rækkefølge gemt', failed: 'Kunne ikke gemme rækkefølgen' },
+  fi: { title: 'Päivitetäänkö järjestys?', message: 'Uusi järjestys tallennetaan myös Omiin matkoihin.', saved: 'Järjestys tallennettu', failed: 'Järjestystä ei voitu tallentaa' },
+  sv: { title: 'Uppdatera ordningen?', message: 'Den nya ordningen sparas också i Mina resor.', saved: 'Reseordning sparad', failed: 'Kunde inte spara ordningen' },
+  et: { title: 'Kas muuta järjekorda?', message: 'Uus järjekord salvestatakse ka Minu reisidesse.', saved: 'Reisi järjekord salvestatud', failed: 'Järjekorda ei saanud salvestada' },
+};
+
+type CurrentWeather = { temp: number; code: number; cityName?: string };
 
 function getWeatherChipIcon(code?: number | null) {
   if (code == null) return '☁';
@@ -169,7 +284,7 @@ const mm2 = {
     background: 'transparent',
     color: '#0f172a',
     fontSize: 15,
-    fontWeight: 600,
+    fontWeight: 500,
     lineHeight: 1,
   } satisfies CSSProperties,
   iconPill: {
@@ -179,11 +294,11 @@ const mm2 = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    border: 0,
+    border: '1px solid rgba(203,213,225,.9)',
     borderRadius: 999,
     color: '#334155',
     background: 'rgba(255,255,255,.96)',
-    boxShadow: '0 8px 18px rgba(15,23,42,.12), 0 2px 5px rgba(15,23,42,.07), inset 0 1px 0 rgba(255,255,255,.82)',
+    boxShadow: 'none',
     pointerEvents: 'auto',
   } satisfies CSSProperties,
   activePill: {
@@ -191,17 +306,20 @@ const mm2 = {
     background: '#2563eb',
   } satisfies CSSProperties,
   pillRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 10,
-    width: '100%',
-    marginTop: 16,
-    overflowX: 'auto',
-    overflowY: 'visible',
-    marginLeft: -5,
-    marginRight: -5,
-    padding: '5px 5px 20px',
+    display: 'grid',
+    gridTemplateColumns: '54px',
+    position: 'absolute',
+    top: 74,
+    right: 18,
+    width: 54,
+    alignItems: 'start',
+    justifyContent: 'stretch',
+    gap: 8,
+    marginTop: 0,
+    marginLeft: 0,
+    marginRight: 0,
+    padding: '0 0 8px',
+    overflow: 'visible',
     scrollbarWidth: 'none',
   } satisfies CSSProperties,
   toolPill: {
@@ -212,11 +330,11 @@ const mm2 = {
     justifyContent: 'center',
     gap: 7,
     padding: '0 15px',
-    border: 0,
+    border: '1px solid rgba(203,213,225,.9)',
     borderRadius: 999,
     color: '#0f172a',
     background: 'rgba(255,255,255,.96)',
-    boxShadow: '0 7px 14px rgba(15,23,42,.10), 0 1px 4px rgba(15,23,42,.06), inset 0 1px 0 rgba(255,255,255,.82)',
+    boxShadow: 'none',
     fontSize: 14,
     fontWeight: 500,
     whiteSpace: 'nowrap',
@@ -238,16 +356,15 @@ const mm2 = {
   } satisfies CSSProperties,
   categoryMenu: {
     position: 'absolute',
-    left: 18,
-    right: 18,
+    left: 'auto',
+    right: 80,
     top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 134px)',
+    width: 'min(300px, calc(100vw - 104px))',
     zIndex: 120,
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: 8,
-    padding: 12,
+    display: 'block',
+    padding: 0,
     maxHeight: 'min(360px, calc(100dvh - 250px))',
-    overflowY: 'auto',
+    overflow: 'hidden',
     borderRadius: 24,
     background: 'rgba(255,255,255,.98)',
     border: '1px solid rgba(226,232,240,.82)',
@@ -261,8 +378,8 @@ const mm2 = {
     borderRadius: 16,
     color: '#475569',
     background: '#f8fafc',
-    fontSize: 12,
-    fontWeight: 900,
+    fontSize: 13,
+    fontWeight: 600,
     textAlign: 'left',
   } satisfies CSSProperties,
   categoryButtonActive: {
@@ -551,9 +668,9 @@ function SearchResultButton({ result, locale, onMuseumSelect }: {
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span className="mm-map2-search-result-title text-sm truncate">{title}</span>
+          <span className="mm-map2-search-result-title truncate">{title}</span>
         </div>
-        <div className="mm-map2-search-result-subtitle text-[10px] mt-0.5 truncate">{subtitle}</div>
+        <div className="mm-map2-search-result-subtitle truncate">{subtitle}</div>
       </div>
     </button>
   );
@@ -564,16 +681,19 @@ export default function MainPage() {
   const compareIdsSet = useMemo(() => new Set(compareIdsArr), [compareIdsArr]);
   const [museums, setMuseums] = useState<any[]>([]);
   const [selectedMuseum, setSelectedMuseum] = useState<any | null>(null);
-  const [activeFilter, setActiveFilter] = useState<string>('All');
+  const [activeFilter, setActiveFilter] = useState<string>(readMapCategoryFilter);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [categoryDropdownClosing, setCategoryDropdownClosing] = useState(false);
+  const categoryCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nearbyOpenRef = useRef(false);
+  const weatherOpenRef = useRef(false);
   const [mapSideMenuOpen, setMapSideMenuOpen] = useState(false);
   const [countExpanded, setCountExpanded] = useState(false);
   const { locale, darkMode } = useApp();
-  const { showAlert } = useModal();
+  const { showAlert, showConfirm } = useModal();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTrip, setActiveTrip] = useState<any>(null);
+  const [activeTrip, setActiveTrip] = useState<any>(() => getStoredActiveTrip());
   const [isViewingActiveRoute, setIsViewingActiveRoute] = useState(false);
   const [tripExiting, setTripExiting] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -586,6 +706,11 @@ export default function MainPage() {
   const [consentTerms, setConsentTerms] = useState(false);
   const [consentPrivacy, setConsentPrivacy] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
+
+  useEffect(() => {
+    const storedTrip = getStoredActiveTrip();
+    if (storedTrip) setActiveTrip(storedTrip);
+  }, []);
 
   // AI Recommend
   const [aiQuery, setAiQuery] = useState('');
@@ -608,10 +733,15 @@ export default function MainPage() {
   // Smooth close category dropdown with exit animation
   const closeCategoryDropdown = useCallback(() => {
     if (!categoryDropdownOpen) return;
+    if (categoryCloseTimerRef.current) {
+      clearTimeout(categoryCloseTimerRef.current);
+      categoryCloseTimerRef.current = null;
+    }
     setCategoryDropdownClosing(true);
-    setTimeout(() => {
+    categoryCloseTimerRef.current = setTimeout(() => {
       setCategoryDropdownOpen(false);
       setCategoryDropdownClosing(false);
+      categoryCloseTimerRef.current = null;
     }, 220);
   }, [categoryDropdownOpen]);
   const [chipOpen, setChipOpen] = useState(false);
@@ -644,16 +774,49 @@ export default function MainPage() {
     }
     if (except !== 'category') {
       if (categoryDropdownOpen) {
+        if (categoryCloseTimerRef.current) {
+          clearTimeout(categoryCloseTimerRef.current);
+          categoryCloseTimerRef.current = null;
+        }
         setCategoryDropdownClosing(true);
-        setTimeout(() => { setCategoryDropdownOpen(false); setCategoryDropdownClosing(false); }, 220);
+        categoryCloseTimerRef.current = setTimeout(() => {
+          setCategoryDropdownOpen(false);
+          setCategoryDropdownClosing(false);
+          categoryCloseTimerRef.current = null;
+        }, 220);
       }
     }
     if (except !== 'chip') setChipOpen(false);
     if (except !== 'ai') { setAiOpen(false); setAiResults([]); setAiQuery(''); }
-    if (except !== 'nearby') setNearbyOpen(false);
-    if (except !== 'weather') setWeatherOpen(false);
+    if (except !== 'nearby' && nearbyOpenRef.current) {
+      setNearbyClosing(true);
+      setTimeout(() => {
+        nearbyOpenRef.current = false;
+        setNearbyOpen(false);
+        setNearbyClosing(false);
+        setNearbyPopupTriggerRef(null);
+      }, 180);
+    }
+    if (except !== 'weather' && weatherOpenRef.current) {
+      setWeatherClosing(true);
+      setTimeout(() => {
+        weatherOpenRef.current = false;
+        setWeatherOpen(false);
+        setWeatherClosing(false);
+        setWeatherPopupTriggerRef(null);
+      }, 180);
+    }
     if (except !== 'sideMenu') setMapSideMenuOpen(false);
   }, [categoryDropdownOpen, newMuseumsOpen]);
+  const openCategoryDropdown = useCallback(() => {
+    if (categoryCloseTimerRef.current) {
+      clearTimeout(categoryCloseTimerRef.current);
+      categoryCloseTimerRef.current = null;
+    }
+    setCategoryDropdownClosing(false);
+    closeAllPopups('category');
+    setCategoryDropdownOpen(true);
+  }, [closeAllPopups]);
   const prevSelectedRef = useRef<any>(null);
   const selectedMuseumRef = useRef<any>(null);
   const isHandlingPopState = useRef(false);
@@ -688,7 +851,7 @@ export default function MainPage() {
     }, 320);
   }, [selectedMuseum]);
 
-  const openMuseumPanel = useCallback((museum: any, zoom?: number) => {
+  const openMuseumPanel = useCallback((museum: any) => {
     if (detailPanelCloseTimerRef.current) {
       clearTimeout(detailPanelCloseTimerRef.current);
       detailPanelCloseTimerRef.current = null;
@@ -696,7 +859,6 @@ export default function MainPage() {
     selectedMuseumRef.current = museum;
     setDetailPanelClosing(false);
     setSelectedMuseum(museum);
-    setMapFlyTo({ lat: museum.latitude, lng: museum.longitude, ...(zoom ? { zoom } : {}) });
 
     if (typeof window === 'undefined') return;
     if (window.history.state?.museumPanel) {
@@ -705,6 +867,27 @@ export default function MainPage() {
       window.history.pushState({ museumPanel: true }, '');
     }
   }, []);
+
+  const moveToSelectedMuseumLocation = useCallback(() => {
+    const museum = selectedMuseumRef.current || selectedMuseum;
+    if (!museum?.latitude || !museum?.longitude) return;
+    const lat = Number(museum.latitude);
+    const lng = Number(museum.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1181px)').matches) {
+      setMapFlyTo({
+        lat,
+        lng,
+        zoom: 15,
+        offset: [-Math.min(360, Math.round(window.innerWidth * 0.18)), 0],
+      });
+      return;
+    }
+
+    closeMuseumPanel(true);
+    setMapFlyTo({ lat, lng, zoom: 14 });
+  }, [closeMuseumPanel, selectedMuseum]);
 
   useEffect(() => {
     return () => {
@@ -834,11 +1017,13 @@ export default function MainPage() {
 
     // Instantly load from cache if available (avoids loading screen on page revisits)
     try {
-      const cached = sessionStorage.getItem('museums_cache_v2');
+      const cached = sessionStorage.getItem(MUSEUMS_CACHE_KEY);
       if (cached) {
         const data = JSON.parse(cached);
-        if (Array.isArray(data) && data.length > 0) {
+        if (isUsableMuseumsCache(data)) {
           setMuseums(data);
+        } else {
+          sessionStorage.removeItem(MUSEUMS_CACHE_KEY);
         }
       }
     } catch { }
@@ -853,7 +1038,9 @@ export default function MainPage() {
           const data = res.data?.data || res.data || [];
           if (Array.isArray(data) && data.length > 0) {
             setMuseums(data);
-            try { sessionStorage.setItem('museums_cache_v2', JSON.stringify(data)); } catch { }
+            if (isUsableMuseumsCache(data)) {
+              try { sessionStorage.setItem(MUSEUMS_CACHE_KEY, JSON.stringify(data)); } catch { }
+            }
           } else if (retries < maxRetries) {
             retries++;
             timer = setTimeout(fetchMuseums, 2000 * retries);
@@ -917,7 +1104,7 @@ export default function MainPage() {
     if (!initialMuseumId || museums.length === 0) return;
     const museum = museums.find(m => m.id === initialMuseumId);
     if (museum) {
-      openMuseumPanel(museum, 4);
+      openMuseumPanel(museum);
     }
     setInitialMuseumId(null);
   }, [initialMuseumId, museums, openMuseumPanel]);
@@ -946,16 +1133,8 @@ export default function MainPage() {
     }
   };
 
-  // Check for active trip
-  useEffect(() => {
-    if (status === 'loading') return;
-    if (status === 'unauthenticated') {
-      setActiveTrip(null);
-      setIsViewingActiveRoute(false);
-      clearActiveTripForAccount();
-      return;
-    }
-    const parsed = getActiveTripForAccount();
+  const refreshActiveTrip = useCallback(() => {
+    const parsed = getActiveTripForAccount(session?.user?.email);
     if (parsed) {
       try {
         if (parsed?.planId) {
@@ -1013,7 +1192,27 @@ export default function MainPage() {
       setActiveTrip(null);
       setIsViewingActiveRoute(false);
     }
-  }, [status]);
+  }, [session?.user?.email]);
+
+  // Check for active trip
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (status === 'unauthenticated') {
+      setActiveTrip(null);
+      setIsViewingActiveRoute(false);
+      clearActiveTripForAccount();
+      return;
+    }
+    refreshActiveTrip();
+    window.addEventListener(ACTIVE_TRIP_CHANGE_EVENT, refreshActiveTrip);
+    window.addEventListener('storage', refreshActiveTrip);
+    window.addEventListener('focus', refreshActiveTrip);
+    return () => {
+      window.removeEventListener(ACTIVE_TRIP_CHANGE_EVENT, refreshActiveTrip);
+      window.removeEventListener('storage', refreshActiveTrip);
+      window.removeEventListener('focus', refreshActiveTrip);
+    };
+  }, [status, refreshActiveTrip]);
 
   useEffect(() => {
     if (searchParams?.get('trip') !== 'active' || !activeTrip || activeTrip.pending) return;
@@ -1078,16 +1277,27 @@ export default function MainPage() {
   const filteredMuseums = mapMuseums;
   const mobileListMuseums = mapMuseums.slice(0, 120);
   const mobileToolLabels = MOBILE_TOOL_LABELS[locale] || MOBILE_TOOL_LABELS.en;
+  const mapLocationLabels = MAP_LOCATION_LABELS[locale] || MAP_LOCATION_LABELS.en;
+  const accountLocationEmail = status === 'authenticated' && session?.user?.email && !session?.user?.name?.startsWith('guest_')
+    ? session.user.email
+    : null;
 
   const isDarkMode = darkMode;
-  const [mapFlyTo, setMapFlyTo] = useState<{ lat: number; lng: number; zoom?: number } | null>(null);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapFlyTo, setMapFlyTo] = useState<{ lat: number; lng: number; zoom?: number; offset?: [number, number] } | null>(null);
+  const [userLocation, setUserLocation] = useState<MapLocation | null>(null);
+  const [manualLocation, setManualLocation] = useState<MapLocation | null>(null);
+  const [locationSource, setLocationSource] = useState<MapLocationSource>('current');
+  const [locationPickMode, setLocationPickMode] = useState(false);
+  const [locationPickIntroOpen, setLocationPickIntroOpen] = useState(false);
+  const [locationSwitchOpen, setLocationSwitchOpen] = useState(false);
 
 
   const [tripSheetOpen, setTripSheetOpen] = useState(true);
   const [tripStopsLocal, setTripStopsLocal] = useState<any[]>([]);
   const [nearbyOpen, setNearbyOpen] = useState(false);
+  const [nearbyClosing, setNearbyClosing] = useState(false);
   const [weatherOpen, setWeatherOpen] = useState(false);
+  const [weatherClosing, setWeatherClosing] = useState(false);
   const [currentWeather, setCurrentWeather] = useState<CurrentWeather | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [mapPrefs, setMapPrefs] = useState<MapPrefs>(DEFAULT_MAP_PREFS);
@@ -1095,12 +1305,43 @@ export default function MainPage() {
   const weatherBtnRefMobile = useRef<HTMLButtonElement>(null);
   const nearbyBtnRefPC = useRef<HTMLButtonElement>(null);
   const weatherBtnRefPC = useRef<HTMLButtonElement>(null);
+  const [nearbyPopupTriggerRef, setNearbyPopupTriggerRef] = useState<RefObject<HTMLButtonElement | null> | null>(null);
+  const [weatherPopupTriggerRef, setWeatherPopupTriggerRef] = useState<RefObject<HTMLButtonElement | null> | null>(null);
   // Track active viewport so we render a single popup tied to the visible trigger.
   // Rendering popups at both locations would double up via body portal.
   const [isLgViewport, setIsLgViewport] = useState(false);
+  const setCategoryFilter = useCallback((filter: string) => {
+    const nextFilter = MOBILE_FILTERS.includes(filter) ? filter : 'All';
+    setActiveFilter(nextFilter);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(MAP_CATEGORY_FILTER_KEY, nextFilter);
+    }
+  }, []);
+  const closeNearbyPopup = useCallback(() => {
+    if (!nearbyOpenRef.current && !nearbyOpen) return;
+    setNearbyClosing(true);
+    setTimeout(() => {
+      nearbyOpenRef.current = false;
+      setNearbyOpen(false);
+      setNearbyClosing(false);
+      setNearbyPopupTriggerRef(null);
+    }, 180);
+  }, [nearbyOpen]);
+  const closeWeatherPopup = useCallback(() => {
+    if (!weatherOpenRef.current && !weatherOpen) return;
+    setWeatherClosing(true);
+    setTimeout(() => {
+      weatherOpenRef.current = false;
+      setWeatherOpen(false);
+      setWeatherClosing(false);
+      setWeatherPopupTriggerRef(null);
+    }, 180);
+  }, [weatherOpen]);
+  useEffect(() => { nearbyOpenRef.current = nearbyOpen; }, [nearbyOpen]);
+  useEffect(() => { weatherOpenRef.current = weatherOpen; }, [weatherOpen]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 1024px)');
+    const mq = window.matchMedia('(min-width: 768px)');
     const update = () => setIsLgViewport(mq.matches);
     update();
     mq.addEventListener('change', update);
@@ -1112,8 +1353,8 @@ export default function MainPage() {
     const syncPrefs = () => {
       const next = readMapPrefs();
       setMapPrefs(next);
-      if (!next.nearby) setNearbyOpen(false);
-      if (!next.weather) setWeatherOpen(false);
+      if (!next.nearby) closeNearbyPopup();
+      if (!next.weather) closeWeatherPopup();
     };
     syncPrefs();
     window.addEventListener('storage', syncPrefs);
@@ -1122,7 +1363,167 @@ export default function MainPage() {
       window.removeEventListener('storage', syncPrefs);
       window.removeEventListener('mm-map-prefs-change', syncPrefs as EventListener);
     };
+  }, [closeNearbyPopup, closeWeatherPopup]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncLocationSource = () => {
+      const nextSource = readMapLocationSourceForAccount(accountLocationEmail);
+      const nextManual = readManualMapLocationForAccount(accountLocationEmail) || readManualMapLocation();
+      setLocationSource(nextSource);
+      setManualLocation(nextManual);
+      if (nextSource === 'manual' && nextManual) {
+        setUserLocation(nextManual);
+      }
+    };
+    syncLocationSource();
+    const shouldPickFromUrl = searchParams?.get('selectLocation') === '1';
+    const shouldPickFromSession = sessionStorage.getItem(MAP_LOCATION_PICK_MODE_KEY) === '1';
+    if ((shouldPickFromUrl || shouldPickFromSession) && !locationPickMode && !locationPickIntroOpen) {
+      if (accountLocationEmail) {
+        localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'source'), 'manual');
+      }
+      localStorage.setItem(MAP_LOCATION_SOURCE_KEY, 'manual');
+      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
+      window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source: 'manual' } }));
+      setLocationSource('manual');
+      setLocationPickIntroOpen(true);
+      closeAllPopups();
+    }
+    window.addEventListener('storage', syncLocationSource);
+    window.addEventListener('mm-map-location-source-change', syncLocationSource as EventListener);
+    return () => {
+      window.removeEventListener('storage', syncLocationSource);
+      window.removeEventListener('mm-map-location-source-change', syncLocationSource as EventListener);
+    };
+  }, [accountLocationEmail, closeAllPopups, locationPickIntroOpen, locationPickMode, searchParams]);
+
+  const persistLocationSource = useCallback((source: MapLocationSource) => {
+    if (typeof window === 'undefined') return;
+    if (accountLocationEmail) {
+      localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'source'), source);
+    }
+    localStorage.setItem(MAP_LOCATION_SOURCE_KEY, source);
+    window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source } }));
+    setLocationSource(source);
+  }, [accountLocationEmail]);
+
+  const requestCurrentLocation = useCallback((moveMap = true) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      showAlert(mobileToolLabels.locationError);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
+        setUserLocation(nextLocation);
+        if (moveMap) setMapFlyTo({ ...nextLocation, zoom: 13 });
+      },
+      () => { showAlert(mobileToolLabels.locationError); },
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60_000 }
+    );
+  }, [mobileToolLabels.locationError, showAlert]);
+
+  useEffect(() => {
+    if (locationSource !== 'current') return;
+    setCurrentWeather(null);
+    requestCurrentLocation(false);
+  }, [locationSource, requestCurrentLocation]);
+
+  const handleCurrentLocationPress = useCallback(() => {
+    if (locationSource === 'manual') {
+      setLocationSwitchOpen(true);
+      return;
+    }
+    requestCurrentLocation();
+  }, [locationSource, requestCurrentLocation]);
+
+  const confirmUseCurrentLocation = useCallback(() => {
+    persistLocationSource('current');
+    setCurrentWeather(null);
+    setLocationPickMode(false);
+    setLocationPickIntroOpen(false);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
+      if (window.location.search.includes('selectLocation=1')) {
+        window.history.replaceState({}, '', '/');
+      }
+    }
+    setLocationSwitchOpen(false);
+    requestCurrentLocation();
+  }, [persistLocationSource, requestCurrentLocation]);
+
+  const cancelLocationPickMode = useCallback(() => {
+    setLocationPickMode(false);
+    setLocationPickIntroOpen(false);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
+      if (window.location.search.includes('selectLocation=1')) {
+        window.history.replaceState({}, '', '/');
+      }
+    }
   }, []);
+
+  const startManualLocationPick = useCallback(() => {
+    if (locationPickMode) {
+      cancelLocationPickMode();
+      return;
+    }
+    closeAllPopups();
+    setLocationSwitchOpen(false);
+    setLocationPickIntroOpen(false);
+    persistLocationSource('manual');
+    setLocationPickMode(true);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(MAP_LOCATION_PICK_MODE_KEY, '1');
+    }
+  }, [cancelLocationPickMode, closeAllPopups, locationPickMode, persistLocationSource]);
+
+  const dismissLocationPickIntro = useCallback(() => {
+    setLocationPickIntroOpen(false);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
+      if (window.location.search.includes('selectLocation=1')) {
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  }, []);
+
+  const confirmLocationPickIntro = useCallback(() => {
+    setLocationPickIntroOpen(false);
+    closeAllPopups();
+    setLocationSwitchOpen(false);
+    persistLocationSource('manual');
+    setLocationPickMode(true);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(MAP_LOCATION_PICK_MODE_KEY, '1');
+      if (window.location.search.includes('selectLocation=1')) {
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  }, [closeAllPopups, persistLocationSource]);
+
+  const handleManualLocationSelect = useCallback((location: MapLocation) => {
+    if (typeof window === 'undefined') return;
+    const next = { ...location, updatedAt: new Date().toISOString() };
+    if (accountLocationEmail) {
+      localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'manual'), JSON.stringify(next));
+      localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'source'), 'manual');
+    }
+    localStorage.setItem(MAP_MANUAL_LOCATION_KEY, JSON.stringify(next));
+    localStorage.setItem(MAP_LOCATION_SOURCE_KEY, 'manual');
+    sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
+    window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source: 'manual', location } }));
+    if (window.location.search.includes('selectLocation=1')) {
+      window.history.replaceState({}, '', '/');
+    }
+    setLocationSource('manual');
+    setManualLocation(location);
+    setUserLocation(location);
+    setMapFlyTo({ ...location, zoom: 13 });
+    setLocationPickMode(false);
+    showAlert(mapLocationLabels.manualSaved);
+  }, [accountLocationEmail, mapLocationLabels.manualSaved, showAlert]);
 
   useEffect(() => {
     if (!selectedMuseum || typeof window === 'undefined') {
@@ -1138,23 +1539,43 @@ export default function MainPage() {
     return () => window.cancelAnimationFrame(frame);
   }, [selectedMuseum?.id, skipTransition]);
 
-  const activeNearbyRef = isLgViewport ? nearbyBtnRefPC : nearbyBtnRefMobile;
-  const activeWeatherRef = isLgViewport ? weatherBtnRefPC : weatherBtnRefMobile;
+  const activeNearbyRef = nearbyPopupTriggerRef || (isLgViewport ? nearbyBtnRefPC : nearbyBtnRefMobile);
+  const activeWeatherRef = weatherPopupTriggerRef || (isLgViewport ? weatherBtnRefPC : weatherBtnRefMobile);
+  const effectiveLocation = locationSource === 'manual' && manualLocation ? manualLocation : userLocation;
 
   const fetchCurrentWeather = useCallback(async () => {
+    const fetchByLocation = async (location: MapLocation) => {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lng}&current=temperature_2m,weather_code&timezone=auto`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('weather fetch failed');
+      const json = await res.json();
+      let cityName = '';
+      try {
+        cityName = (await fetchLocationLabel(location, locale)).display;
+      } catch {}
+      setCurrentWeather({
+        temp: Number(json.current.temperature_2m),
+        code: Number(json.current.weather_code),
+        cityName,
+      });
+    };
+    if (locationSource === 'manual' && manualLocation) {
+      setWeatherLoading(true);
+      try {
+        await fetchByLocation(manualLocation);
+      } catch {
+        // Keep the chip usable even if the real-time feed fails.
+      } finally {
+        setWeatherLoading(false);
+      }
+      return;
+    }
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     setWeatherLoading(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current=temperature_2m,weather_code&timezone=auto`;
-          const res = await fetch(url);
-          if (!res.ok) throw new Error('weather fetch failed');
-          const json = await res.json();
-          setCurrentWeather({
-            temp: Number(json.current.temperature_2m),
-            code: Number(json.current.weather_code),
-          });
+          await fetchByLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         } catch {
           // Keep the chip usable even if the real-time feed fails.
         } finally {
@@ -1164,7 +1585,24 @@ export default function MainPage() {
       () => setWeatherLoading(false),
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 180_000 }
     );
-  }, []);
+  }, [locationSource, manualLocation, locale]);
+
+  const openNearbyPopup = useCallback((triggerRef?: RefObject<HTMLButtonElement | null>) => {
+    if (triggerRef) setNearbyPopupTriggerRef(triggerRef);
+    closeAllPopups('nearby');
+    setNearbyClosing(false);
+    nearbyOpenRef.current = true;
+    setNearbyOpen(true);
+  }, [closeAllPopups]);
+
+  const openWeatherPopup = useCallback((triggerRef?: RefObject<HTMLButtonElement | null>) => {
+    if (triggerRef) setWeatherPopupTriggerRef(triggerRef);
+    closeAllPopups('weather');
+    fetchCurrentWeather();
+    setWeatherClosing(false);
+    weatherOpenRef.current = true;
+    setWeatherOpen(true);
+  }, [closeAllPopups, fetchCurrentWeather]);
 
   useEffect(() => {
     if (isLgViewport) return;
@@ -1222,19 +1660,28 @@ export default function MainPage() {
       const [moved] = newStops.splice(fromIndex, 1);
       newStops.splice(toIndex, 0, moved);
       const reordered = newStops.map((s, i) => ({ ...s, order: i }));
-      setTripStopsLocal(reordered);
-      setActiveTrip((prev: any) => prev ? { ...prev, stops: reordered } : prev);
-      // Persist locally + to API if this is a saved plan
-      if (typeof window !== 'undefined') {
-        const parsed = getActiveTripForAccount();
-        if (parsed) setActiveTripForAccount({ ...parsed, stops: reordered });
-      }
-      if (activeTrip?.planId) {
-        fetch(`/api/plans/${activeTrip.planId}`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stops: reordered.map((s: any) => ({ id: s.id, order: s.order })) }),
-        }).catch(() => { });
-      }
+      const labels = TRIP_REORDER_LABELS[locale] || TRIP_REORDER_LABELS.en;
+      showConfirm(labels.message, async () => {
+        setTripStopsLocal(reordered);
+        setActiveTrip((prev: any) => prev ? { ...prev, stops: reordered } : prev);
+        if (typeof window !== 'undefined') {
+          const parsed = getActiveTripForAccount();
+          if (parsed) setActiveTripForAccount({ ...parsed, stops: reordered });
+        }
+        if (activeTrip?.planId) {
+          try {
+            const res = await fetch(`/api/plans/${activeTrip.planId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ stops: reordered.map((s: any) => ({ id: s.id, museumId: s.museumId, order: s.order })) }),
+            });
+            if (!res.ok) throw new Error('Failed to save trip order');
+            showAlert(labels.saved);
+          } catch {
+            showAlert(labels.failed);
+          }
+        }
+      }, labels.title);
     },
   });
   const tripDragIndex = tripDrag.dragIndex;
@@ -1443,7 +1890,7 @@ export default function MainPage() {
           </div>
           {/* Floating back button — via portal to stay fixed */}
           {typeof document !== 'undefined' && createPortal(
-            <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
+            <div className="md:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
               <button
                 onClick={() => { setTripExiting(true); setTimeout(() => { setTripExiting(false); setIsViewingActiveRoute(false); setReturnFromDetail(true); setTimeout(() => setReturnFromDetail(false), 500); }, 300); }}
                 className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
@@ -1495,17 +1942,17 @@ export default function MainPage() {
     const allAgreed = consentTerms && consentPrivacy;
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-        <div className="glass-popup gradient-border rounded-3xl p-6 sm:p-8 w-full max-w-md" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+        <div className="mm-consent-modal2 glass-popup gradient-border rounded-3xl p-6 sm:p-8 w-full max-w-md" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
           <h2 className="text-lg font-black dark:text-white mb-1">{cl.title}</h2>
           <p className="text-xs text-gray-400 dark:text-neutral-500 mb-5">{session?.user?.email}</p>
 
           {/* Agree All */}
-          <button onClick={() => { setConsentTerms(true); setConsentPrivacy(true); }} className="mb-4 w-full py-3 rounded-2xl border border-blue-300/50 dark:border-blue-700/50 text-blue-600 dark:text-blue-400 text-sm font-bold hover:bg-blue-50/50 dark:hover:bg-blue-900/20 active:scale-[0.98] transition-all" style={{ background: 'var(--gradient-blue-orange-soft)' }}>
+          <button onClick={() => { setConsentTerms(true); setConsentPrivacy(true); }} className="mm-consent-modal2-all mb-4 w-full py-3 rounded-2xl border border-blue-300/50 dark:border-blue-700/50 text-blue-600 dark:text-blue-400 text-sm font-bold hover:bg-blue-50/50 dark:hover:bg-blue-900/20 active:scale-[0.98] transition-all" style={{ background: 'var(--gradient-blue-orange-soft)' }}>
             {cl.agreeAll}
           </button>
 
           {/* Terms */}
-          <div onClick={() => setConsentTerms(v => !v)} className={`rounded-2xl border p-4 cursor-pointer transition-all mb-3 active:scale-[0.98] ${consentTerms ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/40 dark:bg-white/5'}`}>
+          <div onClick={() => setConsentTerms(v => !v)} className={`mm-consent-modal2-item rounded-2xl border p-4 cursor-pointer transition-all mb-3 active:scale-[0.98] ${consentTerms ? 'is-active border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/40 dark:bg-white/5'}`}>
             <div className="flex items-start gap-3">
               <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${consentTerms ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                 {consentTerms && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
@@ -1518,7 +1965,7 @@ export default function MainPage() {
           </div>
 
           {/* Privacy */}
-          <div onClick={() => setConsentPrivacy(v => !v)} className={`rounded-2xl border p-4 cursor-pointer transition-all mb-5 active:scale-[0.98] ${consentPrivacy ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/40 dark:bg-white/5'}`}>
+          <div onClick={() => setConsentPrivacy(v => !v)} className={`mm-consent-modal2-item rounded-2xl border p-4 cursor-pointer transition-all mb-5 active:scale-[0.98] ${consentPrivacy ? 'is-active border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/40 dark:bg-white/5'}`}>
             <div className="flex items-start gap-3">
               <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${consentPrivacy ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                 {consentPrivacy && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
@@ -1554,8 +2001,8 @@ export default function MainPage() {
         display: 'flex',
         width: '100%',
         maxWidth: '100vw',
-        height: isLgViewport ? 'calc(100vh - 3.5rem)' : 'var(--mm-viewport-height, 100dvh)',
-        minHeight: isLgViewport ? 420 : 320,
+        height: 'var(--mm-viewport-height, 100dvh)',
+        minHeight: 'var(--mm-viewport-height, 100dvh)',
         overflow: 'hidden',
         background: '#eef6ff',
       }}
@@ -1563,16 +2010,29 @@ export default function MainPage() {
       {/* PC Click-outside Overlay */}
       {selectedMuseum && isLgViewport && (
         <div
-          className="hidden lg:block absolute inset-0 z-30 cursor-pointer"
+          className="hidden md:block absolute inset-0 z-30 cursor-pointer"
           onClick={() => closeMuseumPanel()}
           aria-label="Close detail panel"
         />
       )}
 
+      {selectedMuseum && isLgViewport && (
+        <button
+          type="button"
+          className="mm-floating-back-button mm-floating-back-button--pc-only"
+          onClick={() => closeMuseumPanel()}
+          aria-label={locale === 'ko' ? '뒤로가기' : 'Back'}
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      )}
+
       {/* Mobile Map Discovery 2.0 */}
-      {!isViewingActiveRoute && !isLgViewport && (
+      {!isViewingActiveRoute && (
         <>
-          <div className={`mm-map2-top lg:hidden ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
+          <div className={`mm-map2-top md:hidden ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
             <div className="mm-map2-search-row" style={mm2.searchRow}>
               <div className={`mm-map2-search ${searchFocused ? 'is-focused' : ''}`} style={{ ...mm2.search, ...(searchFocused ? { borderColor: 'rgba(37,99,235,.34)', boxShadow: '0 16px 36px rgba(37,99,235,.16), inset 0 1px 0 rgba(255,255,255,.9)' } : null) }}>
                 <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1599,6 +2059,9 @@ export default function MainPage() {
                 style={mm2.iconPill}
                 onClick={() => {
                   closeAllPopups();
+                  try {
+                    sessionStorage.setItem('mm_settings_return_to', '/');
+                  } catch {}
                   router.push('/settings');
                 }}
                 aria-label={locale === 'ko' ? '설정' : 'Settings'}
@@ -1619,106 +2082,118 @@ export default function MainPage() {
                     locale={locale}
                     onMuseumSelect={(m) => {
                       setSearchQuery('');
-                      openMuseumPanel(m, 14);
+                      openMuseumPanel(m);
                     }}
                   />
                 ))}
               </div>
             )}
 
-            <div className="mm-map2-pill-row" style={mm2.pillRow}>
-              {activeTrip && !activeTrip.pending && (
+            {activeTrip && (
+              <div className="mm-map2-trip-anchor">
                 <button
                   type="button"
                   onClick={() => setIsViewingActiveRoute(true)}
-                  className="mm-map2-tool-pill mm-map2-trip-pill"
+                  className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
                   style={mm2.toolPill}
-                  aria-label={locale === 'ko' ? '여행 중 경로 보기' : 'View active trip route'}
+                  aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
                 >
-                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
-                  </svg>
-                  <span>{locale === 'ko' ? '여행 중' : 'On trip'}</span>
+                  {activeTrip.pending ? (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
+                    </svg>
+                  )}
+                  <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
                 </button>
-              )}
+              </div>
+            )}
 
-              {mapPrefs.weather && (
+            <div className="mm-map2-pill-row" style={mm2.pillRow}>
+              <div className="mm-map2-tool-stack">
+                {mapPrefs.weather && (
+                  <button
+                    ref={weatherBtnRefMobile}
+	                    type="button"
+	                    onClick={() => {
+	                      if (weatherOpen) closeWeatherPopup();
+	                      else openWeatherPopup(weatherBtnRefMobile);
+	                    }}
+                    className={`mm-map2-tool-pill mm-map2-tool-pill-icon mm-map2-weather-icon ${weatherOpen ? 'is-active' : ''}`}
+                    style={{ ...mm2.toolPill, ...(weatherOpen ? mm2.activePill : null) }}
+                    aria-label={mobileToolLabels.weather}
+                    aria-expanded={weatherOpen}
+                  >
+                    <strong>{weatherLoading && !currentWeather ? '...' : currentWeather ? `${Math.round(currentWeather.temp)}°` : '--°'}</strong>
+                  </button>
+                )}
+
                 <button
-                  ref={weatherBtnRefMobile}
                   type="button"
-                  onClick={() => {
-                    if (weatherOpen) setWeatherOpen(false);
-                    else { closeAllPopups('weather'); fetchCurrentWeather(); setWeatherOpen(true); }
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (categoryDropdownOpen) closeCategoryDropdown();
+                    else openCategoryDropdown();
                   }}
-                  className={`mm-map2-tool-pill mm-map2-tool-pill-compact ${weatherOpen ? 'is-active' : ''}`}
-                  style={{ ...mm2.toolPill, ...(weatherOpen ? mm2.activePill : null) }}
-                  aria-label={mobileToolLabels.weather}
-                  aria-expanded={weatherOpen}
+	                  className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${categoryDropdownOpen || activeFilter !== 'All' ? 'is-active' : ''}`}
+	                  style={{ ...mm2.toolPill, ...((categoryDropdownOpen || activeFilter !== 'All') ? mm2.activePill : null) }}
+                  aria-label={mobileToolLabels.category}
+                  aria-expanded={categoryDropdownOpen}
                 >
-                  <strong>{weatherLoading && !currentWeather ? '...' : currentWeather ? `${Math.round(currentWeather.temp)}°` : '--°'}</strong>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => { if (categoryDropdownOpen) { closeCategoryDropdown(); } else { closeAllPopups('category'); setCategoryDropdownOpen(true); } }}
-                className={`mm-map2-tool-pill ${categoryDropdownOpen ? 'is-active' : ''}`}
-                style={{ ...mm2.toolPill, ...(categoryDropdownOpen ? mm2.activePill : null) }}
-                aria-expanded={categoryDropdownOpen}
-              >
-                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.55}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
-                </svg>
-              </button>
-
-              {mapPrefs.nearby && (
-                <button
-                  ref={nearbyBtnRefMobile}
-                  type="button"
-                  onClick={() => { if (nearbyOpen) { setNearbyOpen(false); } else { closeAllPopups('nearby'); setNearbyOpen(true); } }}
-                  className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${nearbyOpen ? 'is-active' : ''}`}
-                  style={{ ...mm2.toolPill, ...(nearbyOpen ? mm2.activePill : null) }}
-                  aria-label={mobileToolLabels.nearby}
-                  aria-expanded={nearbyOpen}
-                >
-                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657 13.414 20.9a2 2 0 0 1-2.828 0l-4.243-4.243a8 8 0 1 1 11.314 0Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.55}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" />
                   </svg>
                 </button>
-              )}
 
-              {mapPrefs.location && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
-                          setUserLocation(nextLocation);
-                          setMapFlyTo({ ...nextLocation, zoom: 13 });
-                        },
-                        () => { showAlert(mobileToolLabels.locationError); }
-                      );
-                    }
-                  }}
-                  className="mm-map2-tool-pill mm-map2-tool-pill-icon"
-                  style={mm2.toolPill}
-                  aria-label={mobileToolLabels.currentLocation}
-                >
-                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                  </svg>
-                </button>
-              )}
+                {mapPrefs.nearby && (
+                  <button
+                    ref={nearbyBtnRefMobile}
+                    type="button"
+	                    onClick={() => { if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefMobile); }}
+                    className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${nearbyOpen ? 'is-active' : ''}`}
+                    style={{ ...mm2.toolPill, ...(nearbyOpen ? mm2.activePill : null) }}
+                    aria-label={mobileToolLabels.nearby}
+                    aria-expanded={nearbyOpen}
+                  >
+                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657 13.414 20.9a2 2 0 0 1-2.828 0l-4.243-4.243a8 8 0 1 1 11.314 0Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
+                  </button>
+                )}
+
+                {mapPrefs.location && (
+                  <button
+                    type="button"
+                    onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
+                    className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${locationPickMode ? 'is-active' : ''}`}
+                    style={{ ...mm2.toolPill, ...(locationPickMode ? mm2.activePill : null) }}
+                    aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
+                  >
+                    {locationSource === 'manual' ? (
+                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
           {mapSideMenuOpen && !isPanelOpen && (
-            <div className="mm-map2-side-layer lg:hidden">
+            <div className="mm-map2-side-layer md:hidden">
               <button
                 type="button"
                 className="mm-map2-side-backdrop"
@@ -1768,6 +2243,9 @@ export default function MainPage() {
                     type="button"
                     onClick={() => {
                       setMapSideMenuOpen(false);
+                      try {
+                        sessionStorage.setItem('mm_settings_return_to', '/');
+                      } catch {}
                       router.push('/settings');
                     }}
                   >
@@ -1794,12 +2272,10 @@ export default function MainPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setMapSideMenuOpen(false);
-                      closeAllPopups('weather');
-                      fetchCurrentWeather();
-                      setWeatherOpen(true);
-                    }}
+	                    onClick={() => {
+	                      setMapSideMenuOpen(false);
+	                      openWeatherPopup();
+	                    }}
                   >
                     <span><WeatherChipSvg code={currentWeather?.code} /></span>
                     {currentWeather ? `${Math.round(currentWeather.temp)}°` : mobileToolLabels.weather}
@@ -1814,8 +2290,8 @@ export default function MainPage() {
                         type="button"
                         className={activeFilter === f ? 'is-active' : ''}
                         onClick={() => {
-                          setActiveFilter(f);
-                          setChipOpen(true);
+	                          setCategoryFilter(f);
+                          setChipOpen(false);
                           setMapSideMenuOpen(false);
                           setAiOpen(false);
                           setAiResults([]);
@@ -1832,32 +2308,59 @@ export default function MainPage() {
           )}
 
           {(categoryDropdownOpen || categoryDropdownClosing) && !isPanelOpen && (
-            <div className={`mm-map2-category-menu lg:hidden ${categoryDropdownClosing ? 'is-closing' : ''}`} style={mm2.categoryMenu}>
-              {MOBILE_FILTERS.map(f => (
-                <button
-                  key={f}
-                  type="button"
-                  className={activeFilter === f ? 'is-active' : ''}
-                  style={{ ...mm2.categoryButton, ...(activeFilter === f ? mm2.categoryButtonActive : null) }}
-                  onClick={() => {
-                    setActiveFilter(f);
-                    setChipOpen(true);
-                    setCategoryDropdownOpen(false);
-                    setAiOpen(false);
-                    setAiResults([]);
-                    gtag.event('filter_museums', { category: 'filter', label: f, value: 1 });
-                  }}
-                >
-                  {translateCategory(f, locale)}
+            <div
+              className={`mm-map2-category-menu mm-map-popover-motion md:hidden ${categoryDropdownClosing ? 'is-closing' : ''}`}
+              style={mm2.categoryMenu}
+              role="dialog"
+              aria-label={mobileToolLabels.categories}
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mm-map2-category-menu-head">
+                <h3>
+                  <span className="mm-map2-category-menu-head-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                    </svg>
+                  </span>
+                  {mobileToolLabels.categories}
+                </h3>
+                <button type="button" className="mm-map2-category-menu-close" onClick={closeCategoryDropdown} aria-label={mobileToolLabels.close}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-              ))}
+              </div>
+              <div className="mm-map2-category-menu-grid">
+                {MOBILE_FILTERS.map(f => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={activeFilter === f ? 'is-active' : ''}
+                    style={{ ...mm2.categoryButton, ...(activeFilter === f ? mm2.categoryButtonActive : null) }}
+                    onClick={() => {
+	                      setCategoryFilter(f);
+                      setChipOpen(false);
+                      closeCategoryDropdown();
+                      setAiOpen(false);
+                      setAiResults([]);
+                      gtag.event('filter_museums', { category: 'filter', label: f, value: 1 });
+                    }}
+                  >
+                    {translateCategory(f, locale)}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </>
       )}
 
       {/* Map */}
-      <div className="relative flex-1 min-h-0" style={{ position: 'relative', flex: '1 1 auto', minWidth: 0, minHeight: 0, height: '100%', overflow: 'hidden' }}>
+      <div className="mm-map-canvas-wrap relative flex-1 min-h-0" style={{ position: 'relative', flex: '1 1 auto', minWidth: 0, minHeight: 0, height: '100%', overflow: 'hidden' }}>
         {isViewingActiveRoute && activeTrip ? (
           <RouteMapViewer
             stops={activeTrip.stops}
@@ -1873,10 +2376,19 @@ export default function MainPage() {
             darkMode={isDarkMode}
             locale={locale}
             flyTo={mapFlyTo}
-            userLocation={userLocation}
+            userLocation={effectiveLocation}
             savedIds={savedMuseumIds}
             compareIds={compareIdsSet}
+            selectionMode={locationPickMode}
+            onMapPointSelect={locationPickMode ? handleManualLocationSelect : undefined}
           />
+        )}
+
+        {locationPickMode && !isPanelOpen && (
+          <div className="mm-map-location-pick-banner" role="status">
+            <span>{mapLocationLabels.pickPrompt}</span>
+            <button type="button" onClick={cancelLocationPickMode}>{mapLocationLabels.pickCancel}</button>
+          </div>
         )}
 
         {/* Loading overlay — shown while museums are being fetched */}
@@ -1898,8 +2410,8 @@ export default function MainPage() {
         )}
 
         {!isViewingActiveRoute && !isPanelOpen && !isLgViewport && (
-          <div className="lg:hidden" style={{ display: 'block' }}>
-            {chipOpen && (
+          <div className="md:hidden" style={{ display: 'block' }}>
+            {false && chipOpen && (
             <div className="mm-map2-place-sheet is-expanded" style={{ ...mm2.placeSheet, ...mm2.placeSheetExpanded }}>
               <button
                 type="button"
@@ -1933,7 +2445,7 @@ export default function MainPage() {
                           style={mm2.listItem}
                           onClick={() => {
                             setChipOpen(false);
-                            openMuseumPanel(m, 14);
+                            openMuseumPanel(m);
                           }}
                         >
                           <span className="mm-map2-list-image" style={mm2.listImage}>
@@ -1960,12 +2472,12 @@ export default function MainPage() {
         )}
 
         {/* Filters overlay — PC only (hidden on mobile, shown in header instead) */}
-        {!isViewingActiveRoute && isLgViewport && (
-          <div className={`hidden lg:flex absolute top-4 left-4 z-20 flex-col gap-2 sm:gap-3 pointer-events-none transition-all duration-500 ${isPanelOpen ? 'lg:right-[716px]' : 'right-4'}`}>
+        {!isViewingActiveRoute && (
+          <div className={`mm-map2-pc-overlay ${isPanelOpen ? 'is-panel-open' : 'is-panel-closed'} hidden md:flex absolute top-4 left-4 z-20 flex-col gap-2 sm:gap-3 pointer-events-none transition-all duration-500 ${isPanelOpen ? 'md:right-[700px]' : 'right-4'}`}>
             {/* Search Bar */}
-            <div className="pointer-events-auto">
+            <div className="mm-map2-pc-search-wrap pointer-events-auto">
               <div className="relative">
-                <div className={`relative rounded-2xl shadow-lg border-2 transition-colors duration-300 ${searchFocused ? 'border-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
+                <div className={`mm-map2-pc-search relative rounded-2xl shadow-lg border-2 transition-colors duration-300 ${searchFocused ? 'border-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                   <div className="relative">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1977,7 +2489,7 @@ export default function MainPage() {
                       onFocus={() => { setSearchFocused(true); closeCategoryDropdown(); closeNewMuseums(); }}
                       onBlur={() => setSearchFocused(false)}
                       placeholder={translateCategory('search.placeholder', locale)}
-                      className="w-full pl-8 pr-4 py-3 backdrop-blur-xl rounded-[14px] text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 outline-none transition-all"
+                      className="mm-map2-pc-search-input w-full pl-8 pr-4 py-3 backdrop-blur-xl rounded-[14px] text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 outline-none transition-all"
                       style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
                     />
                   </div>
@@ -1996,7 +2508,7 @@ export default function MainPage() {
                         locale={locale}
                         onMuseumSelect={(m) => {
                           setSearchQuery('');
-                          openMuseumPanel(m, 4);
+                          openMuseumPanel(m);
                         }}
                       />
                     ))}
@@ -2005,8 +2517,32 @@ export default function MainPage() {
               </div>
             </div>
 
+            {activeTrip && !isPanelOpen && (
+              <div className="mm-map2-pc-trip-anchor pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsViewingActiveRoute(true)}
+                  className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
+                  style={mm2.toolPill}
+                  aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
+                >
+                  {activeTrip.pending ? (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
+                    </svg>
+                  )}
+                  <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
+                </button>
+              </div>
+            )}
+
             {/* New Museums + Category Dropdown row */}
-            <div className="flex items-center gap-2 pointer-events-auto w-full">
+            <div className="mm-map2-pc-tools flex items-center gap-2 pointer-events-auto w-full">
               {/* New Museums Button */}
               {false && newMuseums.length > 0 && (
                 <div className="relative">
@@ -2037,7 +2573,7 @@ export default function MainPage() {
                           className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-gray-50 dark:border-neutral-800/50 last:border-0 flex items-center gap-3 rounded-xl"
                           onClick={() => {
                             setNewMuseumsOpen(false);
-                            openMuseumPanel(m, 4);
+                            openMuseumPanel(m);
                           }}
                         >
                           <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 dark:bg-neutral-800 flex-shrink-0 relative">
@@ -2077,16 +2613,25 @@ export default function MainPage() {
               )}
 
               {/* Category Dropdown */}
-              <div className="relative ml-auto">
+              <div className="mm-map2-pc-category-anchor relative ml-auto">
                 <button
-                  onClick={() => { if (categoryDropdownOpen) { closeCategoryDropdown(); } else { closeAllPopups('category'); setCategoryDropdownOpen(true); } }}
-                  className={`flex items-center gap-2 px-4 py-2.5 bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${categoryDropdownOpen
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (categoryDropdownOpen) closeCategoryDropdown();
+                    else openCategoryDropdown();
+                  }}
+                  className={`mm-map2-pc-control mm-map2-pc-control-wide flex items-center gap-2 px-4 py-2.5 bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${categoryDropdownOpen && !categoryDropdownClosing
                     ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                     : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
                     }`}
+                  aria-expanded={categoryDropdownOpen && !categoryDropdownClosing}
                 >
-                  <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
                   </svg>
                   <span className="text-sm font-bold text-gray-800 dark:text-white">
                     {activeFilter === 'All' ? (({ ko: '카테고리', en: 'Category', ja: 'カテゴリ', de: 'Kategorie', fr: 'Catégorie', es: 'Categoría', pt: 'Categoria', 'zh-CN': '分类', 'zh-TW': '分類' } as Record<string, string>)[locale] || 'Category') : translateCategory(activeFilter, locale)}
@@ -2097,22 +2642,50 @@ export default function MainPage() {
                 </button>
 
                 {(categoryDropdownOpen || categoryDropdownClosing) && (
-                  <div className={`absolute top-full right-0 mt-1 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100/50 dark:border-neutral-800/50 max-h-72 overflow-y-auto z-50 min-w-[160px] ${categoryDropdownClosing ? 'animate-fadeOutDown' : 'animate-fadeInUp'}`}>
-                    {['All', 'Art Gallery', 'Contemporary Art', 'Modern Art', 'Fine Arts', 'General Museum', 'History Museum', 'Natural History', 'Science Museum', 'Maritime Museum', 'Archaeological Museum', 'Photography Museum', 'Design Museum', 'Cultural Center', 'Unusual Museum'].map(f => (
-                      <button
-                        key={f}
-                        className={`w-full text-left px-4 py-2 text-xs font-medium transition-colors border-b border-gray-50 dark:border-neutral-800/50 last:border-0 ${activeFilter === f ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800'}`}
-                        onClick={() => {
-                          setActiveFilter(f);
-                          setCategoryDropdownOpen(false);
-                          setAiOpen(false);
-                          setAiResults([]);
-                          gtag.event('filter_museums', { category: 'filter', label: f, value: 1 });
-                        }}
-                      >
-                        {translateCategory(f, locale)}
+                  <div
+                    className={`mm-map2-category-menu mm-map2-category-menu-pc mm-map-popover-motion ${categoryDropdownClosing ? 'is-closing' : ''}`}
+                    role="dialog"
+                    aria-label={mobileToolLabels.categories}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="mm-map2-category-menu-head">
+                      <h3>
+                        <span className="mm-map2-category-menu-head-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                          </svg>
+                        </span>
+                        {mobileToolLabels.categories}
+                      </h3>
+                      <button type="button" className="mm-map2-category-menu-close" onClick={closeCategoryDropdown} aria-label={mobileToolLabels.close}>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                       </button>
-                    ))}
+                    </div>
+                    <div className="mm-map2-category-menu-grid">
+                      {MOBILE_FILTERS.map(f => (
+                        <button
+                          key={f}
+                          type="button"
+                          className={activeFilter === f ? 'is-active' : ''}
+                          style={{ ...mm2.categoryButton, ...(activeFilter === f ? mm2.categoryButtonActive : null) }}
+                          onClick={() => {
+                            setCategoryFilter(f);
+                            closeCategoryDropdown();
+                            setAiOpen(false);
+                            setAiResults([]);
+                            gtag.event('filter_museums', { category: 'filter', label: f, value: 1 });
+                          }}
+                        >
+                          {translateCategory(f, locale)}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -2120,36 +2693,32 @@ export default function MainPage() {
               {/* My Location — Mobile */}
               {mapPrefs.location && (
                 <button
-                  onClick={() => {
-                    if (navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
-                          setUserLocation(nextLocation);
-                          setMapFlyTo({ ...nextLocation, zoom: 13 });
-                        },
-                        () => { showAlert(locale === 'ko' ? '현재 위치를 불러오지 못했어요' : 'Unable to get your location'); }
-                      );
-                    }
-                  }}
-                  className="w-10 h-10 flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-100/50 dark:border-neutral-800/50 transition-all active:scale-95 shrink-0"
-                  aria-label="My Location"
+                  onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
+                  className={`mm-map2-pc-control mm-map2-pc-location-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 shrink-0 ${locationPickMode ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
+                  aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
                 >
-                  <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                  </svg>
+                  {locationSource === 'manual' ? (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                    </svg>
+                  )}
                 </button>
               )}
 
               {/* Nearby Museums (PC filter overlay) */}
-              {mapPrefs.nearby && <div className="relative shrink-0">
+              {mapPrefs.nearby && <div className="mm-map2-pc-nearby-anchor relative shrink-0">
                 <button
                   ref={nearbyBtnRefPC}
-                  onClick={() => { if (nearbyOpen) { setNearbyOpen(false); } else { closeAllPopups('nearby'); setNearbyOpen(true); } }}
+                  onClick={() => { if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefPC); }}
                   aria-label={locale === 'ko' ? '내 주변' : 'Nearby museums'}
                   aria-expanded={nearbyOpen}
-                  className={`w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${nearbyOpen ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
+                  className={`mm-map2-pc-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${nearbyOpen ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -2159,13 +2728,13 @@ export default function MainPage() {
               </div>}
 
               {/* Weather (PC filter overlay) */}
-              {mapPrefs.weather && <div className="relative shrink-0">
+              {mapPrefs.weather && <div className="mm-map2-pc-weather-anchor relative shrink-0">
                 <button
                   ref={weatherBtnRefPC}
-                  onClick={() => { if (weatherOpen) { setWeatherOpen(false); } else { closeAllPopups('weather'); setWeatherOpen(true); } }}
+	                  onClick={() => { if (weatherOpen) closeWeatherPopup(); else openWeatherPopup(weatherBtnRefPC); }}
                   aria-label={locale === 'ko' ? '오늘 날씨' : "Today's weather"}
                   aria-expanded={weatherOpen}
-                  className={`w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${weatherOpen ? 'bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
+                  className={`mm-map2-pc-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${weatherOpen ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
@@ -2180,7 +2749,7 @@ export default function MainPage() {
         {!isViewingActiveRoute && !isPanelOpen && isLgViewport && (
           <>
             {/* Desktop: absolute positioned over map */}
-            <div className="hidden lg:block absolute bottom-4 left-4 right-4 z-[51] pointer-events-none">
+            <div className="hidden md:block absolute bottom-4 left-4 right-4 z-[51] pointer-events-none">
               <div className="pointer-events-auto flex flex-col-reverse gap-2 max-w-3xl">
                 {aiOpen && (
                   <form
@@ -2221,7 +2790,7 @@ export default function MainPage() {
             </div>
             {/* Desktop: count badge */}
             {!aiOpen && !selectedMuseum && isLgViewport && (
-              <div className="hidden lg:block absolute bottom-4 right-4 z-[51]">
+              <div className="hidden md:block absolute bottom-4 right-4 z-[51]">
                 {chipOpen && (
                   <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-md rounded-2xl shadow-xl p-3 min-w-[160px] animate-fadeInUp">
                     <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">{locale === 'ko' ? '카테고리별' : 'By Category'}</div>
@@ -2242,7 +2811,7 @@ export default function MainPage() {
             )}
             {/* Mobile: portal into nav toolbar */}
             {false && navToolbarReady && typeof document !== 'undefined' && document.getElementById('nav-toolbar') && createPortal(
-              <div className={`lg:hidden px-3 pb-2 pt-1 ${returnFromDetail ? 'animate-fadeInUp' : ''}`}>
+              <div className={`md:hidden px-3 pb-2 pt-1 ${returnFromDetail ? 'animate-fadeInUp' : ''}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {!aiOpen ? (
@@ -2342,6 +2911,7 @@ export default function MainPage() {
               museumId={selectedMuseum.id}
               onClose={closeMuseumPanel}
               isMapContext={true}
+              onMoveToLocation={moveToSelectedMuseumLocation}
               onSaveChange={refreshSavedIds}
             />
           </div>
@@ -2350,7 +2920,7 @@ export default function MainPage() {
 
       {/* Trip activated notification toast */}
       {showTripActivatedNotif && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-fadeInUp">
+        <div className="mm-trip-start-toast fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-fadeInUp">
           <div className="gradient-btn text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold text-sm">
             <span className="text-lg">🎉</span>
             {locale === 'ko' ? '여행이 시작됐어요!' : 'Your trip has started!'}
@@ -2360,23 +2930,67 @@ export default function MainPage() {
 
       {/* Single instance of each popup, tied to whichever trigger is currently visible */}
       <NearbyPopup
-        isOpen={nearbyOpen}
-        onClose={() => setNearbyOpen(false)}
+        isOpen={nearbyOpen || nearbyClosing}
+        closing={nearbyClosing}
+        onClose={closeNearbyPopup}
         museums={museums}
         onMuseumClick={handleMuseumClick}
         mode="popover"
-        anchor="right"
+        anchor="before"
         triggerRef={activeNearbyRef}
+        locationOverride={locationSource === 'manual' ? manualLocation : null}
       />
       <WeatherPopup
-        isOpen={weatherOpen}
-        onClose={() => setWeatherOpen(false)}
+        isOpen={weatherOpen || weatherClosing}
+        closing={weatherClosing}
+        onClose={closeWeatherPopup}
         mode="popover"
-        anchor="right"
+        anchor="before"
         triggerRef={activeWeatherRef}
         initialWeather={currentWeather}
         onWeatherLoaded={setCurrentWeather}
+        locationOverride={locationSource === 'manual' ? manualLocation : null}
       />
+      {locationPickIntroOpen && typeof document !== 'undefined' && createPortal(
+        <div className="mm-map-location-confirm-layer" role="dialog" aria-modal="true" aria-label={mapLocationLabels.pickIntroTitle}>
+          <button type="button" className="mm-map-location-confirm-backdrop" onClick={dismissLocationPickIntro} aria-label={mapLocationLabels.pickIntroCancel} />
+          <div className="mm-map-location-confirm-card">
+            <div className="mm-map-location-confirm-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
+              </svg>
+            </div>
+            <h3>{mapLocationLabels.pickIntroTitle}</h3>
+            <p>{mapLocationLabels.pickIntroBody}</p>
+            <div>
+              <button type="button" onClick={dismissLocationPickIntro}>{mapLocationLabels.pickIntroCancel}</button>
+              <button type="button" onClick={confirmLocationPickIntro}>{mapLocationLabels.pickIntroConfirm}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      {locationSwitchOpen && typeof document !== 'undefined' && createPortal(
+        <div className="mm-map-location-confirm-layer" role="dialog" aria-modal="true" aria-label={mapLocationLabels.switchTitle}>
+          <button type="button" className="mm-map-location-confirm-backdrop" onClick={() => setLocationSwitchOpen(false)} aria-label={mapLocationLabels.switchCancel} />
+          <div className="mm-map-location-confirm-card">
+            <div className="mm-map-location-confirm-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v3m0 14v3m10-10h-3M5 12H2" />
+              </svg>
+            </div>
+            <h3>{mapLocationLabels.switchTitle}</h3>
+            <p>{mapLocationLabels.switchBody}</p>
+            <div>
+              <button type="button" onClick={() => setLocationSwitchOpen(false)}>{mapLocationLabels.switchCancel}</button>
+              <button type="button" onClick={confirmUseCurrentLocation}>{mapLocationLabels.switchConfirm}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

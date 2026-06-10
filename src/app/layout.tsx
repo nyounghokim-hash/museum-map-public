@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
+import { Permanent_Marker } from 'next/font/google'
 import './globals.css'
 import NavHeader from '@/components/layout/NavHeader'
 import MobileBottomNav from '@/components/layout/MobileBottomNav'
+import FloatingBackButton from '@/components/layout/FloatingBackButton'
 import MainContent from '@/components/layout/MainContent'
 import { AppProvider } from '@/components/AppContext'
 import { ModalProvider } from '@/components/ui/Modal'
@@ -14,6 +16,10 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f8fbff' },
+    { media: '(prefers-color-scheme: dark)', color: '#020617' },
+  ],
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,7 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const acceptLanguage = headersList.get('accept-language') || '';
   const isKorean = acceptLanguage.toLowerCase().includes('ko');
 
-  const title = isKorean ? 'Global Museum Map - 나만의 미술관/박물관 여행 계획' : 'Global Museum Map - Plan Your Art & History Journey';
+  const title = isKorean ? 'Museum Map - 나만의 미술관/박물관 여행 계획' : 'Museum Map - Plan Your Art & History Journey';
   const description = isKorean
     ? '전 세계 주요 현대미술관과 박물관을 탐험하고, 나만의 특별한 여행 경로를 만들어보세요.'
     : 'Discover contemporary art museums and historical museums around the globe, and create your personalized itinerary.';
@@ -84,10 +90,10 @@ export async function generateMetadata(): Promise<Metadata> {
       siteName: 'Museum Map',
       images: [
         {
-          url: '/og-image.png?v=2',
+          url: '/og-image.png?v=3',
           width: 1200,
           height: 630,
-          alt: 'Global Museum Map Preview',
+          alt: 'Museum Map Preview',
         },
       ],
       locale: isKorean ? 'ko_KR' : 'en_US',
@@ -97,7 +103,7 @@ export async function generateMetadata(): Promise<Metadata> {
       card: 'summary_large_image',
       title,
       description,
-      images: ['/og-image.png?v=2'],
+      images: ['/og-image.png?v=3'],
     },
   };
 }
@@ -110,6 +116,13 @@ import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import type { Locale } from '@/lib/i18n'
 
 const SUPPORTED_LAYOUT_LOCALES: Locale[] = ['en', 'ko', 'ja', 'de', 'fr', 'es', 'pt', 'zh-CN', 'zh-TW', 'da', 'fi', 'sv', 'et'];
+
+const brandDisplayFont = Permanent_Marker({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-brand-display',
+  display: 'swap',
+});
 
 function isSupportedLayoutLocale(value: string | undefined | null): value is Locale {
   return !!value && SUPPORTED_LAYOUT_LOCALES.includes(value as Locale);
@@ -149,8 +162,11 @@ export default async function RootLayout({
   const acceptLang = headersList.get('accept-language') || '';
   const lang = getCookieLocale(headersList.get('cookie')) || getHeaderLocale(acceptLang);
   return (
-    <html lang={lang} suppressHydrationWarning>
+    <html lang={lang} className={brandDisplayFont.variable} suppressHydrationWarning>
       <head>
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fbff" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#020617" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -170,7 +186,7 @@ export default async function RootLayout({
                 --mm-force-sans: "SUIT", "Noto Sans KR", "Noto Sans JP", "Noto Sans SC", "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
               }
               html, body,
-              body *:not(svg):not(path):not(circle):not(rect):not(line):not(polyline):not(polygon) {
+              body *:not(svg):not(path):not(circle):not(rect):not(line):not(polyline):not(polygon):not(.mm-brand-word):not(.splash-title):not(.mm-login-brand-title) {
                 font-family: var(--mm-force-sans) !important;
               }
               button, input, select, textarea, optgroup, option {
@@ -183,7 +199,7 @@ export default async function RootLayout({
           id="mm-critical-mobile-2"
           dangerouslySetInnerHTML={{
             __html: `
-              @media (max-width: 1023px) {
+              @media (max-width: 767px) {
                 .mm-map-home-header {
                   display: none !important;
                 }
@@ -275,12 +291,32 @@ export default async function RootLayout({
                   box-shadow: 0 12px 30px rgba(15,23,42,.14), inset 0 1px 0 rgba(255,255,255,.9) !important;
                 }
                 .mm-map2-pill-row {
-                  margin-top: 16px !important;
-                  justify-content: flex-end !important;
-                  overflow-x: auto !important;
-                  overflow-y: visible !important;
-                  padding-bottom: 14px !important;
+                  display: grid !important;
+                  grid-template-columns: 54px !important;
+                  position: absolute !important;
+                  top: 74px !important;
+                  right: 18px !important;
+                  width: 54px !important;
+                  align-items: start !important;
+                  gap: 8px !important;
+                  margin-top: 0 !important;
+                  justify-content: stretch !important;
+                  overflow: visible !important;
+                  padding-bottom: 8px !important;
                   scrollbar-width: none !important;
+                }
+                .mm-map2-trip-slot {
+                  min-width: 0 !important;
+                  justify-self: start !important;
+                  pointer-events: auto !important;
+                }
+                .mm-map2-tool-stack {
+                  display: flex !important;
+                  flex-direction: column !important;
+                  align-items: flex-end !important;
+                  justify-self: end !important;
+                  gap: 8px !important;
+                  pointer-events: auto !important;
                 }
                 .mm-map2-pill-row::-webkit-scrollbar {
                   display: none !important;
@@ -297,6 +333,28 @@ export default async function RootLayout({
                   font-size: 14px !important;
                   font-weight: 850 !important;
                   white-space: nowrap !important;
+                }
+                .mm-map2-tool-stack .mm-map2-tool-pill {
+                  width: 54px !important;
+                  min-width: 54px !important;
+                  height: 54px !important;
+                  padding: 0 !important;
+                  border-radius: 999px !important;
+                  box-shadow: 0 4px 10px rgba(15,23,42,.06) !important;
+                }
+                .mm-map2-trip-pill {
+                  width: auto !important;
+                  min-width: 0 !important;
+                  height: 42px !important;
+                  padding: 0 14px !important;
+                  font-size: 13px !important;
+                  font-weight: 520 !important;
+                  box-shadow: 0 4px 10px rgba(15,23,42,.05) !important;
+                }
+                .mm-map2-trip-pill.is-on-trip {
+                  background: #2563eb !important;
+                  border-color: #2563eb !important;
+                  color: #fff !important;
                 }
                 .mm-map2-tool-pill strong {
                   color: #2563eb !important;
@@ -320,8 +378,6 @@ export default async function RootLayout({
                 .mm-map2-floating-list,
                 .mm-map2-category-menu {
                   position: absolute !important;
-                  left: 18px !important;
-                  right: 18px !important;
                   z-index: 120 !important;
                   overflow: hidden !important;
                   border-radius: 24px !important;
@@ -329,6 +385,11 @@ export default async function RootLayout({
                   border: 1px solid rgba(226,232,240,.82) !important;
                   box-shadow: 0 26px 60px rgba(15,23,42,.18) !important;
                   pointer-events: auto !important;
+                }
+                .mm-map2-category-menu {
+                  left: auto !important;
+                  right: 80px !important;
+                  width: min(300px, calc(100vw - 104px)) !important;
                 }
                 .mm-map2-floating-list {
                   top: calc(max(12px, env(safe-area-inset-top, 0px)) + 64px) !important;
@@ -352,24 +413,43 @@ export default async function RootLayout({
                 }
                 .mm-map2-category-menu {
                   top: calc(max(12px, env(safe-area-inset-top, 0px)) + 124px) !important;
+                  display: flex !important;
+                  flex-direction: column !important;
+                  gap: 0 !important;
+                  padding: 0 !important;
+                  max-height: min(360px, calc(100dvh - 250px)) !important;
+                  overflow: hidden !important;
+                }
+                .mm-map2-category-menu-head {
+                  display: flex !important;
+                  align-items: center !important;
+                  justify-content: space-between !important;
+                  gap: 10px !important;
+                  padding: 12px 16px !important;
+                  border-bottom: 1px solid rgba(226,232,240,.78) !important;
+                }
+                .mm-map2-category-menu-grid {
                   display: grid !important;
                   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
                   gap: 8px !important;
                   padding: 12px !important;
-                  max-height: min(360px, calc(100dvh - 250px)) !important;
+                  max-height: min(306px, calc(100dvh - 306px)) !important;
                   overflow-y: auto !important;
                 }
-                .mm-map2-category-menu button {
+                .mm-map2-category-menu-grid button {
                   min-width: 0 !important;
+                  width: 100% !important;
+                  min-height: 46px !important;
                   padding: 12px 11px !important;
                   border-radius: 16px !important;
                   color: #475569 !important;
                   background: #f8fafc !important;
                   font-size: 12px !important;
-                  font-weight: 900 !important;
+                  font-weight: 600 !important;
                   text-align: left !important;
+                  word-break: keep-all !important;
                 }
-                .mm-map2-category-menu button.is-active {
+                .mm-map2-category-menu-grid button.is-active {
                   color: #fff !important;
                   background: #2563eb !important;
                 }
@@ -689,17 +769,311 @@ export default async function RootLayout({
                 :is(.dark, [data-theme="dark"]) .mm-map2-side-section > span {
                   color: #cbd5e1 !important;
                 }
-                :is(.dark, [data-theme="dark"]) .mm-map2-category-menu button,
+                :is(.dark, [data-theme="dark"]) .mm-map2-category-menu-grid button,
                 :is(.dark, [data-theme="dark"]) .mm-map2-side-grid button {
                   color: #e2e8f0 !important;
                   background: rgba(15,23,42,.88) !important;
                 }
                 :is(.dark, [data-theme="dark"]) .mm-map2-side-grid button.is-active,
-                :is(.dark, [data-theme="dark"]) .mm-map2-category-menu button.is-active,
+                :is(.dark, [data-theme="dark"]) .mm-map2-category-menu-grid button.is-active,
                 :is(.dark, [data-theme="dark"]) .mm-map2-icon-pill.is-active,
                 :is(.dark, [data-theme="dark"]) .mm-map2-tool-pill.is-active {
                   color: #fff !important;
                   background: #2563eb !important;
+                }
+              }
+            `,
+          }}
+        />
+        <style
+          id="mm-map-home-popover-unified-v4"
+          dangerouslySetInnerHTML={{
+            __html: `
+              .mm-weather-popup2,
+              .mm-nearby-popup2,
+              .mm-map2-category-menu {
+                width: min(320px, calc(100vw - 24px)) !important;
+                max-width: min(320px, calc(100vw - 24px)) !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                border-radius: 24px !important;
+                color: #0f172a !important;
+                background: radial-gradient(circle at 88% 8%, rgba(37,99,235,.07), transparent 34%), rgba(255,255,255,.98) !important;
+                border: 1px solid rgba(226,232,240,.9) !important;
+                box-shadow: 0 20px 48px rgba(15,23,42,.13), inset 0 1px 0 rgba(255,255,255,.95) !important;
+                backdrop-filter: blur(22px) saturate(170%) !important;
+                -webkit-backdrop-filter: blur(22px) saturate(170%) !important;
+              }
+              .mm-weather-popup2-head,
+              .mm-map2-category-menu-head,
+              .mm-nearby-popup2 > div:first-child {
+                min-height: 52px !important;
+                padding: 12px 16px !important;
+                border-bottom: 1px solid rgba(226,232,240,.78) !important;
+                background: transparent !important;
+              }
+              .mm-weather-popup2 h3,
+              .mm-map2-category-menu-head h3,
+              .mm-nearby-popup2 h3 {
+                color: #0f172a !important;
+                font-size: 14px !important;
+                font-weight: 650 !important;
+                line-height: 1.2 !important;
+                letter-spacing: 0 !important;
+              }
+              .mm-weather-popup2-head-icon,
+              .mm-map2-category-menu-head-icon {
+                width: 28px !important;
+                height: 28px !important;
+                color: #2563eb !important;
+                background: #eff6ff !important;
+                border: 1px solid rgba(191,219,254,.62) !important;
+                border-radius: 999px !important;
+              }
+              .mm-map2-category-menu-close,
+              .mm-weather-popup2 button[aria-label],
+              .mm-nearby-popup2 button[aria-label] {
+                color: #64748b !important;
+                background: transparent !important;
+                box-shadow: none !important;
+              }
+              .mm-map2-category-menu-grid {
+                display: grid !important;
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+                gap: 8px !important;
+                padding: 12px !important;
+                max-height: min(306px, calc(100dvh - 306px)) !important;
+                overflow-y: auto !important;
+              }
+              .mm-map2-category-menu-grid button {
+                min-width: 0 !important;
+                width: 100% !important;
+                min-height: 46px !important;
+                padding: 12px 11px !important;
+                border-radius: 16px !important;
+                color: #334155 !important;
+                background: #f8fafc !important;
+                border: 1px solid rgba(226,232,240,.74) !important;
+                box-shadow: none !important;
+                font-size: 13px !important;
+                font-weight: 600 !important;
+                line-height: 1.2 !important;
+                text-align: left !important;
+                word-break: keep-all !important;
+              }
+              .mm-map2-category-menu-grid button.is-active {
+                color: #fff !important;
+                background: linear-gradient(180deg,#2f75ff 0%,#1d4ed8 100%) !important;
+                border-color: rgba(37,99,235,.92) !important;
+              }
+              .mm-weather-popup2-body {
+                padding: 16px !important;
+              }
+              .mm-weather-popup2-hero,
+              .mm-weather-popup2-rec {
+                border-radius: 18px !important;
+                background: rgba(248,250,252,.94) !important;
+                border: 1px solid rgba(226,232,240,.88) !important;
+                box-shadow: none !important;
+              }
+              .mm-weather-popup2-temp {
+                color: #0f172a !important;
+                font-weight: 760 !important;
+              }
+              .mm-weather-popup2-desc,
+              .mm-weather-popup2-provider,
+              .mm-weather-popup2-location {
+                color: #64748b !important;
+                font-weight: 560 !important;
+              }
+              .mm-nearby-popup2 button:not([aria-label]) {
+                padding: 10px 16px !important;
+                border-bottom: 1px solid rgba(226,232,240,.68) !important;
+                background: transparent !important;
+              }
+              .mm-nearby-popup2 h4 {
+                color: #0f172a !important;
+                font-size: 13px !important;
+                font-weight: 650 !important;
+                line-height: 1.25 !important;
+              }
+              .mm-nearby-popup2 p {
+                color: #64748b !important;
+                font-size: 11.5px !important;
+                font-weight: 520 !important;
+              }
+              .mm-map2-pc-control {
+                width: 54px !important;
+                height: 54px !important;
+                min-width: 54px !important;
+                min-height: 54px !important;
+                padding: 0 !important;
+                border-radius: 999px !important;
+                color: #2563eb !important;
+                background: rgba(255,255,255,.96) !important;
+                border: 1px solid rgba(226,232,240,.8) !important;
+                box-shadow: 0 4px 10px rgba(15,23,42,.06), inset 0 1px 0 rgba(255,255,255,.9) !important;
+                backdrop-filter: blur(18px) saturate(160%) !important;
+                -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
+              }
+              .mm-map2-pc-control-wide span,
+              .mm-map2-pc-control-wide svg:last-child {
+                display: none !important;
+              }
+              .mm-map2-pc-control.is-active,
+              .mm-map2-pc-location-control.is-active {
+                color: #fff !important;
+                background: linear-gradient(180deg,#2f75ff 0%,#1d4ed8 100%) !important;
+                border-color: rgba(37,99,235,.92) !important;
+              }
+              .mm-map2-category-menu-pc {
+                position: absolute !important;
+                top: 0 !important;
+                right: calc(100% + 8px) !important;
+                left: auto !important;
+                width: min(320px, calc(100vw - 24px)) !important;
+              }
+              @media (min-width: 768px) {
+                .mm-map2-category-menu:not(.mm-map2-category-menu-pc) {
+                  display: none !important;
+                }
+                .mm-weather-popup2,
+                .mm-nearby-popup2,
+                .mm-map2-category-menu {
+                  width: 320px !important;
+                  max-width: 320px !important;
+                }
+              }
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2,
+              :is(.dark, [data-theme="dark"]) .mm-nearby-popup2,
+              :is(.dark, [data-theme="dark"]) .mm-map2-category-menu {
+                color: #e2e8f0 !important;
+                background: radial-gradient(circle at 88% 8%, rgba(37,99,235,.08), transparent 34%), #020617 !important;
+                border-color: rgba(96,165,250,.18) !important;
+                box-shadow: 0 24px 64px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.06) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-head,
+              :is(.dark, [data-theme="dark"]) .mm-map2-category-menu-head,
+              :is(.dark, [data-theme="dark"]) .mm-nearby-popup2 > div:first-child {
+                border-bottom-color: rgba(96,165,250,.16) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2 h3,
+              :is(.dark, [data-theme="dark"]) .mm-map2-category-menu-head h3,
+              :is(.dark, [data-theme="dark"]) .mm-nearby-popup2 h3,
+              :is(.dark, [data-theme="dark"]) .mm-nearby-popup2 h4,
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-temp {
+                color: #f8fafc !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-desc,
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-provider,
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-location,
+              :is(.dark, [data-theme="dark"]) .mm-nearby-popup2 p {
+                color: #94a3b8 !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-head-icon,
+              :is(.dark, [data-theme="dark"]) .mm-map2-category-menu-head-icon {
+                color: #93c5fd !important;
+                background: rgba(30,64,175,.22) !important;
+                border-color: rgba(96,165,250,.20) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-hero,
+              :is(.dark, [data-theme="dark"]) .mm-weather-popup2-rec,
+              :is(.dark, [data-theme="dark"]) .mm-map2-category-menu-grid button {
+                color: #e2e8f0 !important;
+                background: rgba(7,20,38,.88) !important;
+                border-color: rgba(96,165,250,.14) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-map2-category-menu-grid button.is-active {
+                color: #fff !important;
+                background: linear-gradient(180deg,#2f75ff 0%,#1d4ed8 100%) !important;
+                border-color: rgba(96,165,250,.38) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-nearby-popup2 button:not([aria-label]) {
+                border-bottom-color: rgba(96,165,250,.12) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-nearby-popup2 button:not([aria-label]):hover {
+                background: rgba(37,99,235,.08) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-map2-pc-control {
+                color: #93c5fd !important;
+                background: rgba(7,20,38,.92) !important;
+                border-color: rgba(96,165,250,.22) !important;
+                box-shadow: 0 8px 20px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.08) !important;
+              }
+              :is(.dark, [data-theme="dark"]) .mm-map2-pc-control.is-active,
+              :is(.dark, [data-theme="dark"]) .mm-map2-pc-location-control.is-active {
+                color: #fff !important;
+                background: linear-gradient(180deg,#2f75ff 0%,#1d4ed8 100%) !important;
+              }
+              @media (min-width: 768px) {
+                .mm-map2-top,
+                .mm-map2-side-layer {
+                  display: none !important;
+                }
+                .mm-map2-pc-overlay {
+                  display: flex !important;
+                  position: absolute !important;
+                  top: 16px !important;
+                  left: 24px !important;
+                  z-index: 90 !important;
+                  width: auto !important;
+                  max-width: none !important;
+                  pointer-events: none !important;
+                  opacity: 1 !important;
+                  visibility: visible !important;
+                }
+                .mm-map2-pc-overlay.is-panel-closed {
+                  right: 24px !important;
+                }
+                .mm-map2-pc-overlay.is-panel-open {
+                  right: 724px !important;
+                }
+                .mm-map2-pc-search-wrap {
+                  display: block !important;
+                  width: calc(100% - 76px) !important;
+                  max-width: none !important;
+                  pointer-events: auto !important;
+                  opacity: 1 !important;
+                  visibility: visible !important;
+                }
+                .mm-map2-pc-search,
+                .mm-map2-pc-search-input {
+                  display: block !important;
+                  width: 100% !important;
+                  opacity: 1 !important;
+                  visibility: visible !important;
+                }
+                .mm-map2-pc-tools {
+                  display: flex !important;
+                  position: absolute !important;
+                  top: 0 !important;
+                  right: 0 !important;
+                  width: 54px !important;
+                  flex-direction: column !important;
+                  gap: 8px !important;
+                  align-items: center !important;
+                  pointer-events: auto !important;
+                  opacity: 1 !important;
+                  visibility: visible !important;
+                }
+                .mm-map2-pc-category-anchor {
+                  order: 1 !important;
+                  margin-left: 0 !important;
+                }
+                .mm-map2-pc-weather-anchor {
+                  order: 2 !important;
+                }
+                .mm-map2-pc-nearby-anchor {
+                  order: 3 !important;
+                }
+                .mm-map2-pc-location-control {
+                  order: 4 !important;
+                }
+                .mm-floating-back-button.mm-floating-back-button--pc-only {
+                  display: inline-flex !important;
+                  right: 32px !important;
+                  bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
+                  z-index: 9998 !important;
                 }
               }
             `,
@@ -711,18 +1085,20 @@ export default async function RootLayout({
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5736725257134757"
           crossOrigin="anonymous"
         />
-        {/* FOUC prevention: 2.0 navy map-line mobile splash overlay until React takes over */}
+        {/* FOUC prevention: 2.0 gallery-photo mobile splash overlay until React takes over */}
         <script dangerouslySetInnerHTML={{
           __html: `
           (function(){
             var shown=false;
             try{shown=!!sessionStorage.getItem('splashShown');}catch(e){}
-            if(window.innerWidth<=1024 && window.location.pathname==='/' && !shown){
+            if(window.innerWidth<768 && window.location.pathname==='/' && !shown){
+              var splashImages=['/splash/gallery-splash.jpg','/splash/gallery-splash-2.jpg','/splash/gallery-splash-3.jpg','/splash/gallery-splash-4.jpg','/splash/gallery-splash-5.jpg','/splash/gallery-splash-6.jpg'];
+              var splashImage=splashImages[Math.floor(Math.random()*splashImages.length)]||splashImages[0];
               var s=document.createElement('style');
               s.id='splash-fouc';
-              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background-color:#071426;background-image:radial-gradient(circle at 24% 18%,rgba(59,130,246,.22) 0%,transparent 34%),radial-gradient(circle at 78% 62%,rgba(37,99,235,.20) 0%,transparent 30%),linear-gradient(90deg,rgba(96,165,250,.07) 1px,transparent 1px),linear-gradient(180deg,rgba(96,165,250,.055) 1px,transparent 1px),linear-gradient(180deg,#06111f 0%,#071426 48%,#020817 100%);background-size:auto,auto,64px 64px,64px 64px,100% 100%;pointer-events:none;transition:opacity .28s ease}body.splash-done::before{opacity:0;pointer-events:none}';
+              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background-color:#071426;background-image:linear-gradient(180deg,rgba(1,15,38,.76) 0%,rgba(15,70,162,.56) 42%,rgba(2,8,23,.86) 100%),linear-gradient(115deg,rgba(37,99,235,.34) 0%,rgba(14,165,233,.16) 46%,rgba(2,8,23,.22) 100%),url("'+splashImage+'");background-position:center;background-repeat:no-repeat;background-size:cover,cover,cover;pointer-events:none;transition:opacity .28s ease}body.splash-done::before{opacity:0;pointer-events:none}';
               document.head.appendChild(s);
-              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},320);},1100);
+              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},320);},3200);
             }
           })();
         `}} />
@@ -742,17 +1118,24 @@ export default async function RootLayout({
                 meta.setAttribute('name','theme-color');
                 document.head.appendChild(meta);
               }
-              meta.setAttribute('content','#ffffff');
+              var prefersDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+              meta.setAttribute('content',prefersDark?'#020617':'#f8fbff');
             }
+            var lastH=0,lastW=0,viewportFrame=0;
             function setViewportVars(){
+              if(viewportFrame)return;
+              viewportFrame=requestAnimationFrame(function(){
+              viewportFrame=0;
               var vv=window.visualViewport;
               var h=Math.round((vv&&vv.height)||window.innerHeight||document.documentElement.clientHeight||0);
               var w=Math.round((vv&&vv.width)||window.innerWidth||document.documentElement.clientWidth||0);
-              if(h>0){
+              if(h>0&&h!==lastH){
+                lastH=h;
                 root.style.setProperty('--mm-vh',(h*0.01)+'px');
                 root.style.setProperty('--mm-viewport-height',h+'px');
               }
-              if(w>0) root.style.setProperty('--mm-viewport-width',w+'px');
+              if(w>0&&w!==lastW){lastW=w;root.style.setProperty('--mm-viewport-width',w+'px');}
+              });
             }
             setViewportVars();
             window.addEventListener('resize',setViewportVars,{passive:true});
@@ -784,10 +1167,12 @@ export default async function RootLayout({
           var o=new MutationObserver(function(ml){ml.forEach(function(mu){mu.addedNodes.forEach(function(n){
             if(n.nodeType!==1)return;if(n.tagName==='IMG')m(n);
             else if(n.querySelectorAll)n.querySelectorAll('img').forEach(m);});});});
+          var scanFrame=0;
           function s(){document.querySelectorAll('img:not([data-loaded]):not(.no-dissolve)').forEach(m);}
+          function rs(){if(scanFrame)return;scanFrame=requestAnimationFrame(function(){scanFrame=0;s();});}
           if(document.body){o.observe(document.body,{childList:true,subtree:true});s();}
           else document.addEventListener('DOMContentLoaded',function(){o.observe(document.body,{childList:true,subtree:true});s();});
-          var c=0,iv=setInterval(function(){s();if(++c>=10)clearInterval(iv);},500);
+          var c=0,iv=setInterval(function(){rs();if(++c>=4)clearInterval(iv);},650);
         })();`}} />
         <script
           type="application/ld+json"
@@ -821,7 +1206,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col transition-colors" style={{ minHeight: 'var(--mm-viewport-height, 100dvh)' }}>
+      <body className={`${brandDisplayFont.variable} min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col transition-colors`} style={{ minHeight: 'var(--mm-viewport-height, 100dvh)' }}>
         <SplashScreen />
         <ServiceWorkerRegistration />
         <AuthProvider>
@@ -832,6 +1217,7 @@ export default async function RootLayout({
                 {children}
               </MainContent>
               <MobileBottomNav />
+              <FloatingBackButton />
               <CookieConsent />
               <MarketingConsentPrompt />
             </ModalProvider>

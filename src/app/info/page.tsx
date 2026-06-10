@@ -524,7 +524,7 @@ export default function InfoPage() {
     };
 
     return (
-        <div className="w-full max-w-[640px] mx-auto px-4 py-6 sm:px-6 sm:py-10 mt-2 sm:mt-6 animate-fadeInUp">
+        <div className="mm-legal-page2 mm-library-page2 no-back-swipe w-full max-w-[640px] mx-auto px-4 py-6 sm:px-6 sm:py-10 mt-2 sm:mt-6 animate-fadeInUp">
             <div className="mb-6 sm:mb-8">
                 <div className="flex items-center gap-2.5">
                     <h1 className="text-xl sm:text-2xl font-bold dark:text-white">{tx.title}</h1>
@@ -676,7 +676,7 @@ export default function InfoPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); setTimeout(() => router.back(), 200); }}
+                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); router.back(); }}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                         aria-label="Back"
                     >

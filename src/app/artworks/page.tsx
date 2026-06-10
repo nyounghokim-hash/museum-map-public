@@ -1,13 +1,15 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useApp } from '@/components/AppContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { Locale } from '@/lib/i18n';
 
 import * as gtag from '@/lib/gtag';
 import { buildShareUrl } from '@/lib/utm';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
+import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
+import { useTranslatedText } from '@/hooks/useTranslation';
 
 const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string; listTitle: string; countUnit: string; searchPlaceholder: string }> = {
     ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점', searchPlaceholder: '작품, 작가, 미술관 검색' },
@@ -93,6 +95,9 @@ function translationValues(value: any): string[] {
 export default function ArtworksPage() {
     const { locale } = useApp();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const museumIdFilter = searchParams.get('museumId') || '';
+    const museumNameFilter = searchParams.get('museumName') || '';
     const [artworks, setArtworks] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -112,6 +117,12 @@ export default function ArtworksPage() {
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const labels = PAGE_LABELS[locale] || PAGE_LABELS.en;
+    const cacheKey = museumIdFilter ? `${CACHE_KEY}_${museumIdFilter}` : CACHE_KEY;
+    const selectedDescriptionSource = selected?.descriptionKo || selected?.description || '';
+    const selectedTranslatedDescription = useTranslatedText(selectedDescriptionSource, locale as Locale);
+    const selectedDisplayDescription = locale === 'ko'
+        ? (selected?.descriptionKo || selected?.description || '')
+        : (selectedTranslatedDescription || selected?.description || selected?.descriptionKo || '');
     const sentinelRef = useRef<HTMLDivElement>(null);
     const restoredRef = useRef(false);
     const searchScrollLockRef = useRef(0);
@@ -156,17 +167,20 @@ export default function ArtworksPage() {
                 const offset = nextCursor.replace('offset:', '');
                 url = `/api/artworks?limit=24&random=true&offset=${offset}`;
             } else if (nextCursor) {
-                url = `/api/artworks?limit=12&cursor=${nextCursor}`;
+                url = `/api/artworks?limit=24&cursor=${nextCursor}${museumIdFilter ? `&museumId=${encodeURIComponent(museumIdFilter)}` : ''}`;
+            } else if (museumIdFilter) {
+                url = `/api/artworks?limit=24&museumId=${encodeURIComponent(museumIdFilter)}`;
             } else {
                 url = '/api/artworks?limit=48&random=true';
             }
             const res = await fetch(url);
             const data = await res.json();
             const items = data.data?.artworks || [];
-            const newCursor = data.data?.nextCursor ? `offset:${data.data.nextCursor}` : (data.data?.nextCursor ?? null);
+            const nextCursorValue = data.data?.nextCursor ?? null;
+            const newCursor = nextCursorValue && url.includes('random=true') ? `offset:${nextCursorValue}` : nextCursorValue;
             setArtworks(prev => {
                 const result = nextCursor ? [...prev, ...items] : items;
-                try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ items: result, hasMore: data.data?.hasMore ?? false, cursor: newCursor })); } catch { }
+                try { sessionStorage.setItem(cacheKey, JSON.stringify({ items: result, hasMore: data.data?.hasMore ?? false, cursor: newCursor })); } catch { }
                 return result;
             });
             setHasMore(data.data?.hasMore ?? false);
@@ -177,12 +191,12 @@ export default function ArtworksPage() {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, []);
+    }, [cacheKey, museumIdFilter]);
 
     // On mount: try to restore from cache, otherwise fetch fresh
     useEffect(() => {
         try {
-            const cached = sessionStorage.getItem(CACHE_KEY);
+            const cached = sessionStorage.getItem(cacheKey);
             const savedScroll = sessionStorage.getItem(SCROLL_KEY);
             if (cached && savedScroll) {
                 const { items, hasMore: hm, cursor: c } = JSON.parse(cached);
@@ -202,7 +216,7 @@ export default function ArtworksPage() {
             }
         } catch { }
         fetchArtworks();
-    }, [fetchArtworks]);
+    }, [cacheKey, fetchArtworks]);
 
     // IntersectionObserver for infinite scroll
     useEffect(() => {
@@ -221,6 +235,26 @@ export default function ArtworksPage() {
 
     // Museums are now directly attached to artwork from optimized API
     const getMuseums = (aw: any) => aw.museums || [];
+
+    const openArtworkDetail = (artworkId: string, label?: string) => {
+        if (!artworkId) return;
+        gtag.event('view_artwork', { category: 'artwork', label: label || artworkId, value: 1 });
+        try {
+            sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+            sessionStorage.setItem('artwork-list-return', window.location.pathname + window.location.search);
+        } catch { }
+        router.push(`/artworks/${artworkId}`);
+    };
+
+    const openMuseumFromArtwork = async (museum: any) => {
+        const museumRouteId = await resolveMuseumRouteId(museum);
+        if (!museumRouteId) return;
+        setSelected(null);
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('navigating-forward', String(Date.now()));
+        }
+        router.push(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork-list`);
+    };
 
     // Filter artworks by debounced search query — memoized
     const filteredArtworks = useMemo(() => {
@@ -284,7 +318,7 @@ export default function ArtworksPage() {
             setArtworks(items);
             setHasMore(data.data?.hasMore ?? false);
             setCursor(newCursor);
-            try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ items, hasMore: data.data?.hasMore ?? false, cursor: newCursor })); } catch { }
+            try { sessionStorage.setItem(cacheKey, JSON.stringify({ items, hasMore: data.data?.hasMore ?? false, cursor: newCursor })); } catch { }
         } catch { }
         setTimeout(() => setShuffleSpinning(false), 500);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -294,6 +328,11 @@ export default function ArtworksPage() {
         if (mode === sortMode) return;
         setSortMode(mode);
         if (mode === 'random') {
+            if (museumIdFilter) {
+                fetchArtworks();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
             // Switch back to random — reshuffle from API
             reshuffleArtworks();
         }
@@ -330,17 +369,19 @@ export default function ArtworksPage() {
                         <div className="mm-gallery-kicker mb-3">Collection</div>
                         <div className="flex items-center justify-between">
                             <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{labels.title}</h1>
-                            <button
-                                onClick={reshuffleArtworks}
-                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white/12 text-blue-100 border border-white/15 hover:bg-white/18 active:scale-90 transition-all"
-                                aria-label="Shuffle"
-                            >
-                                <svg className={`w-4 h-4 transition-transform duration-500 ${shuffleSpinning ? 'rotate-[360deg]' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
-                                </svg>
-                            </button>
+                            {!museumIdFilter && (
+                                <button
+                                    onClick={reshuffleArtworks}
+                                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/12 text-blue-100 border border-white/15 hover:bg-white/18 active:scale-90 transition-all"
+                                    aria-label="Shuffle"
+                                >
+                                    <svg className={`w-4 h-4 transition-transform duration-500 ${shuffleSpinning ? 'rotate-[360deg]' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
-                        <p className="text-blue-100/80 mt-2 text-sm font-medium">{labels.subtitle}</p>
+                        <p className="text-blue-100/80 mt-2 text-sm font-medium">{museumNameFilter || labels.subtitle}</p>
                     </>
                 )}
             </div>
@@ -359,7 +400,7 @@ export default function ArtworksPage() {
                             onFocus={() => setIsSearchFocused(true)}
                             onBlur={() => setIsSearchFocused(false)}
                             placeholder={labels.searchPlaceholder}
-                            className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-gray-800 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-blue-100/50"
+                            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-gray-800 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-blue-100/50"
                         />
                         {searchQuery && (
                             <button onClick={() => setSearchQuery('')} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
@@ -376,7 +417,7 @@ export default function ArtworksPage() {
             {artworks.length === 0 ? (
                 <div className="py-20 sm:py-32 flex flex-col items-center justify-center">
                     <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gray-50 dark:bg-neutral-800/50 rounded-full flex items-center justify-center mb-8">
-                        <img src="/logo.svg" alt="Museum Map" className="w-16 h-16 sm:w-20 sm:h-20 opacity-20 dark:invert dark:opacity-[0.6]" />
+                        <img src="/logo.svg" alt="Museum Map" className="mm-empty-logo dark:invert" />
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 text-center">
                         {labels.empty}
@@ -411,7 +452,7 @@ export default function ArtworksPage() {
                                     key={`${shuffleKey}-${aw.id}`}
                                     className="mm-artwork-card2 group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.98]"
                                     style={{ animation: `fadeInUp 0.4s ${Math.min(idx, 11) * 50}ms both` }}
-                                    onClick={() => { gtag.event('view_artwork', { category: 'artwork', label: aw.title || aw.id, value: 1 }); try { sessionStorage.setItem(SCROLL_KEY, String(window.scrollY)); } catch { } router.push(`/artworks/${aw.id}`); }}
+                                    onClick={() => openArtworkDetail(aw.id, aw.title || aw.id)}
                                 >
                                     <div className="aspect-[4/3] relative overflow-hidden bg-gray-100 dark:bg-neutral-800">
                                         {aw.image ? (
@@ -425,7 +466,7 @@ export default function ArtworksPage() {
                                             />
                                         ) : null}
                                         <div className="logo-fallback w-full h-full flex items-center justify-center" style={{ display: aw.image ? 'none' : 'flex' }}>
-                                            <img src="/logo.svg" alt="" className="w-2.5 h-2.5 opacity-25 dark:invert dark:opacity-60" />
+                                            <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                                         </div>
                                     </div>
                                     <div className="p-3.5">
@@ -491,11 +532,11 @@ export default function ArtworksPage() {
                                                 src={selected.image}
                                                 alt={selected.title}
                                                 className="w-full h-full object-cover"
-                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-5 h-5 object-contain opacity-25 dark:invert dark:opacity-60 m-auto'; }}
+                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'mm-empty-logo object-contain dark:invert m-auto'; }}
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <img src="/logo.svg" alt="" className="w-5 h-5 opacity-25 dark:invert dark:opacity-60" />
+                                                <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                                             </div>
                                         )}
                                     </div>
@@ -505,15 +546,15 @@ export default function ArtworksPage() {
                                             <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">{getLocalizedArtistName(selected, locale)}</p>
                                         )}
                                         <h3 className="font-extrabold text-lg dark:text-white leading-tight mb-3">{getLocalizedArtworkTitle(selected, locale)}</h3>
-                                        {selected.description && (
-                                            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">{selected.descriptionKo || selected.description}</p>
+                                        {selectedDisplayDescription && (
+                                            <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mb-4">{selectedDisplayDescription}</p>
                                         )}
                                         {getMuseums(selected).length > 0 && (
                                             <div className="space-y-2 mt-2">
                                                 {getMuseums(selected).map((m: any) => (
                                                     <button
-                                                        key={m.id}
-                                                        onClick={() => { setSelected(null); router.push(`/museums/${m.id}`); }}
+                                                        key={m.id || m.museumId || m.name}
+                                                        onClick={() => openMuseumFromArtwork(m)}
                                                         className="w-full flex items-center gap-2 px-4 py-3 text-sm font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-xl transition-colors active:scale-95"
                                                     >
                                                         <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -525,7 +566,7 @@ export default function ArtworksPage() {
 
                                         {/* View Detail Page */}
                                         <button
-                                            onClick={() => { setSelected(null); router.push(`/artworks/${selected.id}`); }}
+                                            onClick={() => { setSelected(null); openArtworkDetail(selected.id, selected.title || selected.id); }}
                                             className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-black text-white bg-black dark:bg-white dark:text-black rounded-xl transition-all hover:opacity-90 active:scale-95"
                                         >
                                             {locale === 'ko' ? '자세히 보기' : 'View Details'}

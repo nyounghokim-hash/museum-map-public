@@ -17,6 +17,8 @@ const LABEL_MAP: Record<string, Record<string, string>> = {
     '위치': { en: 'Location', ja: '所在地', de: 'Standort', fr: 'Adresse', es: 'Ubicación', pt: 'Localização', 'zh-CN': '位置', 'zh-TW': '位置', da: 'Beliggenhed', fi: 'Sijainti', sv: 'Plats', et: 'Asukoht' },
     '주소': { en: 'Address', ja: '住所', de: 'Adresse', fr: 'Adresse', es: 'Dirección', pt: 'Endereço', 'zh-CN': '地址', 'zh-TW': '地址', da: 'Adresse', fi: 'Osoite', sv: 'Adress', et: 'Aadress' },
     '교통': { en: 'Getting There', ja: 'アクセス', de: 'Anfahrt', fr: 'Accès', es: 'Cómo llegar', pt: 'Como chegar', 'zh-CN': '交通', 'zh-TW': '交通', da: 'Transport', fi: 'Kulkuyhteydet', sv: 'Transport', et: 'Transport' },
+    '교통편': { en: 'Transport', ja: '交通手段', de: 'Verkehrsmittel', fr: 'Transport', es: 'Transporte', pt: 'Transporte', 'zh-CN': '交通方式', 'zh-TW': '交通方式', da: 'Transport', fi: 'Liikenneyhteydet', sv: 'Transport', et: 'Transport' },
+    '이동': { en: 'Getting Around', ja: '移動', de: 'Fortbewegung', fr: 'Déplacements', es: 'Desplazamiento', pt: 'Deslocamento', 'zh-CN': '移动', 'zh-TW': '移動', da: 'Transport', fi: 'Liikkuminen', sv: 'Förflyttning', et: 'Liikumine' },
     '휴관일': { en: 'Closed Days', ja: '休館日', de: 'Ruhetage', fr: 'Jours de fermeture', es: 'Días de cierre', pt: 'Dias de fechamento', 'zh-CN': '闭馆日', 'zh-TW': '休館日', da: 'Lukkedage', fi: 'Suljetut päivät', sv: 'Stängda dagar', et: 'Suletud päevad' },
     '방문 전 확인': { en: 'Before You Go', ja: '訪問前の確認', de: 'Vor dem Besuch', fr: 'Avant votre visite', es: 'Antes de ir', pt: 'Antes de visitar', 'zh-CN': '出发前确认', 'zh-TW': '出發前確認', da: 'Før besøget', fi: 'Ennen vierailua', sv: 'Före besöket', et: 'Enne külastust' },
     '관람시간': { en: 'Estimated Visit', ja: '所要時間', de: 'Besuchsdauer', fr: 'Durée de visite', es: 'Duración', pt: 'Duração da visita', 'zh-CN': '参观时长', 'zh-TW': '參觀時長', da: 'Besøgstid', fi: 'Vierailuaika', sv: 'Besökstid', et: 'Külastusaeg' },
@@ -44,7 +46,13 @@ const LABEL_MAP: Record<string, Record<string, string>> = {
     '전략': { en: 'Tips', ja: '攻略', de: 'Tipps', fr: 'Conseils', es: 'Consejos', pt: 'Dicas', 'zh-CN': '攻略', 'zh-TW': '攻略', da: 'Tips', fi: 'Vinkit', sv: 'Tips', et: 'Nõuanded' },
     '팁': { en: 'Tips', ja: 'ヒント', de: 'Tipps', fr: 'Conseils', es: 'Consejos', pt: 'Dicas', 'zh-CN': '小贴士', 'zh-TW': '小貼士', da: 'Tips', fi: 'Vinkit', sv: 'Tips', et: 'Nõuanded' },
     '코스': { en: 'Route', ja: 'コース', de: 'Route', fr: 'Parcours', es: 'Ruta', pt: 'Roteiro', 'zh-CN': '路线', 'zh-TW': '路線', da: 'Rute', fi: 'Reitti', sv: 'Rutt', et: 'Marsruut' },
+    '추천 루트': { en: 'Recommended Route', ja: 'おすすめルート', de: 'Empfohlene Route', fr: 'Parcours recommandé', es: 'Ruta recomendada', pt: 'Roteiro recomendado', 'zh-CN': '推荐路线', 'zh-TW': '推薦路線', da: 'Anbefalet rute', fi: 'Suositeltu reitti', sv: 'Rekommenderad rutt', et: 'Soovitatud marsruut' },
+    '추천 동선': { en: 'Recommended Route', ja: 'おすすめルート', de: 'Empfohlene Route', fr: 'Parcours recommandé', es: 'Ruta recomendada', pt: 'Roteiro recomendado', 'zh-CN': '推荐路线', 'zh-TW': '推薦路線', da: 'Anbefalet rute', fi: 'Suositeltu reitti', sv: 'Rekommenderad rutt', et: 'Soovitatud marsruut' },
     '주의': { en: 'Notice', ja: '注意', de: 'Hinweis', fr: 'Attention', es: 'Aviso', pt: 'Aviso', 'zh-CN': '注意', 'zh-TW': '注意', da: 'Bemærk', fi: 'Huomio', sv: 'Observera', et: 'Märkus' },
+    '주의사항': { en: 'Notice', ja: '注意事項', de: 'Hinweis', fr: 'À noter', es: 'Aviso', pt: 'Aviso', 'zh-CN': '注意事项', 'zh-TW': '注意事項', da: 'Bemærk', fi: 'Huomioitavaa', sv: 'Observera', et: 'Märkus' },
+    '지역': { en: 'Area', ja: 'エリア', de: 'Region', fr: 'Région', es: 'Zona', pt: 'Área', 'zh-CN': '地区', 'zh-TW': '地區', da: 'Område', fi: 'Alue', sv: 'Område', et: 'Piirkond' },
+    '공식 사이트': { en: 'Official Site', ja: '公式サイト', de: 'Offizielle Website', fr: 'Site officiel', es: 'Sitio oficial', pt: 'Site oficial', 'zh-CN': '官方网站', 'zh-TW': '官方網站', da: 'Officiel hjemmeside', fi: 'Virallinen sivusto', sv: 'Officiell webbplats', et: 'Ametlik veebileht' },
+    '공식 웹사이트': { en: 'Official Website', ja: '公式サイト', de: 'Offizielle Website', fr: 'Site officiel', es: 'Sitio oficial', pt: 'Site oficial', 'zh-CN': '官方网站', 'zh-TW': '官方網站', da: 'Officiel hjemmeside', fi: 'Virallinen sivusto', sv: 'Officiell webbplats', et: 'Ametlik veebileht' },
     '카페': { en: 'Café', ja: 'カフェ', de: 'Café', fr: 'Café', es: 'Cafetería', pt: 'Café', 'zh-CN': '咖啡厅', 'zh-TW': '咖啡廳', da: 'Café', fi: 'Kahvila', sv: 'Kafé', et: 'Kohvik' },
     // ── Story infoTable English keys (from batch-generated stories) ──
     'duration': { ko: '소요 시간', en: 'Duration', ja: '所要時間', de: 'Dauer', fr: 'Durée', es: 'Duración', pt: 'Duração', 'zh-CN': '所需时间', 'zh-TW': '所需時間', da: 'Varighed', fi: 'Kesto', sv: 'Varaktighet', et: 'Kestus' },
@@ -747,6 +755,115 @@ const VALUE_EXACT: Record<string, Record<string, string>> = {
     },
 };
 
+const VALUE_PHRASES: Record<string, Record<string, string>> = {
+    '전시 교체·휴관 기간이 잦아 공식 공지 확인 권장': {
+        en: 'Exhibition changeovers and closures are frequent; check official notices.',
+        ja: '展示替えや休館期間が多いため、公式のお知らせをご確認ください。',
+        de: 'Ausstellungswechsel und Schließzeiten kommen häufig vor; bitte offizielle Hinweise prüfen.',
+        fr: 'Les changements d’exposition et fermetures sont fréquents ; consultez les annonces officielles.',
+        es: 'Los cambios de exposición y cierres son frecuentes; consulta los avisos oficiales.',
+        pt: 'Trocas de exposição e fechamentos são frequentes; consulte os avisos oficiais.',
+        'zh-CN': '展览更换和闭馆期较频繁，请查看官方公告。',
+        'zh-TW': '展覽更換和休館期較頻繁，請查看官方公告。',
+        da: 'Udstillingsskift og lukkeperioder forekommer ofte; tjek officielle meddelelser.',
+        fi: 'Näyttelyvaihdot ja sulkuajat ovat yleisiä; tarkista viralliset tiedotteet.',
+        sv: 'Utställningsbyten och stängningsperioder förekommer ofta; kontrollera officiella meddelanden.',
+        et: 'Näituste vahetused ja sulgemisperioodid on sagedased; kontrolli ametlikke teateid.',
+    },
+    '전시 준비 기간': {
+        en: 'exhibition preparation period',
+        ja: '展示準備期間',
+        de: 'Vorbereitungszeit der Ausstellung',
+        fr: 'période de préparation de l’exposition',
+        es: 'periodo de preparación de la exposición',
+        pt: 'período de preparação da exposição',
+        'zh-CN': '展览准备期',
+        'zh-TW': '展覽準備期',
+        da: 'forberedelsesperiode for udstillingen',
+        fi: 'näyttelyn valmistelujakso',
+        sv: 'förberedelseperiod för utställningen',
+        et: 'näituse ettevalmistusperiood',
+    },
+    '전시 교체': {
+        en: 'exhibition changeover',
+        ja: '展示替え',
+        de: 'Ausstellungswechsel',
+        fr: 'changement d’exposition',
+        es: 'cambio de exposición',
+        pt: 'troca de exposição',
+        'zh-CN': '展览更换',
+        'zh-TW': '展覽更換',
+        da: 'udstillingsskift',
+        fi: 'näyttelyvaihto',
+        sv: 'utställningsbyte',
+        et: 'näituse vahetus',
+    },
+    '공식 공지 확인 권장': {
+        en: 'check official notices',
+        ja: '公式のお知らせをご確認ください',
+        de: 'offizielle Hinweise prüfen',
+        fr: 'consultez les annonces officielles',
+        es: 'consulta los avisos oficiales',
+        pt: 'consulte os avisos oficiais',
+        'zh-CN': '请查看官方公告',
+        'zh-TW': '請查看官方公告',
+        da: 'tjek officielle meddelelser',
+        fi: 'tarkista viralliset tiedotteet',
+        sv: 'kontrollera officiella meddelanden',
+        et: 'kontrolli ametlikke teateid',
+    },
+    '시내버스': {
+        en: 'city bus',
+        ja: '市内バス',
+        de: 'Stadtbus',
+        fr: 'bus urbain',
+        es: 'autobús urbano',
+        pt: 'ônibus urbano',
+        'zh-CN': '市内公交',
+        'zh-TW': '市區公車',
+        da: 'bybus',
+        fi: 'paikallisbussi',
+        sv: 'stadsbuss',
+        et: 'linnaliinibuss',
+    },
+    '이용': {
+        en: 'use',
+        ja: '利用',
+        de: 'nutzen',
+        fr: 'utiliser',
+        es: 'usar',
+        pt: 'usar',
+        'zh-CN': '乘坐',
+        'zh-TW': '搭乘',
+        da: 'brug',
+        fi: 'käytä',
+        sv: 'använd',
+        et: 'kasuta',
+    },
+    '기간': {
+        en: 'period',
+        ja: '期間',
+        de: 'Zeitraum',
+        fr: 'période',
+        es: 'periodo',
+        pt: 'período',
+        'zh-CN': '期间',
+        'zh-TW': '期間',
+        da: 'periode',
+        fi: 'jakso',
+        sv: 'period',
+        et: 'periood',
+    },
+};
+
+function applyPhraseTranslations(value: string, locale: string): string {
+    let result = value;
+    for (const [source, translations] of Object.entries(VALUE_PHRASES)) {
+        result = result.replaceAll(source, translations[locale] || translations.en);
+    }
+    return result;
+}
+
 /**
  * Translate a visitorInfo label (입장료 → Admission etc.)
  */
@@ -778,8 +895,9 @@ export function translateViValue(value: string, locale: string): string {
     if (exact) return exact;
     const words = VALUE_WORDS[locale] || VALUE_WORDS['en'];
     if (!words) return value;
-    let result = value;
+    let result = applyPhraseTranslations(translateContextualDayWords(value, locale), locale);
     for (const [re, replacement] of words) {
+        if (isUnsafeSingleSyllableRule(re)) continue;
         result = result.replace(re, replacement);
     }
     return result;
@@ -892,9 +1010,52 @@ const NOT_FOUND: Record<string, string> = {
     fi: 'Museota ei löydy', sv: 'Museum hittades inte', et: 'Muuseumit ei leitud',
 };
 
+const FULL_DESCRIPTION: Record<string, string> = {
+    ko: '전체 설명 텍스트',
+    en: 'Full description',
+    ja: '全文説明',
+    de: 'Vollständige Beschreibung',
+    fr: 'Description complète',
+    es: 'Descripción completa',
+    pt: 'Descrição completa',
+    'zh-CN': '完整说明',
+    'zh-TW': '完整說明',
+    da: 'Fuld beskrivelse',
+    fi: 'Koko kuvaus',
+    sv: 'Fullständig beskrivning',
+    et: 'Täielik kirjeldus',
+};
+
+const UNSAFE_SINGLE_SYLLABLE_SOURCES = new Set(['월', '화', '수', '목', '금', '토', '일', '역']);
+
+function isUnsafeSingleSyllableRule(rule: RegExp) {
+    return UNSAFE_SINGLE_SYLLABLE_SOURCES.has(rule.source);
+}
+
+function translateContextualDayWords(value: string, locale: string): string {
+    const days: Record<string, Record<string, string>> = {
+        ko: { 월: '월', 화: '화', 수: '수', 목: '목', 금: '금', 토: '토', 일: '일' },
+        en: { 월: 'Mon', 화: 'Tue', 수: 'Wed', 목: 'Thu', 금: 'Fri', 토: 'Sat', 일: 'Sun' },
+        ja: { 월: '月', 화: '火', 수: '水', 목: '木', 금: '金', 토: '土', 일: '日' },
+        de: { 월: 'Mo', 화: 'Di', 수: 'Mi', 목: 'Do', 금: 'Fr', 토: 'Sa', 일: 'So' },
+        fr: { 월: 'lun', 화: 'mar', 수: 'mer', 목: 'jeu', 금: 'ven', 토: 'sam', 일: 'dim' },
+        es: { 월: 'lun', 화: 'mar', 수: 'mié', 목: 'jue', 금: 'vie', 토: 'sáb', 일: 'dom' },
+        pt: { 월: 'seg', 화: 'ter', 수: 'qua', 목: 'qui', 금: 'sex', 토: 'sáb', 일: 'dom' },
+        'zh-CN': { 월: '周一', 화: '周二', 수: '周三', 목: '周四', 금: '周五', 토: '周六', 일: '周日' },
+        'zh-TW': { 월: '週一', 화: '週二', 수: '週三', 목: '週四', 금: '週五', 토: '週六', 일: '週日' },
+        da: { 월: 'man', 화: 'tir', 수: 'ons', 목: 'tor', 금: 'fre', 토: 'lør', 일: 'søn' },
+        fi: { 월: 'ma', 화: 'ti', 수: 'ke', 목: 'to', 금: 'pe', 토: 'la', 일: 'su' },
+        sv: { 월: 'mån', 화: 'tis', 수: 'ons', 목: 'tor', 금: 'fre', 토: 'lör', 일: 'sön' },
+        et: { 월: 'E', 화: 'T', 수: 'K', 목: 'N', 금: 'R', 토: 'L', 일: 'P' },
+    };
+    const map = days[locale] || days.en;
+    return value.replace(/([월화수목금토일])요일/g, (_, day: string) => `${map[day]}`);
+}
+
 export function getUpdatedLabel(locale: string): string { return UPDATED_LABEL[locale] || UPDATED_LABEL['en']; }
 export function getGoogleReviewsTitle(locale: string): string { return GOOGLE_REVIEWS_TITLE[locale] || GOOGLE_REVIEWS_TITLE['en']; }
 export function getReviewsLabel(locale: string): string { return REVIEWS_LABEL[locale] || REVIEWS_LABEL['en']; }
 export function getNoReviewText(locale: string): string { return NO_REVIEW_TEXT[locale] || NO_REVIEW_TEXT['en']; }
 export function getNoReviewsMsg(locale: string): string { return NO_REVIEWS_MSG[locale] || NO_REVIEWS_MSG['en']; }
 export function getNotFoundText(locale: string): string { return NOT_FOUND[locale] || NOT_FOUND['en']; }
+export function getFullDescriptionLabel(locale: string): string { return FULL_DESCRIPTION[locale] || FULL_DESCRIPTION.en; }

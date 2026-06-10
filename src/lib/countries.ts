@@ -12,6 +12,8 @@ const COUNTRY_NAMES: Record<string, Record<string, string>> = {
     AT: { en: 'Austria', ko: '오스트리아', ja: 'オーストリア', zh: '奥地利', de: 'Österreich', fr: 'Autriche', es: 'Austria' },
     AZ: { en: 'Azerbaijan', ko: '아제르바이잔', ja: 'アゼルバイジャン', zh: '阿塞拜疆', de: 'Aserbaidschan', fr: 'Azerbaïdjan', es: 'Azerbaiyán' },
     BE: { en: 'Belgium', ko: '벨기에', ja: 'ベルギー', zh: '比利时', de: 'Belgien', fr: 'Belgique', es: 'Bélgica' },
+    BJ: { en: 'Benin', ko: '베냉', ja: 'ベナン', zh: '贝宁', de: 'Benin', fr: 'Bénin', es: 'Benín' },
+    BZ: { en: 'Belize', ko: '벨리즈', ja: 'ベリーズ', zh: '伯利兹', de: 'Belize', fr: 'Belize', es: 'Belice' },
     BA: { en: 'Bosnia and Herzegovina', ko: '보스니아 헤르체고비나', ja: 'ボスニア・ヘルツェゴビナ', zh: '波斯尼亚和黑塞哥维那', de: 'Bosnien und Herzegowina', fr: 'Bosnie-Herzégovine', es: 'Bosnia y Herzegovina' },
     BR: { en: 'Brazil', ko: '브라질', ja: 'ブラジル', zh: '巴西', de: 'Brasilien', fr: 'Brésil', es: 'Brasil' },
     BG: { en: 'Bulgaria', ko: '불가리아', ja: 'ブルガリア', zh: '保加利亚', de: 'Bulgarien', fr: 'Bulgarie', es: 'Bulgaria' },

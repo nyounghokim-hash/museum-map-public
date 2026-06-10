@@ -15,13 +15,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             include: {
                 artworks: {
                     select: { id: true, title: true, titleKo: true, titleTranslations: true, artist: true, artistKo: true, artistTranslations: true, image: true, description: true, descriptionKo: true, year: true },
-                    orderBy: { createdAt: 'asc' }
+                    orderBy: [{ image: { sort: 'desc', nulls: 'last' } }, { createdAt: 'asc' }],
+                    take: 20,
                 },
                 exhibitions: true,
                 reviews: {
                     take: 5,
                     orderBy: { createdAt: 'desc' },
                     include: { user: { select: { id: true, name: true, image: true } } }
+                },
+                _count: {
+                    select: { artworks: true },
                 },
             }
         });

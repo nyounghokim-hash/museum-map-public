@@ -52,6 +52,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                         where: { id: stop.id },
                         data: { order: stop.order }
                     });
+                } else if (stop.museumId && stop.order !== undefined) {
+                    const existingStop = await prisma.planStop.findFirst({
+                        where: { planId: id, museumId: stop.museumId },
+                        select: { id: true },
+                    });
+                    if (existingStop) {
+                        await prisma.planStop.update({
+                            where: { id: existingStop.id },
+                            data: { order: stop.order },
+                        });
+                    }
                 }
             }
         }

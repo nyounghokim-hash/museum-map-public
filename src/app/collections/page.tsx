@@ -117,7 +117,7 @@ export default function CollectionsPage() {
             </div>
 
             {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-3 sm:gap-4">
                     {Array.from({ length: 4 }).map((_, i) => (
                         <div key={i} className="mm-actual-skeleton p-5">
                             <div className="mm-skel-line h-6 w-3/5 mb-3" />
@@ -153,7 +153,7 @@ export default function CollectionsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {collections.map((col: any) => (
                         <Link key={col.id} href={`/collections/${col.id}`}>
-                            <div className="mm-list-row2 p-5 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative active:scale-[0.98]">
+                            <div className="mm-collection-card2 p-4 sm:p-5 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative active:scale-[0.98]">
                                 {tab === 'my' && (
                                     <button
                                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col.id); }}
@@ -164,10 +164,15 @@ export default function CollectionsPage() {
                                         </svg>
                                     </button>
                                 )}
-                                <div>
-                                    <h3 className="text-lg font-bold group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 transition-colors leading-snug pr-8">{locale === 'ko' ? col.title : <TranslatedTitle text={col.title} locale={locale} />}</h3>
+                                <div className="min-w-0 pr-8 sm:pr-10">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="min-w-0 truncate text-base sm:text-lg font-bold group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 transition-colors leading-snug">{locale === 'ko' ? col.title : <TranslatedTitle text={col.title} locale={locale} />}</h3>
+                                        <span className="shrink-0 text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+                                            {col._count?.items || 0} {t('collections.items', locale)}
+                                        </span>
+                                    </div>
                                     {tab === 'public' && col.user?.name && (
-                                        <span className="inline-block mt-1 text-[10px] font-bold text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                                        <span className="inline-block mt-1.5 text-[10px] font-bold text-gray-500 dark:text-blue-200/60 bg-gray-100 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">
                                             {(col.user.email === 'nyongho.kim@gmail.com' || col.user.name === 'System Admin') ? 'MM Editor' : col.user.name.startsWith('guest_') ? (locale === 'ko' ? '익명' : 'Anonymous') : col.user.name}
                                         </span>
                                     )}
@@ -198,9 +203,6 @@ export default function CollectionsPage() {
                                             )}
                                         </div>
                                     )}
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                        {col._count?.items || 0} {t('collections.items', locale)}
-                                    </span>
                                     {/* Museum type category tags */}
                                     {col.items && col.items.length > 0 && (() => {
                                         const types = [...new Set(col.items.map((item: any) => item.museum?.type).filter(Boolean))];
@@ -208,9 +210,9 @@ export default function CollectionsPage() {
                                             <>
                                                 {types.length > 0 && (
                                                     <>
-                                                        <span className="text-gray-300 dark:text-neutral-600">•</span>
+                                                        <span className="text-gray-300 dark:text-blue-900/50">•</span>
                                                         {types.slice(0, 3).map((type: any) => (
-                                                            <span key={type} className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full capitalize">
+                                                            <span key={type} className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/25 px-2 py-0.5 rounded-full capitalize">
                                                                 {translateCategory(type, locale)}
                                                             </span>
                                                         ))}
@@ -239,7 +241,7 @@ export default function CollectionsPage() {
                     }}
                     className="block mt-4"
                 >
-                    <div className="border-2 border-dashed border-blue-200 dark:border-blue-800/50 rounded-2xl p-6 flex flex-col items-center justify-center hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all cursor-pointer group active:scale-[0.98]">
+                    <div className="mm-collection-create-card border-2 border-dashed border-blue-200 dark:border-blue-800/50 rounded-3xl p-6 flex flex-col items-center justify-center hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all cursor-pointer group active:scale-[0.98]">
                         <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 group-hover:bg-blue-600 dark:group-hover:bg-blue-600 flex items-center justify-center transition-colors mb-2">
                             <svg className="w-5 h-5 text-blue-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />

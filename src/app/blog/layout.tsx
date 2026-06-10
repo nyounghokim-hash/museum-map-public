@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
             siteName: 'Museum Map',
             type: 'website',
             images: [{
-                url: `${SITE_URL}/og-image.png?v=2`,
+                url: `${SITE_URL}/og-image.png?v=3`,
                 width: 1200,
                 height: 630,
                 alt: 'Museum Map Stories',
@@ -41,7 +41,7 @@ export async function generateMetadata(): Promise<Metadata> {
             card: 'summary_large_image',
             title,
             description,
-            images: [`${SITE_URL}/og-image.png?v=2`],
+            images: [`${SITE_URL}/og-image.png?v=3`],
         },
         robots: {
             index: true,

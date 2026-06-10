@@ -49,28 +49,17 @@ const termsSections: Section[] = [
         ]
     },
     {
-        title: { ko: '사진 업로드 약관', en: 'Photo Upload Terms', ja: '写真アップロード規約', de: 'Foto-Upload-Bedingungen', fr: "Conditions d'upload de photos", es: 'Términos de carga de fotos', pt: 'Termos de upload de fotos' },
-        isList: true,
-        paragraphs: [
-            { ko: '본인이 직접 촬영한 사진만 업로드할 수 있습니다.', en: 'Only photos you personally took may be uploaded.' },
-            { ko: '업로드된 사진의 저작권은 촬영자에게 있으나, Museum Map 서비스 내에서의 비독점적, 무상 사용을 허가합니다.', en: 'Copyright remains with the photographer, but you grant Museum Map a non-exclusive, royalty-free license to use the photo within the service.' },
-            { ko: '승인된 사진은 서비스 전반(지도, 검색 결과, 상세 페이지 등)에서 활용될 수 있습니다.', en: 'Approved photos may be used across the service (map, search results, detail pages, etc.).' },
-            { ko: '관리자는 사전 고지 없이 부적절한 사진을 삭제할 수 있으며, 반복적인 위반 시 업로드 기능이 제한될 수 있습니다.', en: 'Administrators may remove inappropriate photos without notice. Repeated violations may result in upload restrictions.' },
-        ]
-    },
-    {
         title: { ko: '콘텐츠 및 AI 서비스', en: 'Content & AI Services', ja: 'コンテンツとAIサービス', de: 'Inhalte & KI-Dienste', fr: 'Contenu & services IA', es: 'Contenido y servicios de IA', pt: 'Conteúdo e serviços de IA' },
         paragraphs: [
-            { ko: '서비스에서 제공하는 미술관/작품 정보, AI 추천 결과, 자동 번역은 참고용이며, 정확성·완전성·최신성을 보장하지 않습니다.', en: 'Museum/artwork information, AI recommendations, and translations are for reference only. Accuracy, completeness, and timeliness are not guaranteed.' },
-            { ko: 'AI 기반 추천 및 번역 기능은 Google Gemini API를 활용하며, AI 결과물에 의존하여 발생하는 손해에 대해 서비스는 책임지지 않습니다.', en: 'AI features use Google Gemini API. The service is not liable for damages from reliance on AI outputs.' },
-            { ko: '사용자가 작성한 리뷰, 피드백 등의 콘텐츠는 서비스 개선 목적으로 익명화하여 활용될 수 있습니다.', en: 'User-generated content (reviews, feedback) may be anonymized and used for service improvement.' },
+            { ko: '서비스에서 제공하는 미술관/작품 정보, AI 요약, 추천 결과, 자동 번역은 참고용이며 정확성·완전성·최신성을 보장하지 않습니다.', en: 'Museum/artwork information, AI summaries, recommendations, and translations are for reference only. Accuracy, completeness, and timeliness are not guaranteed.' },
+            { ko: 'AI 기반 요약, 추천, 번역 기능은 외부 AI API를 활용할 수 있으며, 입력된 검색어와 서비스 이용 맥락이 기능 제공을 위해 처리될 수 있습니다.', en: 'AI summaries, recommendations, and translations may use external AI APIs. Search terms and service context may be processed to provide these features.' },
+            { ko: '사용자가 작성한 리뷰, 여행 계획, 컬렉션, 피드백 등의 콘텐츠는 서비스 제공 및 개선 목적으로 활용될 수 있습니다.', en: 'User-generated reviews, trips, collections, and feedback may be used to provide and improve the service.' },
         ]
     },
     {
         title: { ko: '이미지 출처 및 라이선스', en: 'Image Sources & Licenses', ja: '画像の出典とライセンス', de: 'Bildquellen & Lizenzen', fr: 'Sources des images & licences', es: 'Fuentes de imágenes y licencias', pt: 'Fontes de imagens e licenças' },
         paragraphs: [
             { ko: '미술관 외관/실내 사진은 Google Places API를 통해 제공되며, Google의 이용약관에 따라 표시됩니다. 해당 사진에는 "Powered by Google" 출처가 표기됩니다.', en: 'Museum exterior/interior photos are provided via Google Places API and displayed per Google\'s terms. These photos are attributed with "Powered by Google".' },
-            { ko: '미술관 사진은 90일 주기로 자동 갱신되며, 인기도 상위 미술관을 우선으로 관리됩니다.', en: 'Museum photos are automatically refreshed every 90 days, with popular museums prioritized.' },
             { ko: '작품 이미지는 Art Institute of Chicago, Metropolitan Museum of Art, Smithsonian 등의 오픈 액세스 API로부터 CC0(퍼블릭 도메인) 라이선스 하에 제공됩니다.', en: 'Artwork images are sourced from open access APIs (Art Institute of Chicago, Metropolitan Museum, Smithsonian) under CC0 (public domain) license.' },
             { ko: 'Wikimedia Commons의 CC-BY 라이선스 이미지를 사용하는 경우, 해당 저작자 출처가 함께 표시됩니다.', en: 'When using CC-BY licensed images from Wikimedia Commons, proper author attribution is displayed.' },
             { ko: '서비스에 표시된 이미지 중 저작권 관련 이의가 있는 경우 즉시 연락 주시면 확인 후 조치하겠습니다.', en: 'If you have copyright concerns about any displayed images, please contact us for prompt resolution.' },
@@ -79,8 +68,8 @@ const termsSections: Section[] = [
     {
         title: { ko: '데이터 출처 및 갱신 정책', en: 'Data Sources & Refresh Policy', ja: 'データソースと更新ポリシー', de: 'Datenquellen & Aktualisierung', fr: 'Sources de données & mise à jour', es: 'Fuentes de datos y actualización', pt: 'Fontes de dados e atualização' },
         paragraphs: [
-            { ko: '미술관 위치, 평점, 운영시간 정보는 Google Maps Platform을 통해 수집되며, 90일 TTL(Time-To-Live) 주기로 인기도 상위 미술관을 우선 갱신합니다.', en: 'Museum location, ratings, and opening hours are sourced from Google Maps Platform and refreshed on a 90-day TTL (Time-To-Live) cycle, prioritizing popular museums.' },
-            { ko: '데이터 갱신을 위해 각 미술관의 Google Place ID를 저장하며, 이는 Google 이용약관에서 허용하는 영구 저장 가능 데이터입니다.', en: 'Google Place IDs are stored for each museum to enable data refresh. Place IDs are permanent data allowed by Google\'s terms of service.' },
+            { ko: '미술관 위치, 평점, 운영시간 정보는 Google Maps Platform을 통해 수집될 수 있으며, 관람 정보와 교통 정보는 각 기관의 공식 사이트 및 공개 자료를 바탕으로 정리됩니다.', en: 'Museum locations, ratings, and opening hours may be sourced from Google Maps Platform. Visitor and transport information is curated from official websites and public sources.' },
+            { ko: '서비스 품질 관리를 위해 각 미술관의 Google Place ID 등 공개 식별 정보를 저장할 수 있습니다.', en: 'Public identifiers such as Google Place IDs may be stored to maintain service quality.' },
             { ko: '실시간 정보는 해당 미술관의 공식 웹사이트를 참고하시기 바랍니다. 서비스에 표시된 평점, 운영시간 등은 수집 시점 기준이며 실제와 차이가 있을 수 있습니다.', en: 'For real-time information, please refer to the museum\'s official website. Displayed ratings, operating hours, and other data are based on the time of collection and may differ from current information.' },
         ]
     },
@@ -110,7 +99,7 @@ const privacySections: Section[] = [
         paragraphs: [
             { ko: '이메일 주소, 프로필 이미지 (소셜 로그인 제공 정보)', en: 'Email address, profile image (from social login)' },
             { ko: '접속 IP, 브라우저 종류, 접속 시간, 페이지 열람 기록', en: 'IP address, browser type, access time, page views' },
-            { ko: '미술관 리뷰, 여행 계획, 사진 업로드, 피드백', en: 'Museum reviews, travel plans, photo uploads, feedback' },
+            { ko: '미술관 리뷰, 여행 계획, 컬렉션, 피드백', en: 'Museum reviews, travel plans, collections, feedback' },
         ]
     },
     {
@@ -137,7 +126,7 @@ const privacySections: Section[] = [
         paragraphs: [
             { ko: 'Google Analytics: 익명화된 사용 통계 수집', en: 'Google Analytics: anonymous usage statistics' },
             { ko: 'Google Gemini API: AI 추천/번역 시 사용자 쿼리 전송 (개인정보 미포함)', en: 'Google Gemini API: user queries for AI recommendations/translation (no personal data)' },
-            { ko: 'Google Maps Platform (Places API): 미술관 사진, 주소, 평점, 운영시간 제공. Place ID를 저장하여 데이터를 180일 주기로 자동 갱신하며, 사진 표시 시 Google 출처를 표기합니다.', en: 'Google Maps Platform (Places API): museum photos, addresses, ratings, and opening hours. Place IDs are stored to enable automatic 180-day data refresh, with Google attribution displayed alongside photos.' },
+            { ko: 'Google Maps Platform (Places API): 미술관 사진, 주소, 평점, 운영시간 제공. 사진 표시 시 Google 출처를 표기합니다.', en: 'Google Maps Platform (Places API): museum photos, addresses, ratings, and opening hours. Google attribution is displayed alongside photos.' },
             { ko: '오픈 액세스 API (AIC, Met, Smithsonian): 퍼블릭 도메인(CC0) 작품 이미지 제공. 개인정보는 전송되지 않습니다.', en: 'Open access APIs (AIC, Met, Smithsonian): public domain (CC0) artwork images. No personal data is transmitted.' },
             { ko: '원칙적으로 제3자에게 개인정보를 제공하지 않습니다. 단, 법적 요구가 있는 경우 예외로 합니다.', en: 'We do not share personal data with third parties unless required by law.' },
         ]
@@ -184,7 +173,7 @@ export default function TermsPage() {
     const t = (s: L) => s[locale] || s['en'] || Object.values(s)[0];
     const sections = activeTab === 'terms' ? termsSections : privacySections;
     return (
-        <div className="w-full max-w-[800px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8 animate-fadeInUp" onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
+        <div className="mm-legal-page2 mm-library-page2 no-back-swipe w-full max-w-[800px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8 animate-fadeInUp" onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
             {/* PC: Back */}
             <button onClick={() => router.back()} className="hidden lg:flex w-10 h-10 items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-full mb-6 transition-colors shadow-sm active:scale-95">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
@@ -240,7 +229,7 @@ export default function TermsPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); setTimeout(() => router.back(), 200); }}
+                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); router.back(); }}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                     >   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                     </button>

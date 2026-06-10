@@ -1,13 +1,15 @@
 'use client';
+import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
 const SPLASH_BACKGROUNDS = [
-    { city: 'London', src: '/splash-map-london.webp' },
-    { city: 'Helsinki', src: '/splash-map-helsinki.webp' },
-    { city: 'Seoul', src: '/splash-map-seoul.webp' },
-    { city: 'Tokyo', src: '/splash-map-tokyo.webp' },
-    { city: 'New York', src: '/splash-map-newyork.webp' },
-];
+    '/splash/gallery-splash.jpg',
+    '/splash/gallery-splash-2.jpg',
+    '/splash/gallery-splash-3.jpg',
+    '/splash/gallery-splash-4.jpg',
+    '/splash/gallery-splash-5.jpg',
+    '/splash/gallery-splash-6.jpg',
+] as const;
 
 const SPLASH_SUBTITLES: Record<string, string> = {
     ko: '예술과 여행이 만나는 지도',
@@ -111,10 +113,10 @@ const SPLASH_LABELS: Record<string, { kicker: string; loading: string; madeBy: s
     },
 };
 
-const MIN_SHOW_MS = 500;
-const MAX_SHOW_MS = 1100;
+const MIN_SHOW_MS = 3000;
+const MAX_SHOW_MS = 3200;
 const FADE_MS = 260;
-const COMPLETE_HOLD_MS = 80;
+const COMPLETE_HOLD_MS = 120;
 
 function finishFoucOverlay() {
     if (typeof document === 'undefined') return;
@@ -132,6 +134,11 @@ function shouldShowSplash(): boolean {
     } catch {
         return window.innerWidth <= 1024 && window.location.pathname === '/';
     }
+}
+
+function getSplashBackground(): string {
+    if (typeof window === 'undefined') return SPLASH_BACKGROUNDS[0];
+    return SPLASH_BACKGROUNDS[Math.floor(Math.random() * SPLASH_BACKGROUNDS.length)] || SPLASH_BACKGROUNDS[0];
 }
 
 function getDeviceLang(): string {
@@ -157,7 +164,7 @@ export default function SplashScreen() {
     const [complete, setComplete] = useState(false);
     const [lang, setLang] = useState('en');
     const [progress, setProgress] = useState(0);
-    const [background, setBackground] = useState(SPLASH_BACKGROUNDS[0]);
+    const [background, setBackground] = useState<string>(SPLASH_BACKGROUNDS[0]);
 
     useEffect(() => {
         if (!shouldShowSplash()) {
@@ -165,6 +172,7 @@ export default function SplashScreen() {
             return;
         }
 
+        setBackground(getSplashBackground());
         setVisible(true);
     }, []);
 
@@ -172,7 +180,6 @@ export default function SplashScreen() {
         if (!visible) return;
 
         setLang(getDeviceLang());
-        setBackground(SPLASH_BACKGROUNDS[Math.floor(Math.random() * SPLASH_BACKGROUNDS.length)]);
         setComplete(false);
         try { sessionStorage.setItem('splashShown', '1'); } catch { }
 
@@ -184,8 +191,8 @@ export default function SplashScreen() {
             const quick = setTimeout(() => {
                 finishFoucOverlay();
                 setFadeOut(true);
-            }, 600);
-            const hide = setTimeout(() => setVisible(false), 600 + FADE_MS);
+            }, MIN_SHOW_MS);
+            const hide = setTimeout(() => setVisible(false), MIN_SHOW_MS + FADE_MS);
             return () => { clearTimeout(quick); clearTimeout(hide); };
         }
 
@@ -248,8 +255,13 @@ export default function SplashScreen() {
             aria-label={labels.aria}
             className={`splash-screen ${entered ? 'is-entered' : ''} ${complete ? 'is-complete' : ''} ${fadeOut ? 'is-exiting' : ''}`}
         >
-            <div className="splash-bg" aria-hidden="true">
-                <img className="splash-bg-image" src={background.src} alt="" />
+            <div
+                className="splash-bg"
+                aria-hidden="true"
+                style={{ '--splash-bg-image': `url("${background}")` } as CSSProperties}
+            >
+                <div className="splash-map-lines" />
+                <div className="splash-map-nodes" />
                 <div className="splash-frame" />
             </div>
 
@@ -285,6 +297,22 @@ export default function SplashScreen() {
                     </div>
                 </div>
             </main>
+            <footer className="splash-footer">
+                <p className="splash-made-by">Made by Haerangsa</p>
+                <a
+                    className="splash-instagram"
+                    href="https://www.instagram.com/haerang4a_archive/"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Open Haerangsa Instagram"
+                >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <rect x="3" y="3" width="18" height="18" rx="5" stroke="currentColor" strokeWidth="1.8" />
+                        <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+                        <circle cx="17.25" cy="6.75" r="1.2" fill="currentColor" />
+                    </svg>
+                </a>
+            </footer>
         </div>
     );
 }

@@ -9,10 +9,11 @@ export async function GET(req: NextRequest) {
         const cursor = searchParams.get('cursor') || undefined;
         const query = searchParams.get('q') || '';
         const random = searchParams.get('random') === 'true';
+        const museumId = searchParams.get('museumId') || '';
 
         // Random mode: use raw SQL ORDER BY RANDOM() for true randomness
         // Support pagination via offset parameter
-        if (random && !query) {
+        if (random && !query && !museumId) {
             const offset = parseInt(searchParams.get('offset') || '0');
             const totalCount = await (prisma as any).artwork.count({ where: { image: { not: null } } });
             const artworks = await (prisma as any).$queryRaw`
@@ -41,14 +42,17 @@ export async function GET(req: NextRequest) {
             return successResponse({ artworks: result, hasMore, nextCursor: hasMore ? String(newOffset) : null });
         }
 
-        const where = query
-            ? {
-                OR: [
-                    { title: { contains: query, mode: 'insensitive' as const } },
-                    { artist: { contains: query, mode: 'insensitive' as const } },
-                ],
-            }
-            : {};
+        const where = {
+            ...(museumId ? { museumId } : {}),
+            ...(query
+                ? {
+                    OR: [
+                        { title: { contains: query, mode: 'insensitive' as const } },
+                        { artist: { contains: query, mode: 'insensitive' as const } },
+                    ],
+                }
+                : {}),
+        };
 
         // Fetch artworks with direct museum relation
         const artworks = await (prisma as any).artwork.findMany({
@@ -80,4 +84,3 @@ export async function GET(req: NextRequest) {
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch artworks', 500);
     }
 }
-

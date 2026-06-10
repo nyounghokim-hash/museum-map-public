@@ -125,11 +125,21 @@ const styles = {
         boxShadow: '0 8px 18px rgba(37,99,235,.26), inset 0 4px 10px rgba(15,23,42,.22)',
         transition: 'transform 160ms ease, box-shadow 160ms ease, background 160ms ease',
     } satisfies CSSProperties,
+    centerFloatingButton: {
+        position: 'fixed',
+        left: '50%',
+        bottom: 'calc(max(env(safe-area-inset-bottom, 0px), 8px) + 5px)',
+        zIndex: 10000,
+        transform: 'translateX(-50%) translateY(3px) scale(0.94)',
+        pointerEvents: 'auto',
+    } satisfies CSSProperties,
     overlay: {
         position: 'fixed',
         inset: 0,
         zIndex: 9998,
         background: 'rgba(2, 6, 23, .46)',
+        WebkitBackdropFilter: 'blur(4px) saturate(120%)',
+        backdropFilter: 'blur(4px) saturate(120%)',
     } satisfies CSSProperties,
     menu: {
         position: 'fixed',
@@ -184,16 +194,17 @@ const styles = {
 
 function TabIcon({ name, active }: { name: 'map' | 'saved' | 'story' | 'artworks'; active: boolean }) {
     const className = `w-6 h-6 ${active ? 'text-white' : 'text-slate-500 dark:text-slate-300'}`;
+    const inactiveStrokeWidth = 1.45;
     if (name === 'map') {
-        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
     }
     if (name === 'saved') {
-        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>;
+        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>;
     }
     if (name === 'story') {
-        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 16h6M7 8h6v4H7V8z" /></svg>;
+        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 16h6M7 8h6v4H7V8z" /></svg>;
     }
-    return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+    return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
 }
 
 function MenuIcon({ name }: { name: 'plans' | 'collection' | 'compare' }) {
@@ -218,7 +229,7 @@ function CenterMuseumIcon({ active }: { active: boolean }) {
         );
     }
     return (
-        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.45} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 3 4 7.2h16L12 3Z" />
             <path d="M5.5 9.2v8" />
             <path d="M10 9.2v8" />
@@ -237,6 +248,7 @@ export default function MobileBottomNav() {
     const { data: session } = useSession();
     const isGuest = !session || session.user?.name?.startsWith('guest_');
     const [menuOpen, setMenuOpen] = useState(false);
+    const [menuClosing, setMenuClosing] = useState(false);
     const [navigatingAway, setNavigatingAway] = useState(false);
     const [detailOpen, setDetailOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -254,7 +266,7 @@ export default function MobileBottomNav() {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const update = () => setIsMobile(window.innerWidth < 1024);
+        const update = () => setIsMobile(window.innerWidth < 768);
         update();
         window.addEventListener('resize', update, { passive: true });
         window.addEventListener('orientationchange', update, { passive: true });
@@ -266,6 +278,7 @@ export default function MobileBottomNav() {
 
     useEffect(() => {
         setMenuOpen(false);
+        setMenuClosing(false);
         setNavigatingAway(false);
     }, [pathname]);
 
@@ -302,8 +315,26 @@ export default function MobileBottomNav() {
         }
     };
 
+    const closeMenu = () => {
+        if (!menuOpen || menuClosing) return;
+        setMenuClosing(true);
+        window.setTimeout(() => {
+            setMenuOpen(false);
+            setMenuClosing(false);
+        }, 170);
+    };
+
+    const toggleMenu = () => {
+        if (menuOpen) {
+            closeMenu();
+            return;
+        }
+        setMenuClosing(false);
+        setMenuOpen(true);
+    };
+
     const goProtected = (href: string) => {
-        setMenuOpen(false);
+        closeMenu();
         if (isGuest && href !== '/compare') {
             setLoginCallbackUrl(href);
             setLoginModalOpen(true);
@@ -337,10 +368,10 @@ export default function MobileBottomNav() {
 
     return (
         <>
-            {menuOpen && (
+            {(menuOpen || menuClosing) && (
                 <>
-                    <div style={styles.overlay} onClick={() => setMenuOpen(false)} />
-                    <div style={{ ...styles.menu, ...themedMenuStyle }}>
+                    <div className={`mobile-nav-menu-overlay ${menuClosing ? 'is-closing' : ''}`} style={styles.overlay} onClick={closeMenu} />
+                    <div className={`mobile-nav-center-menu ${menuClosing ? 'is-closing' : ''}`} style={{ ...styles.menu, ...themedMenuStyle }}>
                         <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onClick={() => goProtected('/plans')}>
                             <MenuIcon name="plans" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.plans}</span>
@@ -359,7 +390,7 @@ export default function MobileBottomNav() {
                 </>
             )}
 
-            <nav className="mobile-bottom-nav lg:hidden" style={styles.root}>
+            <nav className="mobile-bottom-nav md:hidden" style={styles.root}>
                 <div style={{ ...styles.shell, ...themedShellStyle }}>
                     <div id="nav-toolbar" style={styles.toolbar} />
                     <div style={styles.row}>
@@ -378,7 +409,7 @@ export default function MobileBottomNav() {
                                         setLoginModalOpen(true);
                                         return;
                                     }
-                                    setMenuOpen((open) => !open);
+                                    toggleMenu();
                                 }}
                             >
                                 <CenterMuseumIcon active={isCenterActive || menuOpen} />
@@ -389,6 +420,18 @@ export default function MobileBottomNav() {
                     </div>
                 </div>
             </nav>
+
+            {(menuOpen || menuClosing) && (
+                <button
+                    type="button"
+                    aria-label={labels.plans}
+                    className={`mobile-nav-center-button mobile-nav-center-button-floating md:hidden ${menuClosing ? 'is-closing' : ''}`}
+                    style={{ ...styles.centerButton, ...styles.centerPressed, ...styles.centerFloatingButton }}
+                    onClick={closeMenu}
+                >
+                    <CenterMuseumIcon active />
+                </button>
+            )}
 
             <LoginRequiredModal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} callbackUrl={loginCallbackUrl} />
         </>

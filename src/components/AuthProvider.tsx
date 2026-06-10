@@ -15,6 +15,10 @@ function GuestSessionGuard({ children }: { children: React.ReactNode }) {
             return;
         }
 
+        if (status === 'authenticated' && session?.user?.email && !session.user.name?.startsWith('guest_')) {
+            sessionStorage.setItem('user-email', session.user.email);
+        }
+
         if (status === 'authenticated' && session?.user?.name) {
             // Store user email for per-user localStorage keys (e.g. museum-history)
             if (session.user.email && !session.user.name.startsWith('guest_')) {

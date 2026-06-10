@@ -77,7 +77,8 @@ export async function GET(req: NextRequest) {
                 select: {
                     id: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, description: true, descriptionKo: true, summary: true, summaryTranslations: true, country: true, city: true, cityKo: true, cityTranslations: true,
                     type: true, website: true, imageUrl: true, latitude: true, longitude: true, popularityScore: true,
-                    createdAt: true, googleRating: true, googleRatingsTotal: true, placePhotos: true, cachedPhotoUrls: true
+                    createdAt: true, googleRating: true, googleRatingsTotal: true, placePhotos: true, cachedPhotoUrls: true,
+                    openingHours: true, visitorInfo: true, address: true, phone: true
                 }
             }),
             prisma.museum.count({ where })

@@ -1,27 +1,147 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useTranslatedTexts } from '@/hooks/useTranslation';
-import LoadingAnimation from '@/components/ui/LoadingAnimation';
+
+type NotificationPrefs = {
+    notificationsEnabled: boolean;
+    marketingConsent: boolean;
+};
+
+const NOTIFICATION_PREF_LABELS: Record<string, {
+    controlsTitle: string;
+    controlsDesc: string;
+    notifications: string;
+    notificationsDesc: string;
+    marketing: string;
+    marketingDesc: string;
+    disabledTitle: string;
+    disabledDesc: string;
+}> = {
+    ko: { controlsTitle: '알림 설정', controlsDesc: '받고 싶은 소식만 켜둘 수 있어요.', notifications: '알림', notificationsDesc: '서비스 소식과 계정 알림을 받아요.', marketing: '마케팅 알림', marketingDesc: '전시, 이벤트, 추천 소식을 받아요.', disabledTitle: '알림이 꺼져 있어요', disabledDesc: '알림을 켜면 새로운 소식을 다시 확인할 수 있어요.' },
+    en: { controlsTitle: 'Notification settings', controlsDesc: 'Choose which updates you want to receive.', notifications: 'Notifications', notificationsDesc: 'Receive service and account updates.', marketing: 'Marketing notifications', marketingDesc: 'Receive exhibition, event, and recommendation updates.', disabledTitle: 'Notifications are off', disabledDesc: 'Turn notifications on to see new updates again.' },
+    ja: { controlsTitle: '通知設定', controlsDesc: '受け取りたいお知らせだけをオンにできます。', notifications: '通知', notificationsDesc: 'サービスとアカウントのお知らせを受け取ります。', marketing: 'マーケティング通知', marketingDesc: '展覧会、イベント、おすすめ情報を受け取ります。', disabledTitle: '通知がオフです', disabledDesc: '通知をオンにすると新しいお知らせを確認できます。' },
+    de: { controlsTitle: 'Benachrichtigungseinstellungen', controlsDesc: 'Wähle aus, welche Updates du erhalten möchtest.', notifications: 'Benachrichtigungen', notificationsDesc: 'Service- und Konto-Updates erhalten.', marketing: 'Marketing-Benachrichtigungen', marketingDesc: 'Ausstellungs-, Event- und Empfehlungshinweise erhalten.', disabledTitle: 'Benachrichtigungen sind aus', disabledDesc: 'Aktiviere Benachrichtigungen, um neue Updates wieder zu sehen.' },
+    fr: { controlsTitle: 'Paramètres de notification', controlsDesc: 'Choisissez les mises à jour à recevoir.', notifications: 'Notifications', notificationsDesc: 'Recevoir les informations du service et du compte.', marketing: 'Notifications marketing', marketingDesc: 'Recevoir expositions, événements et recommandations.', disabledTitle: 'Les notifications sont désactivées', disabledDesc: 'Activez les notifications pour revoir les nouvelles mises à jour.' },
+    es: { controlsTitle: 'Ajustes de notificaciones', controlsDesc: 'Elige qué novedades quieres recibir.', notifications: 'Notificaciones', notificationsDesc: 'Recibe avisos del servicio y de la cuenta.', marketing: 'Notificaciones de marketing', marketingDesc: 'Recibe exposiciones, eventos y recomendaciones.', disabledTitle: 'Las notificaciones están desactivadas', disabledDesc: 'Actívalas para volver a ver novedades.' },
+    pt: { controlsTitle: 'Configurações de notificação', controlsDesc: 'Escolha quais atualizações deseja receber.', notifications: 'Notificações', notificationsDesc: 'Receba avisos do serviço e da conta.', marketing: 'Notificações de marketing', marketingDesc: 'Receba exposições, eventos e recomendações.', disabledTitle: 'Notificações desativadas', disabledDesc: 'Ative as notificações para ver novidades novamente.' },
+    'zh-CN': { controlsTitle: '通知设置', controlsDesc: '选择你想接收的更新。', notifications: '通知', notificationsDesc: '接收服务和账户通知。', marketing: '营销通知', marketingDesc: '接收展览、活动和推荐消息。', disabledTitle: '通知已关闭', disabledDesc: '开启通知后可再次查看新消息。' },
+    'zh-TW': { controlsTitle: '通知設定', controlsDesc: '選擇你想接收的更新。', notifications: '通知', notificationsDesc: '接收服務和帳號通知。', marketing: '行銷通知', marketingDesc: '接收展覽、活動和推薦消息。', disabledTitle: '通知已關閉', disabledDesc: '開啟通知後可再次查看新消息。' },
+    da: { controlsTitle: 'Notifikationsindstillinger', controlsDesc: 'Vælg hvilke opdateringer du vil modtage.', notifications: 'Notifikationer', notificationsDesc: 'Modtag service- og kontoopdateringer.', marketing: 'Marketingnotifikationer', marketingDesc: 'Modtag udstillinger, events og anbefalinger.', disabledTitle: 'Notifikationer er slået fra', disabledDesc: 'Slå notifikationer til for at se nye opdateringer igen.' },
+    fi: { controlsTitle: 'Ilmoitusasetukset', controlsDesc: 'Valitse, mitä päivityksiä haluat saada.', notifications: 'Ilmoitukset', notificationsDesc: 'Vastaanota palvelu- ja tilipäivityksiä.', marketing: 'Markkinointi-ilmoitukset', marketingDesc: 'Vastaanota näyttely-, tapahtuma- ja suosituspäivityksiä.', disabledTitle: 'Ilmoitukset ovat pois päältä', disabledDesc: 'Ota ilmoitukset käyttöön nähdäksesi uudet päivitykset.' },
+    sv: { controlsTitle: 'Aviseringsinställningar', controlsDesc: 'Välj vilka uppdateringar du vill få.', notifications: 'Aviseringar', notificationsDesc: 'Få service- och kontouppdateringar.', marketing: 'Marknadsaviseringar', marketingDesc: 'Få utställnings-, event- och rekommendationsnyheter.', disabledTitle: 'Aviseringar är avstängda', disabledDesc: 'Slå på aviseringar för att se nya uppdateringar igen.' },
+    et: { controlsTitle: 'Teavituste seaded', controlsDesc: 'Vali, milliseid uuendusi soovid saada.', notifications: 'Teavitused', notificationsDesc: 'Saa teenuse ja konto teavitusi.', marketing: 'Turundusteavitused', marketingDesc: 'Saa näituste, sündmuste ja soovituste teavitusi.', disabledTitle: 'Teavitused on välja lülitatud', disabledDesc: 'Lülita teavitused sisse, et uusi uuendusi taas näha.' },
+};
+
+const LOCAL_NOTIFICATION_PREFS_KEY = 'mm_notification_preferences';
+
+function readLocalPrefs(): NotificationPrefs {
+    if (typeof window === 'undefined') return { notificationsEnabled: true, marketingConsent: false };
+    try {
+        const parsed = JSON.parse(localStorage.getItem(LOCAL_NOTIFICATION_PREFS_KEY) || '{}');
+        return {
+            notificationsEnabled: parsed.notificationsEnabled !== false,
+            marketingConsent: parsed.marketingConsent === true,
+        };
+    } catch {
+        return { notificationsEnabled: true, marketingConsent: false };
+    }
+}
+
+function writeLocalPrefs(prefs: NotificationPrefs) {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(LOCAL_NOTIFICATION_PREFS_KEY, JSON.stringify(prefs));
+}
 
 export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [prefs, setPrefs] = useState<NotificationPrefs>({ notificationsEnabled: true, marketingConsent: false });
     const { locale } = useApp();
-    const router = useRouter();
+    const { data: session, status } = useSession();
+    const prefLabels = NOTIFICATION_PREF_LABELS[locale] || NOTIFICATION_PREF_LABELS.en;
+    const isAuthed = status === 'authenticated' && !!session?.user && !(session.user as any).name?.startsWith('guest_');
 
     useEffect(() => {
-        fetch('/api/notifications')
-            .then(r => r.json())
-            .then(data => {
-                setNotifications(Array.isArray(data) ? data : []);
+        if (status === 'loading') return;
+        let cancelled = false;
+
+        const load = async () => {
+            setLoading(true);
+            let nextPrefs = readLocalPrefs();
+
+            if (isAuthed) {
+                try {
+                    const prefRes = await fetch('/api/me/preferences');
+                    if (prefRes.ok) {
+                        const data = await prefRes.json();
+                        const serverPrefs = data.preferences || {};
+                        nextPrefs = {
+                            notificationsEnabled: serverPrefs.notificationsEnabled !== false,
+                            marketingConsent: Boolean(data.marketingConsent),
+                        };
+                        writeLocalPrefs(nextPrefs);
+                    }
+                } catch {
+                    // Keep local fallback.
+                }
+            }
+
+            if (cancelled) return;
+            setPrefs(nextPrefs);
+
+            if (!nextPrefs.notificationsEnabled) {
+                setNotifications([]);
                 setLoading(false);
-            })
-            .catch(() => setLoading(false));
-    }, []);
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/notifications');
+                const data = await res.json();
+                const list = Array.isArray(data) ? data : [];
+                setNotifications(nextPrefs.marketingConsent ? list : list.filter((n: any) => n.type !== 'marketing'));
+            } catch {
+                setNotifications([]);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        load();
+        return () => { cancelled = true; };
+    }, [isAuthed, status]);
+
+    const updatePrefs = async (patch: Partial<NotificationPrefs>) => {
+        const next = { ...prefs, ...patch };
+        setPrefs(next);
+        writeLocalPrefs(next);
+        if (!next.notificationsEnabled) {
+            setNotifications([]);
+        }
+        if (isAuthed) {
+            fetch('/api/me/preferences', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    notificationsEnabled: next.notificationsEnabled,
+                    marketingConsent: next.marketingConsent,
+                }),
+            }).catch(() => { });
+        }
+        if (next.notificationsEnabled) {
+            fetch('/api/notifications')
+                .then(r => r.json())
+                .then(data => {
+                    const list = Array.isArray(data) ? data : [];
+                    setNotifications(next.marketingConsent ? list : list.filter((n: any) => n.type !== 'marketing'));
+                })
+                .catch(() => { });
+        }
+    };
 
     // Collect all translatable texts (use English version if available, otherwise Korean)
     const textsToTranslate = notifications.flatMap(n => [
@@ -54,92 +174,133 @@ export default function NotificationsPage() {
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
     if (loading) return (
-        <div className="flex items-center justify-center min-h-[60vh]">
-            <LoadingAnimation size={160} />
+        <div className="mm-notifications-page2 mm-library-page2 no-back-swipe mx-auto w-full max-w-[760px] px-5 pb-32 pt-[max(28px,env(safe-area-inset-top,0px))] lg:pb-12">
+            <section className="mm-notification-hero2 mb-8 p-6 sm:p-8">
+                <div className="mm-skel-pill mb-5 w-28" />
+                <div className="mm-skel-line mb-3 w-48" />
+                <div className="mm-skel-line w-36 opacity-70" />
+            </section>
+            <div className="mm-notification-list2">
+                {[0, 1, 2].map(i => (
+                    <div key={i} className="mm-notification-row2">
+                        <div className="mm-skel-circle h-12 w-12 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                            <div className="mm-skel-line mb-3 w-2/3" />
+                            <div className="mm-skel-line w-full opacity-70" />
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 
     return (
         <>
-            {/* Floating back button — OUTSIDE animated wrapper to keep fixed positioning */}
-            <button
-                onClick={() => router.back()}
-                className="lg:hidden fixed bottom-8 right-8 z-50 w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100 animate-fadeIn"
-                aria-label="Back"
-            >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-            </button>
-            <div className="w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 animate-slideInDown">
-                <div className="flex items-center justify-between mb-6 sm:mb-8">
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold dark:text-white">
-                            {t('notif.title', locale)}
-                        </h1>
-                        <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                            {unreadCount > 0
-                                ? `${unreadCount} ${t('notif.unreadCount', locale)}`
-                                : t('notif.allCaughtUp', locale)}
-                        </p>
+            <div className="mm-notifications-page2 mm-library-page2 no-back-swipe mx-auto w-full max-w-[760px] px-5 pb-32 pt-[max(28px,env(safe-area-inset-top,0px))] lg:pb-12 animate-slideInDown">
+                <section className="mm-notification-hero2 mb-8 p-6 sm:p-8">
+                    <div className="mm-gallery-kicker mb-5">
+                        {t('notif.label', locale)}
                     </div>
-                    {unreadCount > 0 && (
-                        <button
-                            onClick={markAllRead}
-                            className="px-4 py-2 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                        >
-                            {t('notif.markAllRead', locale)}
-                        </button>
-                    )}
-                </div>
+                    <div className="flex items-end justify-between gap-4">
+                        <div className="min-w-0">
+                            <h1>
+                                {t('notif.title', locale)}
+                            </h1>
+                            <p>
+                                {unreadCount > 0
+                                    ? `${unreadCount} ${t('notif.unreadCount', locale)}`
+                                    : t('notif.allCaughtUp', locale)}
+                            </p>
+                        </div>
+                        {unreadCount > 0 && (
+                            <button
+                                onClick={markAllRead}
+                                className="mm-notification-mark-button"
+                            >
+                                {t('notif.markAllRead', locale)}
+                            </button>
+                        )}
+                    </div>
+                </section>
 
-                {notifications.length === 0 ? (
-                    <div className="py-20 text-center">
-                        <div className="text-6xl mb-4">
-                            <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+                <section className="mm-notification-pref-card2 mb-7" aria-label={prefLabels.controlsTitle}>
+                    <div className="mm-notification-pref-head2">
+                        <div>
+                            <h2>{prefLabels.controlsTitle}</h2>
+                            <p>{prefLabels.controlsDesc}</p>
+                        </div>
+                    </div>
+                    <button type="button" className="mm-notification-pref-row2" onClick={() => updatePrefs({ notificationsEnabled: !prefs.notificationsEnabled })}>
+                        <span>
+                            <strong>{prefLabels.notifications}</strong>
+                            <em>{prefLabels.notificationsDesc}</em>
+                        </span>
+                        <span className={`mm-settings-toggle ${prefs.notificationsEnabled ? 'is-on' : ''}`} aria-hidden="true"><span /></span>
+                    </button>
+                    <button type="button" className="mm-notification-pref-row2" onClick={() => updatePrefs({ marketingConsent: !prefs.marketingConsent })}>
+                        <span>
+                            <strong>{prefLabels.marketing}</strong>
+                            <em>{prefLabels.marketingDesc}</em>
+                        </span>
+                        <span className={`mm-settings-toggle ${prefs.marketingConsent ? 'is-on' : ''}`} aria-hidden="true"><span /></span>
+                    </button>
+                </section>
+
+                {!prefs.notificationsEnabled ? (
+                    <div className="mm-notification-empty2">
+                        <div className="mm-notification-empty-icon">
+                            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M18 8.25 6 20.25M6.75 6.75A6.002 6.002 0 006 9.75v3.159c0 .538-.214 1.055-.595 1.436L4 15.75h9.75M9 18.75a3 3 0 005.4 1.8M12 3a2 2 0 00-2 2v.341" />
+                            </svg>
+                        </div>
+                        <h2>{prefLabels.disabledTitle}</h2>
+                        <p>{prefLabels.disabledDesc}</p>
+                    </div>
+                ) : notifications.length === 0 ? (
+                    <div className="mm-notification-empty2">
+                        <div className="mm-notification-empty-icon">
+                            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                             </svg>
                         </div>
-                        <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">
+                        <h2>
                             {t('notif.empty', locale)}
                         </h2>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm">
+                        <p>
                             {t('notif.emptyDesc', locale)}
                         </p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-2">
+                    <div className="mm-notification-list2">
                         {notifications.map(n => (
                             <Link
                                 key={n.id}
                                 href={`/notifications/${n.id}`}
                                 onClick={() => { if (!n.isRead) markRead(n.id); }}
-                                className={`block rounded-2xl border shadow-sm transition-all hover:shadow-md active:scale-[0.99] ${!n.isRead
-                                    ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/30'
-                                    : 'border'}`}
-                                style={n.isRead ? { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' } : undefined}
+                                className={`mm-notification-row2 ${!n.isRead ? 'is-unread' : ''}`}
                             >
-                                <div className="p-4 sm:p-5 flex items-center gap-3">
-                                    <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${!n.isRead ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-neutral-800'}`}>
-                                        <svg className={`w-5 h-5 ${!n.isRead ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-neutral-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                        </svg>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1" style={{ wordBreak: 'break-word' }}>
-                                            {getTitle(n)}
-                                        </h3>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed" style={{ wordBreak: 'break-word' }}>
-                                            {getMessage(n)}
-                                        </p>
-                                        <span className="text-[10px] text-gray-400 dark:text-neutral-600 mt-2 block font-medium">
-                                            {formatDate(n.createdAt, locale)}
-                                        </span>
-                                    </div>
-                                    <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                <div className="mm-notification-icon2">
+                                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.85 18.25a2.85 2.85 0 01-5.7 0M18 10.5a6 6 0 10-12 0c0 3-1.5 4.5-2 5.5h16c-.5-1-2-2.5-2-5.5z" />
                                     </svg>
                                 </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                        {!n.isRead && <span className="mm-notification-unread-dot" />}
+                                        <h3 style={{ wordBreak: 'break-word' }}>
+                                            {getTitle(n)}
+                                        </h3>
+                                    </div>
+                                    <p className="line-clamp-2" style={{ wordBreak: 'break-word' }}>
+                                        {getMessage(n)}
+                                    </p>
+                                    <time>
+                                        {formatDate(n.createdAt, locale)}
+                                    </time>
+                                </div>
+                                <svg className="h-4 w-4 shrink-0 text-slate-300 dark:text-blue-200/34" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                </svg>
                             </Link>
                         ))}
                     </div>

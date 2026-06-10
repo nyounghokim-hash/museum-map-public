@@ -186,11 +186,12 @@ function getLocalizedTextField(locale: string): any {
     'ko': 'name:ko', 'ja': 'name:ja', 'de': 'name:de', 'fr': 'name:fr',
     'es': 'name:es', 'pt': 'name:pt', 'zh-CN': 'name:zh', 'zh-TW': 'name:zh',
     'da': 'name:da', 'fi': 'name:fi', 'sv': 'name:sv', 'et': 'name:et',
-    'en': 'name_en',
+    'en': 'name:en',
   };
-  const nameField = LOCALE_NAME_MAP[locale] || 'name_en';
-  // Fallback chain: localized name → name_en → name
-  return ['coalesce', ['get', nameField], ['get', 'name_en'], ['get', 'name']];
+  const nameField = LOCALE_NAME_MAP[locale] || 'name:en';
+  const underscoreField = nameField.replace(':', '_');
+  // Fallback chain: localized name → localized underscore variant → English → default.
+  return ['coalesce', ['get', nameField], ['get', underscoreField], ['get', 'name:en'], ['get', 'name_en'], ['get', 'name']];
 }
 
 function applyMapLocale(map: maplibregl.Map, locale: string) {
@@ -243,33 +244,73 @@ const SAVED_DARK_COLOR = '#60A5FA';
 
 export type MapBounds = { minLng: number; minLat: number; maxLng: number; maxLat: number };
 
-const CLUSTER_LAYER_IDS = ['clusters', 'cluster-count', 'cluster-glow'];
-const CLUSTER_TOUCH_TOLERANCE = 28;
+const MUSEUM_LAYER_IDS = ['unclustered-icon', 'unclustered-bg'];
+const MUSEUM_TAP_RADIUS = 15;
 
 function getFirstExistingLayer(map: maplibregl.Map, layerIds: string[]) {
   return layerIds.find(layerId => !!map.getLayer(layerId));
 }
 
-function getClusterLayerIds(map: maplibregl.Map) {
-  return CLUSTER_LAYER_IDS.filter(layerId => !!map.getLayer(layerId));
+function getMuseumLayerIds(map: maplibregl.Map) {
+  return MUSEUM_LAYER_IDS.filter(layerId => !!map.getLayer(layerId));
+}
+
+function getClusterVisualRadius(feature: any) {
+  const count = Number(feature?.properties?.point_count) || 0;
+  if (count >= 50) return 42;
+  if (count >= 10) return 32;
+  return 22;
+}
+
+function isPointInsideClusterCircle(map: maplibregl.Map, feature: any, point: { x: number; y: number }) {
+  if (!feature?.geometry || feature.geometry.type !== 'Point') return false;
+  const center = map.project(feature.geometry.coordinates as [number, number]);
+  return Math.hypot(point.x - center.x, point.y - center.y) <= getClusterVisualRadius(feature);
 }
 
 function getClusterFeatureAtPoint(map: maplibregl.Map, point: { x: number; y: number }, eventFeature?: any) {
-  if (eventFeature?.properties?.cluster_id != null) return eventFeature;
+  if (eventFeature?.properties?.cluster_id != null && isPointInsideClusterCircle(map, eventFeature, point)) {
+    return eventFeature;
+  }
 
-  const layers = getClusterLayerIds(map);
+  if (!map.getSource('museums')) return null;
+  let candidates: any[] = [];
+  try {
+    candidates = map.querySourceFeatures('museums' as any).filter((feature: any) => (
+      feature.properties?.cluster_id != null && isPointInsideClusterCircle(map, feature, point)
+    ));
+  } catch {
+    return null;
+  }
+  if (candidates.length === 0) return null;
+  return candidates
+    .map(feature => {
+      const center = map.project(feature.geometry.coordinates as [number, number]);
+      return { feature, distance: Math.hypot(point.x - center.x, point.y - center.y) };
+    })
+    .sort((a, b) => a.distance - b.distance)[0]?.feature || null;
+}
+
+function getMuseumFeatureAtPoint(map: maplibregl.Map, point: { x: number; y: number }, eventFeature?: any) {
+  const isInsideMarker = (feature: any) => {
+    if (!feature?.properties?.id || feature.properties?.cluster_id != null) return false;
+    if (!feature?.geometry || feature.geometry.type !== 'Point') return false;
+    const center = map.project(feature.geometry.coordinates as [number, number]);
+    return Math.hypot(point.x - center.x, point.y - center.y) <= MUSEUM_TAP_RADIUS;
+  };
+
+  if (isInsideMarker(eventFeature)) return eventFeature;
+
+  const layers = getMuseumLayerIds(map);
   if (layers.length === 0) return null;
 
-  const direct = map.queryRenderedFeatures(point as any, { layers });
-  const directFeature = direct.find((feature: any) => feature.properties?.cluster_id != null);
-  if (directFeature) return directFeature;
-
-  const r = CLUSTER_TOUCH_TOLERANCE;
-  const nearby = map.queryRenderedFeatures([
-    [point.x - r, point.y - r],
-    [point.x + r, point.y + r],
-  ] as any, { layers });
-  return nearby.find((feature: any) => feature.properties?.cluster_id != null) || null;
+  try {
+    const direct = map.queryRenderedFeatures(point as any, { layers });
+    return direct.find(isInsideMarker) || null;
+  } catch (error) {
+    console.warn('[map] museum hit test skipped:', error);
+    return null;
+  }
 }
 
 function getEventPoint(e: any) {
@@ -293,16 +334,20 @@ export default function MapLibreViewer({
   userLocation,
   savedIds,
   compareIds,
+  selectionMode = false,
+  onMapPointSelect,
 }: {
   museums: Museum[],
   onMuseumClick: (id: string) => void,
   onBoundsChange?: (bounds: MapBounds) => void,
   darkMode?: boolean,
   locale?: string,
-  flyTo?: { lat: number; lng: number; zoom?: number } | null,
+  flyTo?: { lat: number; lng: number; zoom?: number; offset?: [number, number] } | null,
   userLocation?: UserLocation | null,
   savedIds?: Set<string>,
   compareIds?: Set<string>,
+  selectionMode?: boolean,
+  onMapPointSelect?: (location: UserLocation) => void,
 }) {
   const localeRef = useRef(locale);
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -315,10 +360,13 @@ export default function MapLibreViewer({
   const savedIdsRef = useRef(savedIds);
   const compareIdsRef = useRef(compareIds);
   const userLocationRef = useRef(userLocation);
-  const activePopupRef = useRef<maplibregl.Popup | null>(null);
-  const pulseAnimRef = useRef<number | null>(null);
+  const onMapPointSelectRef = useRef(onMapPointSelect);
+  const activePopupRef = useRef<{ remove: () => void } | null>(null);
+  const suppressMapClickUntilRef = useRef(0);
   const clusterTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const mapTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const clusterTouchHandlerAttachedRef = useRef(false);
+  useEffect(() => { onMapPointSelectRef.current = onMapPointSelect; }, [onMapPointSelect]);
   useEffect(() => { userLocationRef.current = userLocation; }, [userLocation]);
   useEffect(() => { savedIdsRef.current = savedIds; }, [savedIds]);
   useEffect(() => {
@@ -338,6 +386,55 @@ export default function MapLibreViewer({
       applyMapLocale(mapRef.current, locale);
     }
   }, [locale]);
+
+  const mountClusterPopup = (
+    map: maplibregl.Map,
+    coordinates: [number, number],
+    popupNode: HTMLElement,
+    root: ReturnType<typeof createRoot>
+  ) => {
+    if (activePopupRef.current) {
+      activePopupRef.current.remove();
+      activePopupRef.current = null;
+    }
+
+    let cleaned = false;
+    const cleanup = (after?: () => void) => {
+      if (cleaned) return;
+      cleaned = true;
+      after?.();
+      root.unmount();
+    };
+
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      const shell = document.createElement('div');
+      shell.className = 'mm-cluster-popup-mobile-shell';
+      shell.addEventListener('click', (event) => event.stopPropagation());
+      shell.appendChild(popupNode);
+      document.body.appendChild(shell);
+      activePopupRef.current = {
+        remove: () => {
+          cleanup(() => shell.remove());
+        },
+      };
+      return;
+    }
+
+    const popup = new maplibregl.Popup({ closeButton: false, maxWidth: '340px', offset: [0, 10], anchor: 'top', className: 'mm-cluster-popup-shell' })
+      .setLngLat(coordinates)
+      .setDOMContent(popupNode)
+      .addTo(map);
+    popup.on('close', () => {
+      cleanup();
+      activePopupRef.current = null;
+    });
+    activePopupRef.current = {
+      remove: () => {
+        popup.remove();
+        cleanup();
+      },
+    };
+  };
 
   const scheduleMapResize = () => {
     window.requestAnimationFrame(() => {
@@ -362,8 +459,11 @@ export default function MapLibreViewer({
       minZoom: 2,
     });
 
+    let resizeFrame = 0;
     const resizeMap = () => {
-      window.requestAnimationFrame(() => {
+      if (resizeFrame) return;
+      resizeFrame = window.requestAnimationFrame(() => {
+        resizeFrame = 0;
         map.resize();
         map.triggerRepaint();
       });
@@ -378,20 +478,12 @@ export default function MapLibreViewer({
       window.setTimeout(resizeMap, 800),
     ];
 
-    // Restore saved position (from tab switches) or geolocate on first visit
+    // Restore saved position. Camera movement is user-initiated only.
     try {
-      const saved = sessionStorage.getItem('mapPosition');
+      const saved = localStorage.getItem('mapPosition') || sessionStorage.getItem('mapPosition');
       if (saved) {
         const { lng, lat, zoom } = JSON.parse(saved);
         map.jumpTo({ center: [lng, lat], zoom });
-      } else if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 7, duration: 1500 });
-          },
-          () => { /* Keep default (Korea) on error */ },
-          { timeout: 5000, maximumAge: 300000 }
-        );
       }
     } catch { }
 
@@ -400,7 +492,9 @@ export default function MapLibreViewer({
       // Save position for tab switch persistence
       try {
         const c = map.getCenter();
-        sessionStorage.setItem('mapPosition', JSON.stringify({ lng: c.lng, lat: c.lat, zoom: map.getZoom() }));
+        const nextPosition = JSON.stringify({ lng: c.lng, lat: c.lat, zoom: map.getZoom() });
+        sessionStorage.setItem('mapPosition', nextPosition);
+        localStorage.setItem('mapPosition', nextPosition);
       } catch { }
       if (onBoundsChangeRef.current) {
         const b = map.getBounds();
@@ -494,8 +588,9 @@ export default function MapLibreViewer({
             ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'],
           ] as any,
           'icon-allow-overlap': true,
-          'icon-size': 1.0,
+          'icon-size': 1.08,
         },
+        paint: { 'icon-opacity': 0.64 },
       });
 
       // Cluster gradient circles — blue (default) or orange (contains saved museums)
@@ -514,24 +609,6 @@ export default function MapLibreViewer({
         },
       });
 
-      // Start cluster glow pulse animation
-      const startPulse = () => {
-        const animate = () => {
-          if (!mapRef.current || !mapLoaded.current) return;
-          const t = (Date.now() % 3000) / 3000; // 3s cycle
-          const scale = 1.0 + 0.25 * Math.sin(t * Math.PI * 2); // 1.0 → 1.25
-          const opacity = 0.6 + 0.4 * Math.cos(t * Math.PI * 2); // 0.2 → 1.0
-          try {
-            if (map.getLayer('cluster-glow')) {
-              map.setLayoutProperty('cluster-glow', 'icon-size', scale);
-              map.setPaintProperty('cluster-glow', 'icon-opacity', opacity);
-            }
-          } catch { }
-          pulseAnimRef.current = requestAnimationFrame(animate);
-        };
-        pulseAnimRef.current = requestAnimationFrame(animate);
-      };
-      startPulse();
       map.addLayer({
         id: 'cluster-count',
         type: 'symbol',
@@ -591,17 +668,30 @@ export default function MapLibreViewer({
 
       addUserLocationLayers(map, darkMode, userLocationRef.current);
 
-      // Click handlers
-      map.on('click', 'unclustered-bg', (e: any) => {
-        if (!e.features || e.features.length === 0) return;
-        const props = e.features[0].properties;
-        if (props?.id) onMuseumClickRef.current(props.id);
-      });
-      map.on('click', 'unclustered-icon', (e: any) => {
-        if (!e.features || e.features.length === 0) return;
-        const props = e.features[0].properties;
-        if (props?.id) onMuseumClickRef.current(props.id);
-      });
+      // Click/touch handlers
+      let lastMuseumClickTime = 0;
+      const handleMuseumTap = (e: any) => {
+        const now = Date.now();
+        if (now < suppressMapClickUntilRef.current) return;
+        if (now - lastMuseumClickTime < 250) return;
+        const point = getEventPoint(e);
+        if (!point) return;
+        if (activePopupRef.current) {
+          e.preventDefault?.();
+          e.originalEvent?.preventDefault?.();
+          suppressMapClickUntilRef.current = Date.now() + 500;
+          activePopupRef.current.remove();
+          activePopupRef.current = null;
+          return;
+        }
+        const feature = getMuseumFeatureAtPoint(map, point, e.features?.[0]);
+        const id = feature?.properties?.id;
+        if (!id) return;
+        lastMuseumClickTime = now;
+        onMuseumClickRef.current(String(id));
+      };
+      map.on('click', 'unclustered-bg', handleMuseumTap);
+      map.on('click', 'unclustered-icon', handleMuseumTap);
       // Cluster click handler — shared across clusters, cluster-count, cluster-glow
       // Deduplicate: multiple overlapping layers fire click simultaneously
       let lastClusterClickTime = 0;
@@ -698,21 +788,15 @@ export default function MapLibreViewer({
           root.render(
             <div className="mm-cluster-popup2" style={{ overscrollBehavior: 'contain' }}>
               <div className="mm-cluster-popup2-head">
-                {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '박물관 및 미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
+                <span>{(() => { const l = localeRef.current; return l === 'ko' ? '박물관 및 미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}</span>
+                <em>{leaves.length}</em>
               </div>
               {listItems}
             </div>
           );
 
           if (geometry.type === 'Point') {
-            // Close previous popup if open
-            if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
-            const popup = new maplibregl.Popup({ closeButton: false, maxWidth: '340px', offset: [0, 10], anchor: 'top' })
-              .setLngLat(geometry.coordinates as [number, number])
-              .setDOMContent(popupNode)
-              .addTo(map);
-            popup.on('close', () => { activePopupRef.current = null; });
-            activePopupRef.current = popup;
+            mountClusterPopup(map, geometry.coordinates as [number, number], popupNode, root);
           }
         }).catch((err) => {
           if (retryCount < 2) {
@@ -722,17 +806,29 @@ export default function MapLibreViewer({
           console.error('[cluster] getClusterLeaves error:', err);
         });
       };
-      map.on('click', 'clusters', handleClusterClick);
-      map.on('click', 'cluster-count', handleClusterClick);
-      map.on('click', 'cluster-glow', handleClusterClick);
       map.on('click', (e: any) => {
+        if (Date.now() < suppressMapClickUntilRef.current) return;
         const point = getEventPoint(e);
         if (!point) return;
-        if (!getClusterFeatureAtPoint(map, point)) {
-          if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+        if (activePopupRef.current) {
+          e.preventDefault?.();
+          e.originalEvent?.preventDefault?.();
+          suppressMapClickUntilRef.current = Date.now() + 500;
+          activePopupRef.current.remove();
+          activePopupRef.current = null;
           return;
         }
-        handleClusterClick({ point, features: [] });
+        const clusterFeature = getClusterFeatureAtPoint(map, point);
+        if (clusterFeature) {
+          handleClusterClick({ point, features: [clusterFeature] });
+          return;
+        }
+        if (getMuseumFeatureAtPoint(map, point)) return;
+        if (onMapPointSelectRef.current) {
+          e.preventDefault?.();
+          e.originalEvent?.preventDefault?.();
+          onMapPointSelectRef.current({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+        }
       });
       if (!clusterTouchHandlerAttachedRef.current) {
         clusterTouchHandlerAttachedRef.current = true;
@@ -740,22 +836,45 @@ export default function MapLibreViewer({
           if ((e.points?.length || 0) > 1) { clusterTouchStartRef.current = null; return; }
           const point = getEventPoint(e);
           clusterTouchStartRef.current = point ? { x: point.x, y: point.y, time: Date.now() } : null;
+          mapTouchStartRef.current = point ? { x: point.x, y: point.y, time: Date.now() } : null;
         });
         map.on('touchend', (e: any) => {
-          const start = clusterTouchStartRef.current;
+          if (Date.now() < suppressMapClickUntilRef.current) return;
+          const start = mapTouchStartRef.current || clusterTouchStartRef.current;
+          mapTouchStartRef.current = null;
           clusterTouchStartRef.current = null;
           const point = getEventPoint(e);
           if (!start || !point) return;
           const dx = point.x - start.x;
           const dy = point.y - start.y;
-          if (Math.hypot(dx, dy) > 14 || Date.now() - start.time > 700) return;
-          if (!getClusterFeatureAtPoint(map, point)) return;
-          handleClusterClick({ point, features: [] });
+          if (Math.hypot(dx, dy) > 28 || Date.now() - start.time > 900) return;
+          const startPoint = { x: start.x, y: start.y };
+          if (activePopupRef.current) {
+            e.preventDefault?.();
+            e.originalEvent?.preventDefault?.();
+            suppressMapClickUntilRef.current = Date.now() + 600;
+            activePopupRef.current.remove();
+            activePopupRef.current = null;
+            return;
+          }
+          const clusterFeature = getClusterFeatureAtPoint(map, point) || getClusterFeatureAtPoint(map, startPoint);
+          if (clusterFeature) {
+            e.preventDefault?.();
+            e.originalEvent?.preventDefault?.();
+            handleClusterClick({ point, features: [clusterFeature] });
+            return;
+          }
+          if (getMuseumFeatureAtPoint(map, point) || getMuseumFeatureAtPoint(map, startPoint)) return;
+          if (onMapPointSelectRef.current && e.lngLat) {
+            e.preventDefault?.();
+            e.originalEvent?.preventDefault?.();
+            onMapPointSelectRef.current({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+          }
         });
       }
 
       // Cursor styles for interactive layers
-      for (const layer of ['clusters', 'cluster-count', 'cluster-glow', 'unclustered-bg']) {
+      for (const layer of ['unclustered-bg', 'unclustered-icon']) {
         map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
       }
@@ -768,10 +887,10 @@ export default function MapLibreViewer({
     darkModeRef.current = darkMode;
     return () => {
       initialResizeTimers.forEach(timer => window.clearTimeout(timer));
+      if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resizeMap);
       window.visualViewport?.removeEventListener('resize', resizeMap);
-      if (pulseAnimRef.current) cancelAnimationFrame(pulseAnimRef.current);
       mapLoaded.current = false;
       map.remove();
       mapRef.current = null;
@@ -847,8 +966,9 @@ export default function MapLibreViewer({
             ['step', ['get', 'point_count'], 'glow-orange-sm', 10, 'glow-orange-md', 50, 'glow-orange-lg'],
             ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'],
           ] as any,
-          'icon-allow-overlap': true, 'icon-size': 1.0,
+          'icon-allow-overlap': true, 'icon-size': 1.08,
         },
+        paint: { 'icon-opacity': 0.64 },
       });
 
       map.addLayer({
@@ -863,22 +983,6 @@ export default function MapLibreViewer({
         },
       });
 
-      // Restart pulse animation
-      if (pulseAnimRef.current) cancelAnimationFrame(pulseAnimRef.current);
-      const animatePulse = () => {
-        if (!mapRef.current || !mapLoaded.current) return;
-        const t = (Date.now() % 3000) / 3000;
-        const scale = 1.0 + 0.25 * Math.sin(t * Math.PI * 2);
-        const opacity = 0.6 + 0.4 * Math.cos(t * Math.PI * 2);
-        try {
-          if (map.getLayer('cluster-glow')) {
-            map.setLayoutProperty('cluster-glow', 'icon-size', scale);
-            map.setPaintProperty('cluster-glow', 'icon-opacity', opacity);
-          }
-        } catch { }
-        pulseAnimRef.current = requestAnimationFrame(animatePulse);
-      };
-      pulseAnimRef.current = requestAnimationFrame(animatePulse);
       map.addLayer({
         id: 'cluster-count', type: 'symbol', source: 'museums', filter: ['has', 'point_count'],
         layout: { 'text-field': '{point_count_abbreviated}', 'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'], 'text-size': 13, 'text-allow-overlap': true },
@@ -913,8 +1017,29 @@ export default function MapLibreViewer({
       addUserLocationLayers(map, darkMode, userLocationRef.current);
 
       // Re-register click handlers
-      map.on('click', 'unclustered-bg', (e: any) => { if (e.features?.[0]?.properties?.id) onMuseumClickRef.current(e.features[0].properties.id); });
-      map.on('click', 'unclustered-icon', (e: any) => { if (e.features?.[0]?.properties?.id) onMuseumClickRef.current(e.features[0].properties.id); });
+      let darkLastMuseumClick = 0;
+      const darkHandleMuseumTap = (e: any) => {
+        const now = Date.now();
+        if (now < suppressMapClickUntilRef.current) return;
+        if (now - darkLastMuseumClick < 250) return;
+        const point = getEventPoint(e);
+        if (!point) return;
+        if (activePopupRef.current) {
+          e.preventDefault?.();
+          e.originalEvent?.preventDefault?.();
+          suppressMapClickUntilRef.current = Date.now() + 500;
+          activePopupRef.current.remove();
+          activePopupRef.current = null;
+          return;
+        }
+        const feature = getMuseumFeatureAtPoint(map, point, e.features?.[0]);
+        const id = feature?.properties?.id;
+        if (!id) return;
+        darkLastMuseumClick = now;
+        onMuseumClickRef.current(String(id));
+      };
+      map.on('click', 'unclustered-bg', darkHandleMuseumTap);
+      map.on('click', 'unclustered-icon', darkHandleMuseumTap);
 
       // Cluster click handler with deduplication (multiple layers overlap)
       let darkLastClusterClick = 0;
@@ -1003,20 +1128,15 @@ export default function MapLibreViewer({
           root.render(
             <div className="mm-cluster-popup2" style={{ overscrollBehavior: 'contain' }}>
               <div className="mm-cluster-popup2-head">
-                {leaves.length} {(() => { const l = localeRef.current; return l === 'ko' ? '박물관 및 미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}
+                <span>{(() => { const l = localeRef.current; return l === 'ko' ? '박물관 및 미술관' : l === 'ja' ? '美術館' : l === 'zh-CN' ? '博物馆' : l === 'zh-TW' ? '博物館' : l === 'de' ? 'Museen' : l === 'fr' ? 'musées' : l === 'es' ? 'museos' : l === 'pt' ? 'museus' : 'Museums'; })()}</span>
+                <em>{leaves.length}</em>
               </div>
               {listItems}
             </div>
           );
 
           if (geometry.type === 'Point') {
-            if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
-            const popup = new maplibregl.Popup({ closeButton: false, maxWidth: '340px', offset: [0, 10], anchor: 'top' })
-              .setLngLat(geometry.coordinates as [number, number])
-              .setDOMContent(popupNode)
-              .addTo(map);
-            popup.on('close', () => { activePopupRef.current = null; });
-            activePopupRef.current = popup;
+            mountClusterPopup(map, geometry.coordinates as [number, number], popupNode, root);
           }
         }).catch((err) => {
           if (retryCount < 2) {
@@ -1026,19 +1146,31 @@ export default function MapLibreViewer({
           console.error('[cluster-dark] getClusterLeaves error:', err);
         });
       };
-      map.on('click', 'clusters', darkHandleClusterClick);
-      map.on('click', 'cluster-count', darkHandleClusterClick);
-      map.on('click', 'cluster-glow', darkHandleClusterClick);
       map.on('click', (e: any) => {
+        if (Date.now() < suppressMapClickUntilRef.current) return;
         const point = getEventPoint(e);
         if (!point) return;
-        if (!getClusterFeatureAtPoint(map, point)) {
-          if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+        if (activePopupRef.current) {
+          e.preventDefault?.();
+          e.originalEvent?.preventDefault?.();
+          suppressMapClickUntilRef.current = Date.now() + 500;
+          activePopupRef.current.remove();
+          activePopupRef.current = null;
           return;
         }
-        darkHandleClusterClick({ point, features: [] });
+        const clusterFeature = getClusterFeatureAtPoint(map, point);
+        if (clusterFeature) {
+          darkHandleClusterClick({ point, features: [clusterFeature] });
+          return;
+        }
+        if (getMuseumFeatureAtPoint(map, point)) return;
+        if (onMapPointSelectRef.current) {
+          e.preventDefault?.();
+          e.originalEvent?.preventDefault?.();
+          onMapPointSelectRef.current({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+        }
       });
-      for (const layer of ['clusters', 'cluster-count', 'cluster-glow', 'unclustered-bg']) {
+      for (const layer of ['unclustered-bg', 'unclustered-icon']) {
         map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
       }
@@ -1082,9 +1214,16 @@ export default function MapLibreViewer({
     mapRef.current.flyTo({
       center: [flyTo.lng, flyTo.lat],
       zoom: flyTo.zoom ?? mapRef.current.getZoom(),
+      offset: flyTo.offset,
       duration: 1500
     });
   }, [flyTo]);
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return (
+    <div
+      ref={mapContainer}
+      className={`mm-maplibre-container w-full h-full ${selectionMode ? 'mm-map-select-mode' : ''}`}
+      style={{ width: '100%', height: '100%', minHeight: 320 }}
+    />
+  );
 }

@@ -30,21 +30,13 @@ export async function GET(req: Request) {
             where: { entityType, entityId, locale },
         });
 
-        if (cached.length > 0) {
-            const translations: Record<string, string> = {};
-            for (const c of cached) {
-                translations[c.field] = c.translated;
-            }
-            return NextResponse.json({ translations, cached: true });
+        const translations: Record<string, string> = {};
+        let partial = false;
+        for (const c of cached) {
+            translations[c.field] = c.translated;
         }
 
-        const ip = getClientIp(req);
-        const { success } = aiLimiter.check(ip);
-        if (!success) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-
-        // No cache — fetch the source entity to translate
-        let fields: Record<string, string> = {};
-        let sourceLang = 'ko'; // Default: translate from Korean
+        const sourceGroups: Array<{ sourceLang: 'ko' | 'en'; fields: Record<string, string> }> = [];
 
         if (entityType === 'story') {
             const story = await (prisma as any).story.findUnique({
@@ -52,73 +44,97 @@ export async function GET(req: Request) {
                 select: { title: true, content: true, titleEn: true, contentEn: true },
             });
             if (!story) return NextResponse.json({ translations: {} });
-            // Use Korean source (title), fallback to English
-            const sourceTitle = story.title || story.titleEn;
-            const sourceContent = (story.content || story.contentEn || '').replace(/<[^>]*>/g, '');
-            fields = { title: sourceTitle, content: sourceContent };
-            sourceLang = 'ko';
+            const koFields: Record<string, string> = {};
+            const enFields: Record<string, string> = {};
+            if (story.title) koFields.title = story.title;
+            else if (story.titleEn) enFields.title = story.titleEn;
+            if (story.content) koFields.content = story.content.replace(/<[^>]*>/g, '');
+            else if (story.contentEn) enFields.content = story.contentEn.replace(/<[^>]*>/g, '');
+            if (Object.keys(koFields).length) sourceGroups.push({ sourceLang: 'ko', fields: koFields });
+            if (Object.keys(enFields).length) sourceGroups.push({ sourceLang: 'en', fields: enFields });
         } else if (entityType === 'museum') {
             const museum = await (prisma as any).museum.findUnique({
                 where: { id: entityId },
                 select: { name: true, nameKo: true, description: true, descriptionKo: true },
             });
             if (!museum) return NextResponse.json({ translations: {} });
-            // Use Korean version if available, otherwise English
-            if (museum.nameKo) {
-                fields.name = museum.nameKo;
-                sourceLang = 'ko';
-            } else if (museum.name) {
-                fields.name = museum.name;
-                sourceLang = 'en';
-            }
-            if (museum.descriptionKo) {
-                fields.description = museum.descriptionKo;
-            } else if (museum.description) {
-                fields.description = museum.description;
-                sourceLang = 'en';
-            }
+            const koFields: Record<string, string> = {};
+            const enFields: Record<string, string> = {};
+            if (museum.nameKo) koFields.name = museum.nameKo;
+            else if (museum.name) enFields.name = museum.name;
+            if (museum.descriptionKo) koFields.description = museum.descriptionKo;
+            else if (museum.description) enFields.description = museum.description;
+            if (Object.keys(koFields).length) sourceGroups.push({ sourceLang: 'ko', fields: koFields });
+            if (Object.keys(enFields).length) sourceGroups.push({ sourceLang: 'en', fields: enFields });
         } else if (entityType === 'artwork') {
             const artwork = await (prisma as any).artwork.findUnique({
                 where: { id: entityId },
-                select: { title: true, artist: true, description: true },
+                select: { title: true, titleKo: true, titleEn: true, artist: true, artistKo: true, artistEn: true, description: true, descriptionKo: true },
             });
             if (!artwork) return NextResponse.json({ translations: {} });
-            if (artwork.title) fields.title = artwork.title;
-            if (artwork.artist) fields.artist = artwork.artist;
-            if (artwork.description) fields.description = artwork.description;
-            sourceLang = 'ko';
+            const koFields: Record<string, string> = {};
+            const enFields: Record<string, string> = {};
+            if (artwork.titleKo) koFields.title = artwork.titleKo;
+            else if (artwork.titleEn || artwork.title) enFields.title = artwork.titleEn || artwork.title;
+            if (artwork.artistKo) koFields.artist = artwork.artistKo;
+            else if (artwork.artistEn || artwork.artist) enFields.artist = artwork.artistEn || artwork.artist;
+            if (artwork.descriptionKo) koFields.description = artwork.descriptionKo;
+            else if (artwork.description) enFields.description = artwork.description;
+            if (Object.keys(koFields).length) sourceGroups.push({ sourceLang: 'ko', fields: koFields });
+            if (Object.keys(enFields).length) sourceGroups.push({ sourceLang: 'en', fields: enFields });
         }
 
-        if (Object.keys(fields).length === 0) {
+        const missingGroups = sourceGroups
+            .map(group => ({
+                sourceLang: group.sourceLang,
+                fields: Object.fromEntries(Object.entries(group.fields).filter(([field]) => !translations[field])) as Record<string, string>,
+            }))
+            .filter(group => Object.keys(group.fields).length > 0);
+
+        if (sourceGroups.length === 0) {
             return NextResponse.json({ translations: {} });
         }
 
-        // Translate with Gemini (batch: all fields in one call)
-        const translated = await batchTranslateWithGemini(fields, sourceLang, locale);
+        if (missingGroups.length === 0) {
+            return NextResponse.json({ translations, cached: true });
+        }
 
-        // Save to DB cache
-        const translations: Record<string, string> = {};
-        for (const [field, text] of Object.entries(translated)) {
-            translations[field] = text;
-            try {
-                await (prisma as any).translationCache.upsert({
-                    where: {
-                        entityType_entityId_field_locale: {
-                            entityType, entityId, field, locale,
+        const ip = getClientIp(req);
+        const { success } = aiLimiter.check(ip);
+        if (!success) return NextResponse.json({ translations, cached: cached.length > 0, partial: true });
+
+        for (const group of missingGroups) {
+            const translated = await batchTranslateWithGemini(group.fields, group.sourceLang, locale);
+            for (const [field, text] of Object.entries(translated)) {
+                if (!text || text === group.fields[field]) {
+                    partial = true;
+                    continue;
+                }
+                translations[field] = text;
+                try {
+                    await (prisma as any).translationCache.upsert({
+                        where: {
+                            entityType_entityId_field_locale: {
+                                entityType, entityId, field, locale,
+                            },
                         },
-                    },
-                    update: { translated: text },
-                    create: { entityType, entityId, field, locale, translated: text },
-                });
-            } catch (e) {
-                console.error('[TranslationCache] Save error:', e);
+                        update: { translated: text },
+                        create: { entityType, entityId, field, locale, translated: text },
+                    });
+                } catch (e) {
+                    partial = true;
+                    console.error('[TranslationCache] Save error:', e);
+                }
+            }
+            for (const field of Object.keys(group.fields)) {
+                if (!translations[field]) partial = true;
             }
         }
 
-        return NextResponse.json({ translations, cached: false });
+        return NextResponse.json({ translations, cached: cached.length > 0, completed: !partial, partial });
     } catch (error) {
         console.error('[Translations API] Error:', error);
-        return NextResponse.json({ translations: {} });
+        return NextResponse.json({ translations: {}, partial: true, error: true });
     }
 }
 

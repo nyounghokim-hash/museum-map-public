@@ -56,7 +56,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
                 height: 630,
                 alt: title,
             }] : [{
-                url: `${SITE_URL}/og-image.png?v=2`,
+                url: `${SITE_URL}/og-image.png?v=3`,
                 width: 1200,
                 height: 630,
                 alt: 'Museum Map',
@@ -67,7 +67,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
             card: 'summary_large_image',
             title,
             description,
-            images: museum.imageUrl ? [museum.imageUrl] : [`${SITE_URL}/og-image.png?v=2`],
+            images: museum.imageUrl ? [museum.imageUrl] : [`${SITE_URL}/og-image.png?v=3`],
         },
         robots: { index: true, follow: true },
     };

@@ -41,7 +41,7 @@ export default function MainContent({ children }: { children: React.ReactNode })
             : 'mm-editorial-shell';
 
     return (
-        <main key={isNavPage ? pathname : undefined} className={`flex-1 flex flex-col relative w-full h-full ${shellClass} ${navHidden ? '' : 'pb-[56px]'} lg:pb-0 ${isNavPage ? 'animate-fadeInUp' : ''}`}>
+        <main key={isNavPage ? pathname : undefined} className={`flex-1 flex flex-col relative w-full h-full ${shellClass} ${navHidden ? '' : 'pb-[56px]'} md:pb-0 ${isNavPage ? 'animate-fadeInUp' : ''}`}>
             {children}
         </main>
     );

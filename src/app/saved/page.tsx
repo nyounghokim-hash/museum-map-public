@@ -16,6 +16,8 @@ type L = Record<string, string>;
 const ui: Record<string, L> = {
     tabSaved: { ko: '내 픽', en: 'My Pick', ja: 'お気に入り', de: 'Gespeichert', fr: 'Favoris', es: 'Guardados', pt: 'Salvos', 'zh-CN': '收藏', 'zh-TW': '收藏', da: 'Gemt', fi: 'Tallennettu', sv: 'Sparade', et: 'Salvestatud' },
     tabHistory: { ko: '살펴보기', en: 'Explored', ja: '閲覧履歴', de: 'Verlauf', fr: 'Consultés', es: 'Explorados', pt: 'Explorados', 'zh-CN': '浏览记录', 'zh-TW': '瀏覽紀錄', da: 'Udforsket', fi: 'Selattu', sv: 'Utforskade', et: 'Vaadatud' },
+    kickerSaved: { ko: 'MY PICK', en: 'MY PICK', ja: 'MY PICK', de: 'MY PICK', fr: 'MY PICK', es: 'MY PICK', pt: 'MY PICK', 'zh-CN': 'MY PICK', 'zh-TW': 'MY PICK', da: 'MY PICK', fi: 'MY PICK', sv: 'MY PICK', et: 'MY PICK' },
+    kickerHistory: { ko: 'HISTORY', en: 'HISTORY', ja: 'HISTORY', de: 'HISTORY', fr: 'HISTORY', es: 'HISTORY', pt: 'HISTORY', 'zh-CN': 'HISTORY', 'zh-TW': 'HISTORY', da: 'HISTORY', fi: 'HISTORY', sv: 'HISTORY', et: 'HISTORY' },
     sortNewest: { ko: '최신순', en: 'Newest', ja: '新しい順', de: 'Neueste', fr: 'Récents', es: 'Recientes', pt: 'Recentes', 'zh-CN': '最新', 'zh-TW': '最新', da: 'Nyeste', fi: 'Uusimmat', sv: 'Senaste', et: 'Uusimad' },
     sortRating: { ko: '별점순', en: 'Top Rated', ja: '評価順', de: 'Bestbewertet', fr: 'Mieux notés', es: 'Mejor valorados', pt: 'Melhor avaliados', 'zh-CN': '评分最高', 'zh-TW': '評分最高', da: 'Bedst bedømt', fi: 'Parhaat', sv: 'Bäst betyg', et: 'Parimad' },
     sortAlpha: { ko: '가나다순', en: 'A-Z', ja: '名前順', de: 'A-Z', fr: 'A-Z', es: 'A-Z', pt: 'A-Z', 'zh-CN': '字母顺序', 'zh-TW': '字母順序', da: 'A-Z', fi: 'A-Ö', sv: 'A-Ö', et: 'A-Z' },
@@ -24,6 +26,13 @@ const ui: Record<string, L> = {
     noHistory: { ko: '아직 최근에 본 미술관이 없어요', en: 'No museums explored yet', ja: 'まだ閲覧した美術館はありません', de: 'Noch keine Museen erkundet', fr: 'Aucun musée consulté', es: 'Aún no has explorado museos', pt: 'Nenhum museu explorado', 'zh-CN': '暂无浏览记录', 'zh-TW': '暫無瀏覽紀錄', da: 'Ingen museer udforsket endnu', fi: 'Ei selattuja museoita', sv: 'Inga utforskade museer', et: 'Pole veel vaadatud muuseume' },
     clearHistory: { ko: '기록 삭제', en: 'Clear', ja: '履歴削除', de: 'Löschen', fr: 'Effacer', es: 'Borrar', pt: 'Limpar', 'zh-CN': '清除', 'zh-TW': '清除', da: 'Ryd', fi: 'Tyhjennä', sv: 'Rensa', et: 'Tühjenda' },
     clearHistoryConfirm: { ko: '최근에 본 미술관 기록을 모두 삭제할까요?\n삭제하면 다시 복구할 수 없어요.', en: 'Clear all recently explored museum records?\nThis action cannot be undone.', ja: '最近閲覧した美術館の履歴をすべて削除しますか？\nこの操作は元に戻せません。', de: 'Alle kürzlich erkundeten Museen löschen?\nDiese Aktion kann nicht rückgängig gemacht werden.', fr: 'Effacer tout l\'historique des musées consultés ?\nCette action est irréversible.', es: '¿Eliminar todo el historial de museos explorados?\nEsta acción no se puede deshacer.', pt: 'Limpar todo o histórico de museus explorados?\nEsta ação não pode ser desfeita.', 'zh-CN': '清除所有最近浏览的博物馆记录？\n此操作无法撤销。', 'zh-TW': '清除所有最近瀏覽的博物館紀錄？\n此操作無法撤銷。', da: 'Ryd alle nyligt udforskede museer?\nDenne handling kan ikke fortrydes.', fi: 'Tyhjennä kaikki viimeksi selatut museot?\nToimintoa ei voi kumota.', sv: 'Rensa alla nyligen utforskade museer?\nDenna åtgärd kan inte ångras.', et: 'Kustuta kõik hiljuti vaadatud muuseumid?\nSeda toimingut ei saa tagasi võtta.' },
+    choosePlaces: { ko: '장소 고르기', en: 'Choose places', ja: '場所を選ぶ', de: 'Orte wählen', fr: 'Choisir des lieux', es: 'Elegir lugares', pt: 'Escolher lugares', 'zh-CN': '选择地点', 'zh-TW': '選擇地點', da: 'Vælg steder', fi: 'Valitse kohteet', sv: 'Välj platser', et: 'Vali kohad' },
+    doneChoosing: { ko: '고르기 완료', en: 'Done', ja: '完了', de: 'Fertig', fr: 'Terminé', es: 'Listo', pt: 'Concluir', 'zh-CN': '完成', 'zh-TW': '完成', da: 'Færdig', fi: 'Valmis', sv: 'Klar', et: 'Valmis' },
+    savedSection: { ko: '내 픽한 곳', en: 'Picked places', ja: '選んだ場所', de: 'Ausgewählte Orte', fr: 'Lieux choisis', es: 'Lugares elegidos', pt: 'Locais escolhidos', 'zh-CN': '已收藏地点', 'zh-TW': '已收藏地點', da: 'Valgte steder', fi: 'Valitut kohteet', sv: 'Valda platser', et: 'Valitud kohad' },
+    quickTitle: { ko: '여행 준비', en: 'Plan a trip', ja: '旅の準備', de: 'Reise planen', fr: 'Préparer le voyage', es: 'Preparar viaje', pt: 'Preparar viagem', 'zh-CN': '准备行程', 'zh-TW': '準備行程', da: 'Planlæg tur', fi: 'Suunnittele matka', sv: 'Planera resa', et: 'Planeeri reis' },
+    quickBodyIdle: { ko: '여행에 넣을 곳을 고르면 보기 좋은 순서로 경로를 만들 수 있어요.', en: 'Choose places to build a route in a helpful order.', ja: '行きたい場所を選ぶと、回りやすい順にルートを作れます。', de: 'Wählen Sie Orte, um eine sinnvolle Route zu erstellen.', fr: 'Choisissez des lieux pour créer un itinéraire clair.', es: 'Elige lugares para crear una ruta ordenada.', pt: 'Escolha locais para criar uma rota organizada.', 'zh-CN': '选择地点后，可生成更顺路的行程。', 'zh-TW': '選擇地點後，可生成更順路的行程。', da: 'Vælg steder for at lave en god rute.', fi: 'Valitse kohteet, niin reitti järjestetään selkeästi.', sv: 'Välj platser för att skapa en smart rutt.', et: 'Vali kohad, et luua mugav marsruut.' },
+    quickBodySelected: { ko: '고른 곳으로 바로 여행 경로를 만들 수 있어요.', en: 'Create a trip route from the places you chose.', ja: '選んだ場所で旅行ルートを作れます。', de: 'Erstellen Sie eine Route aus Ihren gewählten Orten.', fr: 'Créez un itinéraire avec les lieux choisis.', es: 'Crea una ruta con los lugares elegidos.', pt: 'Crie uma rota com os locais escolhidos.', 'zh-CN': '可用所选地点生成行程。', 'zh-TW': '可用所選地點生成行程。', da: 'Lav en rute med de valgte steder.', fi: 'Luo reitti valituista kohteista.', sv: 'Skapa en rutt med valda platser.', et: 'Loo marsruut valitud kohtadest.' },
+    comparePicked: { ko: '비교하기', en: 'Compare', ja: '比較する', de: 'Vergleichen', fr: 'Comparer', es: 'Comparar', pt: 'Comparar', 'zh-CN': '比较', 'zh-TW': '比較', da: 'Sammenlign', fi: 'Vertaa', sv: 'Jämför', et: 'Võrdle' },
 };
 const g = (key: string, locale: string) => ui[key]?.[locale] || ui[key]?.['en'] || key;
 
@@ -204,23 +213,21 @@ export default function SavedPage() {
                     </>
                 ) : (
                     <>
-                        <div className="mm-gallery-kicker mb-3">{activeTab === 'saved' ? 'Saved Route' : 'Museum Log'}</div>
+                        <div className="mm-gallery-kicker mb-3">{activeTab === 'saved' ? g('kickerSaved', locale) : g('kickerHistory', locale)}</div>
                         <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{t('saved.title', locale)}</h1>
                         <p className="text-blue-100/80 mt-2 text-sm font-medium">{t('saved.subtitle', locale)}</p>
+                        <div className="flex mt-5 gap-2 overflow-x-auto scrollbar-hide">
+                            <button onClick={() => { setActiveTab('saved'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`mm-gallery-chip mm-saved-mode-chip ${activeTab === 'saved' ? 'is-active' : ''}`}>
+                                <svg className="w-4 h-4 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
+                                {g('tabSaved', locale)}
+                            </button>
+                            <button onClick={() => { setActiveTab('history'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`mm-gallery-chip mm-saved-mode-chip ${activeTab === 'history' ? 'is-active' : ''}`}>
+                                <svg className="w-4 h-4 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                {g('tabHistory', locale)}
+                            </button>
+                        </div>
                     </>
                 )}
-            </div>
-
-            {/* Blue Toggle Tabs */}
-            <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide">
-                <button onClick={() => { setActiveTab('saved'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`mm-gallery-chip ${activeTab === 'saved' ? 'is-active' : ''}`}>
-                    <svg className="w-4 h-4 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" /></svg>
-                    {g('tabSaved', locale)}
-                </button>
-                <button onClick={() => { setActiveTab('history'); setIsSelectMode(false); setSelectedMuseums(new Set()); }} className={`mm-gallery-chip ${activeTab === 'history' ? 'is-active' : ''}`}>
-                    <svg className="w-4 h-4 inline -mt-0.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    {g('tabHistory', locale)}
-                </button>
             </div>
 
             {/* Controls Bar: Select (saved tab only) + Sort Filter */}
@@ -231,7 +238,7 @@ export default function SavedPage() {
                             onClick={() => { setIsSelectMode(!isSelectMode); if (isSelectMode) setSelectedMuseums(new Set()); }}
                             className={`mm-gallery-chip ${isSelectMode ? 'is-active' : ''}`}
                         >
-                            {isSelectMode ? t('modal.cancel', locale) || 'Cancel' : t('global.select', locale)}
+                            {isSelectMode ? g('doneChoosing', locale) : g('choosePlaces', locale)}
                         </button>
                     )}
                     {activeTab === 'history' && historyMuseums.length > 0 && (
@@ -299,7 +306,7 @@ export default function SavedPage() {
             </div>
 
             <div className="mm-section-heading">
-                <h2>{activeTab === 'saved' ? (locale === 'ko' ? '방문 후보' : 'Saved places') : (locale === 'ko' ? '최근 살펴본 곳' : 'Recently explored')}</h2>
+                <h2>{activeTab === 'saved' ? g('savedSection', locale) : (locale === 'ko' ? '최근 살펴본 곳' : 'Recently explored')}</h2>
                 <span>{displayItems.length.toLocaleString()} {locale === 'ko' ? '곳' : 'places'}</span>
             </div>
 
@@ -319,7 +326,7 @@ export default function SavedPage() {
                     ))}
                 </div>
             ) : displayItems.length > 0 ? (
-                <div className="mm-list-surface">
+                <div className="mm-list-surface mm-saved-list-surface">
                     {displayItems.map((item: any, i: number) => {
                         const museum = getMuseum(item);
                         const itemId = activeTab === 'saved' ? item.id : museum.id;
@@ -359,9 +366,9 @@ export default function SavedPage() {
                                         </div>
                                     )}
                                     {isSelectMode && activeTab === 'saved' && (
-                                        <div className={`absolute inset-0 rounded-2xl border-2 flex items-center justify-center transition-all duration-300 ${selectedMuseums.has(museum.id) ? 'bg-blue-600/80 border-blue-200 shadow-lg shadow-blue-500/30' : 'bg-black/10 backdrop-blur-[1px] border-white/60'}`}>
+                                        <div className={`mm-pick-select-dot ${selectedMuseums.has(museum.id) ? 'is-selected' : ''}`}>
                                             {selectedMuseums.has(museum.id) && (
-                                                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                                                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                                             )}
                                         </div>
                                     )}
@@ -374,9 +381,6 @@ export default function SavedPage() {
                                     <h3 className="font-black text-[15px] sm:text-base dark:text-white capitalize truncate mt-0.5">{getLocalizedMuseumName(museum, locale)}</h3>
                                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 truncate mt-1">{getLocalizedCityName(museum, locale) || getCityName(museum.city, locale)}, {getCountryName(museum.country, locale)}</p>
                                 </div>
-                                {activeTab === 'saved' && (
-                                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center font-black">✓</span>
-                                )}
                             </button>
                         );
                     })}
@@ -397,16 +401,25 @@ export default function SavedPage() {
             {activeTab === 'saved' && displayItems.length > 0 && (
                 <>
                     <div className="mm-section-heading">
-                        <h2>{locale === 'ko' ? '빠른 행동' : 'Quick actions'}</h2>
+                        <h2>{g('quickTitle', locale)}</h2>
                     </div>
                     <div className="mm-decision-panel2 p-4">
-                        <p className="text-sm font-black text-slate-900 dark:text-white">{locale === 'ko' ? '선택한 장소로 여행 동선을 만들 수 있어요.' : 'Create a trip route from selected places.'}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedMuseums.size > 0 ? g('quickBodySelected', locale) : g('quickBodyIdle', locale)}</p>
                         <div className="grid grid-cols-2 gap-2 mt-3">
-                            <button onClick={handleCreateAutoRoute} className="h-11 rounded-2xl bg-blue-600 text-white text-sm font-black active:scale-95 transition-all">
-                                {t('saved.createAutoRoute', locale)}
+                            <button onClick={selectedMuseums.size > 0 ? handleCreateAutoRoute : () => setIsSelectMode(true)} className="h-11 rounded-2xl bg-blue-600 text-white text-sm font-semibold active:scale-95 transition-all">
+                                {selectedMuseums.size > 0 ? t('saved.createAutoRoute', locale) : g('choosePlaces', locale)}
                             </button>
-                            <button onClick={() => setIsSelectMode(true)} className="h-11 rounded-2xl bg-white text-slate-700 border border-blue-100 text-sm font-black active:scale-95 transition-all">
-                                {t('global.select', locale)}
+                            <button onClick={() => {
+                                if (selectedMuseums.size === 0) { setIsSelectMode(true); return; }
+                                const ids = Array.from(selectedMuseums);
+                                const available = Math.max(0, 3 - compareCount);
+                                if (available === 0) { showAlert(t('compare.full', locale)); return; }
+                                ids.slice(0, available).forEach(id => addToCompare(id));
+                                setSelectedMuseums(new Set());
+                                setIsSelectMode(false);
+                                router.push('/compare');
+                            }} className="h-11 rounded-2xl bg-white text-slate-700 border border-blue-100 text-sm font-semibold active:scale-95 transition-all dark:bg-slate-900 dark:text-slate-100 dark:border-blue-900/50">
+                                {g('comparePicked', locale)}
                             </button>
                         </div>
                     </div>

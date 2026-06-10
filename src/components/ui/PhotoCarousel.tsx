@@ -173,7 +173,8 @@ export default function PhotoCarousel({ photos, alt, className = '', children }:
         <div
             ref={zoomOverlayRef}
             data-photo-zoom
-            className="fixed inset-0 z-[9999] bg-black flex items-center justify-center animate-fadeIn"
+            data-mm-dim-blur
+            className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center animate-fadeIn"
             style={{ touchAction: 'none', overscrollBehavior: 'none' }}
         >
             <button

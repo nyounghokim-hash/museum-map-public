@@ -3,16 +3,19 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 're
 import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
 import type { Locale } from '@/lib/i18n';
+import { fetchLocationLabel } from '@/lib/locationLabel';
 
 interface Props {
     isOpen: boolean;
+    closing?: boolean;
     onClose: () => void;
-    anchor?: 'left' | 'right';
+    anchor?: 'left' | 'right' | 'before';
     vertical?: 'below' | 'above';
     mode?: 'popover' | 'fixed-bottom';
     triggerRef?: RefObject<HTMLElement | null>;
-    initialWeather?: { temp: number; code: number } | null;
-    onWeatherLoaded?: (weather: { temp: number; code: number }) => void;
+    initialWeather?: { temp: number; code: number; cityName?: string } | null;
+    onWeatherLoaded?: (weather: { temp: number; code: number; cityName?: string }) => void;
+    locationOverride?: { lat: number; lng: number } | null;
 }
 
 // WMO weather codes → icon + label + indoor recommendation
@@ -97,6 +100,11 @@ const WEATHER_UI: Record<string, Record<Locale, string>> = {
         fr: 'Fourni par Open-Meteo', es: 'Con datos de Open-Meteo', pt: 'Fornecido por Open-Meteo',
         'zh-CN': '数据来源：Open-Meteo', 'zh-TW': '資料來源：Open-Meteo', da: 'Leveret af Open-Meteo',
         fi: 'Lähde: Open-Meteo', sv: 'Drivs av Open-Meteo', et: 'Allikas: Open-Meteo',
+    },
+    basedOn: {
+        en: 'Weather for', ko: '날씨 기준', ja: '天気の基準', de: 'Wetter für', fr: 'Météo pour',
+        es: 'Clima de', pt: 'Clima para', 'zh-CN': '天气位置', 'zh-TW': '天氣位置',
+        da: 'Vejr for', fi: 'Sää sijainnille', sv: 'Väder för', et: 'Ilm asukohas',
     },
 };
 
@@ -196,13 +204,14 @@ function TreeIcon({ className }: { className?: string }) {
     );
 }
 
-export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef, initialWeather, onWeatherLoaded }: Props) {
+export default function WeatherPopup({ isOpen, closing = false, onClose, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef, initialWeather, onWeatherLoaded, locationOverride }: Props) {
     const { locale } = useApp();
     type State = 'idle' | 'loading' | 'ready' | 'error' | 'denied';
     const [state, setState] = useState<State>('idle');
     const [data, setData] = useState<{ temp: number; code: number; cityName?: string } | null>(null);
     const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties | null>(null);
     const panelRef = useRef<HTMLDivElement>(null);
+    const loadedLocationKeyRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -223,10 +232,18 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
             if (!rect) return;
             const popupWidth = Math.min(320, window.innerWidth - 24);
             const gap = 8;
+            const estimatedHeight = Math.min(390, window.innerHeight - 120);
+            const bottomSafe = window.innerWidth < 768 ? 118 : 24;
+            const maxTop = Math.max(12, window.innerHeight - estimatedHeight - bottomSafe);
             const style: React.CSSProperties = { position: 'fixed', width: popupWidth };
-            if (vertical === 'below') style.top = Math.round(rect.bottom + gap);
-            else style.bottom = Math.round(window.innerHeight - rect.top + gap);
-            const desiredLeft = anchor === 'right' ? rect.right - popupWidth : rect.left;
+            if (anchor === 'before') style.top = Math.min(Math.max(12, Math.round(rect.top)), maxTop);
+            else if (vertical === 'below') style.top = Math.min(Math.max(12, Math.round(rect.bottom + gap)), maxTop);
+            else style.bottom = Math.max(bottomSafe, Math.round(window.innerHeight - rect.top + gap));
+            const desiredLeft = anchor === 'before'
+                ? rect.left - popupWidth - gap
+                : anchor === 'right'
+                    ? rect.right - popupWidth
+                    : rect.left;
             style.left = Math.max(12, Math.min(desiredLeft, window.innerWidth - popupWidth - 12));
             setPopoverStyle(style);
         };
@@ -249,7 +266,29 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
 
     useEffect(() => {
         if (!isOpen) return;
-        if (state === 'ready' && data) return;
+        const locationKey = `${locale}:${locationOverride ? `${locationOverride.lat.toFixed(5)},${locationOverride.lng.toFixed(5)}` : 'device'}`;
+        if (state === 'ready' && data && loadedLocationKeyRef.current === locationKey) return;
+        const fetchByLocation = async (location: { lat: number; lng: number }) => {
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lng}&current=temperature_2m,weather_code&timezone=auto`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('weather fetch failed');
+            const json = await res.json();
+            const label = await fetchLocationLabel(location, locale);
+            const nextWeather = {
+                temp: json.current.temperature_2m,
+                code: json.current.weather_code,
+                cityName: label.region,
+            };
+            setData(nextWeather);
+            onWeatherLoaded?.(nextWeather);
+            loadedLocationKeyRef.current = locationKey;
+            setState('ready');
+        };
+        if (locationOverride) {
+            setState('loading');
+            fetchByLocation(locationOverride).catch(() => setState('error'));
+            return;
+        }
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
             setState('error');
             return;
@@ -258,17 +297,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
         navigator.geolocation.getCurrentPosition(
             async (pos) => {
                 try {
-                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current=temperature_2m,weather_code&timezone=auto`;
-                    const res = await fetch(url);
-                    if (!res.ok) throw new Error('weather fetch failed');
-                    const json = await res.json();
-                    const nextWeather = {
-                        temp: json.current.temperature_2m,
-                        code: json.current.weather_code,
-                    };
-                    setData(nextWeather);
-                    onWeatherLoaded?.(nextWeather);
-                    setState('ready');
+                    await fetchByLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
                 } catch {
                     setState('error');
                 }
@@ -276,7 +305,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
             () => setState('denied'),
             { enableHighAccuracy: false, timeout: 8000, maximumAge: 300_000 }
         );
-    }, [isOpen, state, data, onWeatherLoaded]);
+    }, [isOpen, state, data, onWeatherLoaded, locale, locationOverride?.lat, locationOverride?.lng]);
 
     if (!isOpen) return null;
     if (mode === 'popover' && !popoverStyle) return null;
@@ -284,7 +313,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
     const info = data ? resolveWeather(data.code) : null;
     const headerText = weatherUi('title', locale);
 
-    const commonClass = 'mm-weather-popup2 glass-popup rounded-2xl z-[9999] animate-fadeInUp overflow-hidden';
+    const commonClass = `mm-weather-popup2 mm-map-popover-motion glass-popup rounded-2xl z-[9999] overflow-hidden ${closing ? 'is-closing' : ''}`;
     const panel = (
         <div
             ref={panelRef}
@@ -300,13 +329,20 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
         >
             <div className="mm-weather-popup2-head relative flex items-center justify-between px-4 py-3">
                 <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'var(--gradient-border-subtle)' }} />
-                <h3 className="flex min-w-0 items-center gap-2 text-sm font-extrabold" style={{ color: 'var(--mm-text-primary)' }}>
+                <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold" style={{ color: 'var(--mm-text-primary)' }}>
                     <span className="mm-weather-popup2-head-icon inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                         </svg>
                     </span>
-                    {headerText}
+                    <span className="min-w-0">
+                        <span className="block truncate">{headerText}</span>
+                        {data?.cityName && (
+                            <small className="mm-weather-popup2-location block truncate">
+                                {weatherUi('basedOn', locale)} · {data.cityName}
+                            </small>
+                        )}
+                    </span>
                 </h3>
                 <button
                     onClick={onClose}
@@ -323,18 +359,18 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
                 {state === 'loading' && (
                     <div className="flex items-center justify-center gap-3 py-8">
                         <div className="h-5 w-5 rounded-full border-2 border-blue-300 border-t-blue-600 animate-spin" />
-                        <span className="text-xs font-bold" style={{ color: 'var(--mm-text-secondary)' }}>
+                        <span className="text-xs font-medium" style={{ color: 'var(--mm-text-secondary)' }}>
                             {headerText}
                         </span>
                     </div>
                 )}
                 {state === 'denied' && (
-                    <p className="rounded-xl px-3 py-4 text-center text-xs font-bold" style={{ background: 'var(--mm-brand-bg)', color: 'var(--mm-brand)' }}>
+                    <p className="rounded-xl px-3 py-4 text-center text-xs font-medium" style={{ background: 'var(--mm-brand-bg)', color: 'var(--mm-brand)' }}>
                         {weatherUi('locationRequired', locale)}
                     </p>
                 )}
                 {state === 'error' && (
-                    <p className="rounded-xl px-3 py-4 text-center text-xs font-bold text-gray-600 dark:text-gray-300" style={{ background: 'var(--mm-surface-secondary)' }}>
+                    <p className="rounded-xl px-3 py-4 text-center text-xs font-medium text-gray-600 dark:text-gray-300" style={{ background: 'var(--mm-surface-secondary)' }}>
                         {weatherUi('loadError', locale)}
                     </p>
                 )}
@@ -353,14 +389,14 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
                                 <div className="mm-weather-popup2-temp font-mono text-4xl font-black leading-none">
                                     {Math.round(data.temp)}°
                                 </div>
-                                <div className="mm-weather-popup2-label mt-1 truncate text-xs font-bold">
+                                <div className="mm-weather-popup2-label mt-1 truncate text-xs font-medium">
                                     {weatherLabel(data.code, locale)}
                                 </div>
                             </div>
                         </div>
                         {info.indoor ? (
                             <div className="mm-weather-popup2-rec rounded-2xl border p-3">
-                                <p className="mb-1 flex items-center gap-2 text-xs font-extrabold">
+                                <p className="mb-1 flex items-center gap-2 text-xs font-semibold">
                                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/70 dark:bg-white/10">
                                         <UmbrellaIcon className="h-3.5 w-3.5" />
                                     </span>
@@ -372,7 +408,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
                             </div>
                         ) : (
                             <div className="mm-weather-popup2-rec rounded-2xl border p-3">
-                                <p className="mb-1 flex items-center gap-2 text-xs font-extrabold">
+                                <p className="mb-1 flex items-center gap-2 text-xs font-semibold">
                                     <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/75 text-blue-600 dark:bg-white/10 dark:text-blue-200">
                                         <TreeIcon className="h-3.5 w-3.5" />
                                     </span>
@@ -383,7 +419,7 @@ export default function WeatherPopup({ isOpen, onClose, anchor = 'left', vertica
                                 </p>
                             </div>
                         )}
-                        <p className="mt-3 text-center text-[10px] font-bold" style={{ color: 'var(--mm-text-tertiary)' }}>
+                        <p className="mm-weather-popup2-provider mt-3 text-center text-[10px] font-medium" style={{ color: 'var(--mm-text-tertiary)' }}>
                             {weatherUi('powered', locale)}
                         </p>
                     </>

@@ -55,6 +55,32 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         })),
     }), []);
 
+    const buildRouteBounds = useCallback((s: RouteStop[]) => {
+        const lngs = s.map(st => Number(st.longitude) || 0);
+        const lats = s.map(st => Number(st.latitude) || 0);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const lngSpan = maxLng - minLng;
+        const latSpan = maxLat - minLat;
+
+        if (lngSpan === 0 && latSpan === 0) {
+            const pointBuffer = 0.01;
+            return new maplibregl.LngLatBounds(
+                [minLng - pointBuffer, minLat - pointBuffer],
+                [maxLng + pointBuffer, maxLat + pointBuffer]
+            );
+        }
+
+        const lngBuffer = Math.min(Math.max(lngSpan * 0.16, 0.0025), 0.035);
+        const latBuffer = Math.min(Math.max(latSpan * 0.16, 0.0025), 0.035);
+        return new maplibregl.LngLatBounds(
+            [minLng - lngBuffer, minLat - latBuffer],
+            [maxLng + lngBuffer, maxLat + latBuffer]
+        );
+    }, []);
+
     const addRouteLayers = (map: maplibregl.Map, stopsData: RouteStop[]) => {
         for (const id of ['watername_ocean', 'watername_sea']) {
             if (map.getLayer(id)) try { map.removeLayer(id); } catch { }
@@ -95,18 +121,13 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         if (!mapContainer.current || mapRef.current) return;
         if (!validStops || validStops.length === 0) return;
 
-        const lngs = validStops.map(s => Number(s.longitude) || 0);
-        const lats = validStops.map(s => Number(s.latitude) || 0);
-        const bounds = new maplibregl.LngLatBounds(
-            [Math.min(...lngs) - 0.1, Math.min(...lats) - 0.1],
-            [Math.max(...lngs) + 0.1, Math.max(...lats) + 0.1]
-        );
+        const bounds = buildRouteBounds(validStops);
 
         const map = new maplibregl.Map({
             container: mapContainer.current,
             style: darkMode ? DARK_STYLE : LIGHT_STYLE,
             bounds,
-            fitBoundsOptions: { padding: resolvedPadding },
+            fitBoundsOptions: { padding: resolvedPadding, maxZoom: 14.5 },
             minZoom: 2,
         });
 
@@ -128,7 +149,7 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         mapRef.current = map;
         return () => { map.remove(); mapRef.current = null; initializedRef.current = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [buildRouteBounds]);
 
     const darkModeRef = useRef(darkMode);
     useEffect(() => {
@@ -152,14 +173,8 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
     useEffect(() => {
         const map = mapRef.current;
         if (!map || !initializedRef.current || validStops.length === 0) return;
-        const lngs = validStops.map(s => Number(s.longitude) || 0);
-        const lats = validStops.map(s => Number(s.latitude) || 0);
-        const bounds = new maplibregl.LngLatBounds(
-            [Math.min(...lngs) - 0.05, Math.min(...lats) - 0.05],
-            [Math.max(...lngs) + 0.05, Math.max(...lats) + 0.05]
-        );
-        map.fitBounds(bounds, { padding: resolvedPadding, duration: 600 });
-    }, [resolvedPadding.top, resolvedPadding.bottom, resolvedPadding.left, resolvedPadding.right, validStops.length]);
+        map.fitBounds(buildRouteBounds(validStops), { padding: resolvedPadding, duration: 600, maxZoom: 14.5 });
+    }, [resolvedPadding.top, resolvedPadding.bottom, resolvedPadding.left, resolvedPadding.right, validStops.length, buildRouteBounds]);
 
     return <div ref={mapContainer} className="w-full h-full" />;
 }

@@ -96,9 +96,11 @@ export async function PUT(req: NextRequest) {
 
         if (!id) return errorResponse('BAD_REQUEST', 'Museum ID is required', 400);
 
-        // Explicitly pick only allowed Museum fields to avoid Prisma errors
+        // Explicitly pick only allowed Museum fields to avoid Prisma errors.
+        // Prisma's @updatedAt keeps the public "최근 업데이트" chip in sync when
+        // visit information, operating hours, or photos change through admin.
         const updateData: any = {};
-        const allowedFields = ['name', 'nameKo', 'description', 'descriptionKo', 'country', 'city', 'cityKo', 'type', 'latitude', 'longitude', 'imageUrl', 'website', 'popularityScore', 'visitorInfo', 'placePhotos'];
+        const allowedFields = ['name', 'nameKo', 'description', 'descriptionKo', 'country', 'city', 'cityKo', 'type', 'latitude', 'longitude', 'imageUrl', 'website', 'popularityScore', 'visitorInfo', 'openingHours', 'placePhotos', 'cachedPhotoUrls', 'lastPhotoSync', 'lastSyncedAt', 'sourceAttribution', 'primaryImageSource', 'primaryImageLicense', 'primaryImageAttribution'];
         for (const field of allowedFields) {
             if (body[field] !== undefined) {
                 updateData[field] = body[field];

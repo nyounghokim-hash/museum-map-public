@@ -2,12 +2,42 @@ import { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import { t } from '@/lib/i18n';
 import Link from 'next/link';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import BlogContentClient from './BlogContentClient';
 import { getMuseumImageSrc, isRenderableUrl } from '@/lib/getMuseumImage';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 
 const SITE_URL = 'https://museummap.app';
+const VALID_LOCALES = ['en', 'ko', 'ja', 'de', 'fr', 'es', 'pt', 'zh-CN', 'zh-TW', 'da', 'fi', 'sv', 'et'] as const;
+type SupportedLocale = typeof VALID_LOCALES[number];
+
+function normalizeLocale(value: string | null | undefined): SupportedLocale | null {
+    if (!value) return null;
+    const normalized = value.trim();
+    if ((VALID_LOCALES as readonly string[]).includes(normalized)) return normalized as SupportedLocale;
+    const lower = normalized.toLowerCase();
+    if (lower.startsWith('zh-cn') || lower.startsWith('zh-hans')) return 'zh-CN';
+    if (lower.startsWith('zh-tw') || lower.startsWith('zh-hant') || lower.startsWith('zh-hk')) return 'zh-TW';
+    const short = lower.split('-')[0];
+    return (VALID_LOCALES as readonly string[]).includes(short) ? short as SupportedLocale : null;
+}
+
+async function getRequestLocale(): Promise<SupportedLocale> {
+    const cookieStore = await cookies();
+    const cookieLocale = normalizeLocale(cookieStore.get('mm_locale')?.value || cookieStore.get('locale')?.value);
+    if (cookieLocale) return cookieLocale;
+    const headerList = await headers();
+    const acceptLanguage = headerList.get('accept-language') || '';
+    for (const part of acceptLanguage.split(',')) {
+        const locale = normalizeLocale(part.split(';')[0]);
+        if (locale) return locale;
+    }
+    return 'en';
+}
+
+function plainText(value: unknown) {
+    return String(value || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
     const resolvedParams = await params;
@@ -25,13 +55,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
         return { title: 'Post Not Found - Museum Map' };
     }
 
-    const headerList = await headers();
-    const acceptLanguage = headerList.get('accept-language') || 'en';
-    const isKo = acceptLanguage.includes('ko');
+    const locale = await getRequestLocale();
+    const isKo = locale === 'ko';
 
     const displayTitle = getDisplayStoryTitle(isKo ? post.title : (post.titleEn || post.title), post.museums);
     const displayContent = isKo ? post.content : (post.contentEn || post.content);
-    const plainContent = displayContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    const plainContent = plainText(displayContent);
     const description = post.description || plainContent.substring(0, 160) + '...';
     const canonicalUrl = `${SITE_URL}/blog/${resolvedParams.id}`;
 
@@ -73,7 +102,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
                 height: 630,
                 alt: displayTitle,
             }] : [{
-                url: `${SITE_URL}/og-image.png?v=2`,
+                url: `${SITE_URL}/og-image.png?v=3`,
                 width: 1200,
                 height: 630,
                 alt: 'Museum Map',
@@ -89,7 +118,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
             card: 'summary_large_image',
             title: displayTitle,
             description,
-            images: post.previewImage ? [post.previewImage] : [`${SITE_URL}/og-image.png?v=2`],
+            images: post.previewImage ? [post.previewImage] : [`${SITE_URL}/og-image.png?v=3`],
             creator: '@museummap',
         },
         robots: {
@@ -120,10 +149,8 @@ export default async function BlogPostDetail({ params }: { params: Promise<{ id:
     });
 
 
-    const headerList = await headers();
-    const acceptLanguage = headerList.get('accept-language') || 'en';
-    const isKo = acceptLanguage.includes('ko');
-    const locale = isKo ? 'ko' : 'en';
+    const locale = await getRequestLocale();
+    const isKo = locale === 'ko';
 
     if (!post) {
         return (
@@ -138,7 +165,7 @@ export default async function BlogPostDetail({ params }: { params: Promise<{ id:
 
     const displayTitle = getDisplayStoryTitle(isKo ? post.title : (post.titleEn || post.title), post.museums);
     const displayContent = isKo ? post.content : (post.contentEn || post.content);
-    const plainContent = displayContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    const plainContent = plainText(displayContent);
     const description = post.description || plainContent.substring(0, 200);
     const canonicalUrl = `${SITE_URL}/blog/${resolvedParams.id}`;
     const museums = post.museums?.map((sm: any) => sm.museum).filter(Boolean) || [];
@@ -162,7 +189,7 @@ export default async function BlogPostDetail({ params }: { params: Promise<{ id:
                 "datePublished": post.createdAt.toISOString(),
                 "dateModified": post.updatedAt?.toISOString() || post.createdAt.toISOString(),
                 "wordCount": plainContent.split(/\s+/).length,
-                "inLanguage": isKo ? "ko" : "en",
+                "inLanguage": locale,
                 "author": {
                     "@type": "Person",
                     "name": post.author || "MM Editor",
@@ -252,7 +279,7 @@ export default async function BlogPostDetail({ params }: { params: Promise<{ id:
                 "name": displayTitle,
                 "description": description,
                 "isPartOf": { "@type": "WebSite", "@id": `${SITE_URL}/#website` },
-                "inLanguage": isKo ? "ko" : "en",
+                "inLanguage": locale,
                 "potentialAction": {
                     "@type": "ReadAction",
                     "target": canonicalUrl,

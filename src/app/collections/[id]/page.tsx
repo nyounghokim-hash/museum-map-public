@@ -5,13 +5,14 @@ import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { t, Locale, translateCategory } from '@/lib/i18n';
-import { GlassPanel } from '@/components/ui/glass';
 import { getCountryName, getCityName } from '@/lib/countries';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import { buildShareUrl } from '@/lib/utm';
 import { getMuseumImageSrc, getMuseumImageFallback } from '@/lib/getMuseumImage';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
+
+const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 
 // Sub-component for translating text (wraps hook for use in JSX)
 function TranslatedTitle({ text, locale }: { text: string; locale: string }) {
@@ -50,7 +51,7 @@ export default function CollectionDetailPage() {
     const handleBack = useCallback(() => {
         setIsExiting(true);
         if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now()));
-        setTimeout(() => router.back(), 200);
+        router.back();
     }, [router]);
 
     useEffect(() => {
@@ -101,28 +102,39 @@ export default function CollectionDetailPage() {
     const authorText = formatAuthor(collection.user, locale);
 
     return (
-        <div className={`w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div className={`mm-collection-detail2 w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             {/* Sticky header with back button */}
-            <div className="-mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 py-3 mb-4">
-                <div className="flex items-center justify-between">
+            <div className="mm-collection-detail2-head mb-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3 min-w-0">
                         <div className="min-w-0">
-                            <h1 className="text-lg sm:text-xl font-black tracking-tight dark:text-white truncate" title={collection.title}>{locale === 'ko' ? collection.title : <TranslatedTitle text={collection.title} locale={locale} />}</h1>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium truncate">
+                            <h1 className="text-lg sm:text-2xl font-bold leading-tight tracking-tight" title={collection.title}>{locale === 'ko' ? collection.title : <TranslatedTitle text={collection.title} locale={locale} />}</h1>
+                            <p className="text-xs font-medium truncate" style={{ color: 'var(--mm-text-tertiary)' }}>
                                 {authorText} · {itemsCount} {t('collections.items', locale)}
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <div className="flex w-full items-center gap-2 shrink-0 sm:ml-2 sm:w-auto sm:justify-end">
                         <button
                             onClick={handleShareCollection}
-                            className="w-9 h-9 flex items-center justify-center rounded-full border text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors shadow-sm active:scale-95" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
+                            className="h-11 w-11 flex items-center justify-center rounded-full border text-slate-500 transition-colors shadow-sm active:scale-95 dark:text-blue-100/70" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}
                             aria-label="Share"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                             </svg>
                         </button>
+                        {itemsCount > 0 && (
+                            <button
+                                onClick={handleCreateAutoRoute}
+                                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.18)] transition-all active:scale-95 hover:bg-blue-700 sm:flex-none"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3 21l18-9L3 3l3 9Zm0 0h7" />
+                                </svg>
+                                {t('collections.planTrip', locale)}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -142,7 +154,12 @@ export default function CollectionDetailPage() {
                             return (
                                 <div
                                     key={story.id}
-                                    onClick={() => router.push(`/blog/${story.id}`)}
+                                    onClick={() => {
+                                        try {
+                                            sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
+                                        } catch { }
+                                        router.push(`/blog/${story.id}`);
+                                    }}
                                     className="mm-card group flex active:scale-[0.99] cursor-pointer"
                                 >
                                     <div className="w-24 h-24 sm:w-32 sm:h-28 shrink-0 overflow-hidden rounded-2xl relative" style={{ background: 'var(--mm-surface-secondary)' }}>
@@ -190,14 +207,14 @@ export default function CollectionDetailPage() {
                     <p className="text-gray-500 dark:text-gray-400 font-medium">{t('collections.thisEmpty', locale)}</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                     {collection.items.map((item: any) => (
-                        <GlassPanel
+                        <div
                             key={item.id}
-                            className="overflow-hidden group cursor-pointer shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98]"
+                            className="mm-collection-card2 overflow-hidden group cursor-pointer hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98]"
                             onClick={() => router.push(`/museums/${item.museum.id}`)}
                         >
-                            <div className="h-40 bg-gray-100 dark:bg-neutral-800 relative overflow-hidden">
+                            <div className="h-40 relative overflow-hidden" style={{ background: 'var(--mm-surface-secondary)' }}>
                                 {(() => {
                                     const imgSrc = getMuseumImageSrc(item.museum);
                                     const fallbackSrc = getMuseumImageFallback(item.museum);
@@ -229,10 +246,10 @@ export default function CollectionDetailPage() {
                                     <span className="absolute bottom-2 right-2 text-[8px] text-white/40 font-medium">📷 Google</span>
                                 )}
                             </div>
-                            <div className="p-4 backdrop-blur-md flex items-center justify-between gap-2" style={{ background: 'var(--glass-bg)' }}>
+                            <div className="p-4 flex items-center justify-between gap-2">
                                 <div className="min-w-0 flex-1">
-                                    <h3 className="font-bold text-lg mb-1 dark:text-white capitalize truncate">{getLocalizedMuseumName(item.museum, locale)}</h3>
-                                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase truncate">{getLocalizedCityName(item.museum, locale) || getCityName(item.museum.city, locale)}, {getCountryName(item.museum.country, locale)}</p>
+                                    <h3 className="font-semibold text-[15px] mb-1 capitalize truncate" style={{ color: 'var(--mm-text-primary)' }}>{getLocalizedMuseumName(item.museum, locale)}</h3>
+                                    <p className="text-xs font-medium truncate" style={{ color: 'var(--mm-text-tertiary)' }}>{getLocalizedCityName(item.museum, locale) || getCityName(item.museum.city, locale)}, {getCountryName(item.museum.country, locale)}</p>
                                 </div>
                                 {item.museum.googleRating && (
                                     <div className="flex items-center gap-1 shrink-0">
@@ -241,7 +258,7 @@ export default function CollectionDetailPage() {
                                     </div>
                                 )}
                             </div>
-                        </GlassPanel>
+                        </div>
                     ))}
                 </div>
             )}
@@ -252,18 +269,17 @@ export default function CollectionDetailPage() {
                     {itemsCount > 0 && (
                         <button
                             onClick={handleCreateAutoRoute}
-                            className="w-14 h-14 flex items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg active:scale-95 transition-all animate-fadeIn"
-                            style={{ boxShadow: '0 4px 14px rgba(249, 115, 22, 0.4)' }}
+                            className="w-14 h-14 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 text-white active:scale-95 transition-all animate-fadeIn border border-blue-400/40"
+                            style={{ boxShadow: '0 12px 28px rgba(37,99,235,0.22)' }}
                             title={t('collections.planTrip', locale)}
                         >
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3 21l18-9L3 3l3 9Zm0 0h7" />
                             </svg>
                         </button>
                     )}
                     <button
-                        onClick={() => { setIsExiting(true); if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); setTimeout(() => router.back(), 200); }}
+                        onClick={handleBack}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

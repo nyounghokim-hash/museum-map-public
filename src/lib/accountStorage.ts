@@ -3,19 +3,30 @@
 const ACTIVE_TRIP_KEY = 'activeTrip';
 export const ACTIVE_TRIP_CHANGE_EVENT = 'activeTripChange';
 
-function notifyActiveTripChange() {
+function notifyActiveTripChange(trip?: any) {
     if (typeof window === 'undefined') return;
-    window.dispatchEvent(new Event(ACTIVE_TRIP_CHANGE_EVENT));
+    window.dispatchEvent(new CustomEvent(ACTIVE_TRIP_CHANGE_EVENT, { detail: trip || null }));
 }
 
-function getAccountEmail() {
+function getAccountEmail(fallbackEmail?: string | null) {
     if (typeof window === 'undefined') return null;
-    return sessionStorage.getItem('user-email');
+    return fallbackEmail || sessionStorage.getItem('user-email');
 }
 
-export function getActiveTripForAccount<T = any>(): T | null {
+export function getStoredActiveTrip<T = any>(): T | null {
     if (typeof window === 'undefined') return null;
-    const email = getAccountEmail();
+    try {
+        const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        localStorage.removeItem(ACTIVE_TRIP_KEY);
+        return null;
+    }
+}
+
+export function getActiveTripForAccount<T = any>(fallbackEmail?: string | null): T | null {
+    if (typeof window === 'undefined') return null;
+    const email = getAccountEmail(fallbackEmail);
     if (!email) return null;
     try {
         const raw = localStorage.getItem(ACTIVE_TRIP_KEY);
@@ -36,12 +47,13 @@ export function setActiveTripForAccount<T extends Record<string, any>>(trip: T) 
     if (typeof window === 'undefined') return;
     const email = getAccountEmail();
     if (!email) return;
-    localStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify({ ...trip, userEmail: email }));
-    notifyActiveTripChange();
+    const nextTrip = { ...trip, userEmail: email };
+    localStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify(nextTrip));
+    notifyActiveTripChange(nextTrip);
 }
 
 export function clearActiveTripForAccount() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(ACTIVE_TRIP_KEY);
-    notifyActiveTripChange();
+    notifyActiveTripChange(null);
 }

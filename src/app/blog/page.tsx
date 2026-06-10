@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useApp } from '@/components/AppContext';
@@ -26,6 +26,16 @@ function sanitizeAI(text: string): string {
         .replace(/^\d+\.\s+/gm, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
+}
+
+function containsKorean(text: string): boolean {
+    return /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(text);
+}
+
+function safeTranslatedStoryText(value: string | undefined, locale: Locale, fallback: string) {
+    const text = value || '';
+    if (locale !== 'ko' && containsKorean(text)) return fallback;
+    return text || fallback;
 }
 
 function getStoryImageChain(post: any): string[] {
@@ -65,28 +75,131 @@ function StoryMuseumMeta({ post, locale, className = '' }: { post: any; locale: 
     );
 }
 
+const STORY_CATEGORY_COLORS: Record<string, { color: string; bg: string; activeBg: string; darkBg: string; darkActiveBg: string; border: string; darkBorder: string }> = {
+    ALL: { color: '#2563eb', bg: 'rgba(37, 99, 235, 0.10)', activeBg: 'rgba(37, 99, 235, 0.18)', darkBg: 'rgba(37, 99, 235, 0.16)', darkActiveBg: 'rgba(37, 99, 235, 0.28)', border: 'rgba(37, 99, 235, 0.38)', darkBorder: 'rgba(96, 165, 250, 0.42)' },
+    TRAVEL: { color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.11)', activeBg: 'rgba(14, 165, 233, 0.20)', darkBg: 'rgba(14, 165, 233, 0.16)', darkActiveBg: 'rgba(14, 165, 233, 0.28)', border: 'rgba(14, 165, 233, 0.40)', darkBorder: 'rgba(56, 189, 248, 0.42)' },
+    ART: { color: '#db2777', bg: 'rgba(219, 39, 119, 0.10)', activeBg: 'rgba(219, 39, 119, 0.18)', darkBg: 'rgba(219, 39, 119, 0.15)', darkActiveBg: 'rgba(219, 39, 119, 0.27)', border: 'rgba(219, 39, 119, 0.36)', darkBorder: 'rgba(244, 114, 182, 0.40)' },
+    MUSEUM: { color: '#4f46e5', bg: 'rgba(79, 70, 229, 0.10)', activeBg: 'rgba(79, 70, 229, 0.18)', darkBg: 'rgba(99, 102, 241, 0.15)', darkActiveBg: 'rgba(99, 102, 241, 0.27)', border: 'rgba(79, 70, 229, 0.36)', darkBorder: 'rgba(129, 140, 248, 0.40)' },
+    SPECIAL: { color: '#b45309', bg: 'rgba(245, 158, 11, 0.13)', activeBg: 'rgba(245, 158, 11, 0.22)', darkBg: 'rgba(245, 158, 11, 0.15)', darkActiveBg: 'rgba(245, 158, 11, 0.27)', border: 'rgba(245, 158, 11, 0.40)', darkBorder: 'rgba(251, 191, 36, 0.42)' },
+};
+
+function getStoryCategoryKey(category?: string) {
+    return (category || 'MUSEUM').toUpperCase();
+}
+
+function getStoryCategoryLabel(category: string | undefined, locale: Locale) {
+    const key = getStoryCategoryKey(category);
+    const labels = CATEGORY_LABELS[key] || CATEGORY_LABELS.MUSEUM;
+    return labels[locale] || (locale.startsWith('zh') ? labels.zh : undefined) || labels.en || key;
+}
+
+function getStoryCategoryStyle(category?: string): CSSProperties {
+    const key = getStoryCategoryKey(category);
+    const color = STORY_CATEGORY_COLORS[key] || STORY_CATEGORY_COLORS.MUSEUM;
+    return {
+        '--story-category-color': color.color,
+        '--story-category-bg': color.bg,
+        '--story-category-active-bg': color.activeBg,
+        '--story-category-dark-bg': color.darkBg,
+        '--story-category-dark-active-bg': color.darkActiveBg,
+        '--story-category-border': color.border,
+        '--story-category-dark-border': color.darkBorder,
+    } as CSSProperties;
+}
+
+function getStoryCategoryColors(category?: string) {
+    const key = getStoryCategoryKey(category);
+    return STORY_CATEGORY_COLORS[key] || STORY_CATEGORY_COLORS.MUSEUM;
+}
+
+function storyCategoryTagStyle(category?: string): CSSProperties {
+    const color = getStoryCategoryColors(category);
+    return {
+        ...getStoryCategoryStyle(category),
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        zIndex: 6,
+        display: 'inline-flex',
+        minHeight: 20,
+        maxWidth: 'calc(100% - 16px)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 7px',
+        borderRadius: 999,
+        border: `1px solid ${color.border}`,
+        background: '#ffffff',
+        color: color.color,
+        fontSize: 10,
+        fontWeight: 760,
+        lineHeight: 1,
+        letterSpacing: 0,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        boxShadow: '0 8px 18px rgba(15, 23, 42, 0.08)',
+        backdropFilter: 'blur(10px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(10px) saturate(150%)',
+    };
+}
+
+function storyCategoryFilterStyle(category: string, active: boolean): CSSProperties {
+    const color = getStoryCategoryColors(category);
+    return {
+        ...getStoryCategoryStyle(category),
+        color: active ? '#ffffff' : color.color,
+        borderColor: active ? 'transparent' : color.border,
+        background: active ? color.color : color.bg,
+        opacity: active ? 1 : 0.72,
+        boxShadow: active
+            ? 'inset 0 0 0 1px rgba(255,255,255,0.18), 0 12px 28px rgba(15,23,42,0.12)'
+            : `inset 0 0 0 1px ${color.border}, 0 8px 18px rgba(15,23,42,0.025)`,
+    };
+}
+
+function StoryCategoryTag({ category, locale }: { category?: string; locale: Locale }) {
+    return (
+        <span
+            className="mm-story-category-tag"
+            style={storyCategoryTagStyle(category)}
+        >
+            {getStoryCategoryLabel(category, locale)}
+        </span>
+    );
+}
+
+function StoryCategoryInlineTag({ category, locale }: { category?: string; locale: Locale }) {
+    const style = getStoryCategoryStyle(category) as CSSProperties & Record<string, string>;
+    return (
+        <span
+            className="mm-story-category-inline-tag"
+            style={style}
+        >
+            {getStoryCategoryLabel(category, locale)}
+        </span>
+    );
+}
+
 const STORY_SECTION_LABELS: Record<string, {
     curated: string;
-    curatedSub: string;
     fresh: string;
-    freshSub: string;
     list: string;
     count: string;
     loading: string;
 }> = {
-    ko: { curated: '여기는 어때요?', curatedSub: '랜덤 추천', fresh: '새 이야기', freshSub: '최근 발행', list: '이야기 목록', count: '편', loading: '불러오는 중' },
-    en: { curated: 'How about these?', curatedSub: 'Random picks', fresh: 'New stories', freshSub: 'Recently published', list: 'Story list', count: 'stories', loading: 'Loading' },
-    ja: { curated: 'ここはどうですか？', curatedSub: 'ランダム推薦', fresh: '新しいストーリー', freshSub: '最近公開', list: 'ストーリー一覧', count: '件', loading: '読み込み中' },
-    de: { curated: 'Wie wäre es hier?', curatedSub: 'Zufällige Tipps', fresh: 'Neue Geschichten', freshSub: 'Kürzlich veröffentlicht', list: 'Geschichten', count: 'Stories', loading: 'Wird geladen' },
-    fr: { curated: 'Et ces lieux ?', curatedSub: 'Sélection aléatoire', fresh: 'Nouvelles histoires', freshSub: 'Publié récemment', list: 'Liste des histoires', count: 'histoires', loading: 'Chargement' },
-    es: { curated: '¿Qué tal estos?', curatedSub: 'Selección aleatoria', fresh: 'Nuevas historias', freshSub: 'Publicadas recientemente', list: 'Lista de historias', count: 'historias', loading: 'Cargando' },
-    pt: { curated: 'Que tal estes?', curatedSub: 'Sugestões aleatórias', fresh: 'Novas histórias', freshSub: 'Publicadas recentemente', list: 'Lista de histórias', count: 'histórias', loading: 'Carregando' },
-    'zh-CN': { curated: '这里怎么样？', curatedSub: '随机推荐', fresh: '新故事', freshSub: '最近发布', list: '故事列表', count: '篇', loading: '加载中' },
-    'zh-TW': { curated: '這裡怎麼樣？', curatedSub: '隨機推薦', fresh: '新故事', freshSub: '最近發佈', list: '故事列表', count: '篇', loading: '載入中' },
-    da: { curated: 'Hvad med disse?', curatedSub: 'Tilfældige valg', fresh: 'Nye historier', freshSub: 'Nyligt udgivet', list: 'Historieliste', count: 'historier', loading: 'Indlæser' },
-    fi: { curated: 'Entä nämä?', curatedSub: 'Satunnaiset nostot', fresh: 'Uudet tarinat', freshSub: 'Äskettäin julkaistu', list: 'Tarinat', count: 'tarinaa', loading: 'Ladataan' },
-    sv: { curated: 'Vad sägs om dessa?', curatedSub: 'Slumpade tips', fresh: 'Nya berättelser', freshSub: 'Nyligen publicerat', list: 'Berättelselista', count: 'berättelser', loading: 'Laddar' },
-    et: { curated: 'Kuidas oleks nendega?', curatedSub: 'Juhuslikud valikud', fresh: 'Uued lood', freshSub: 'Hiljuti avaldatud', list: 'Lugude nimekiri', count: 'lugu', loading: 'Laadimine' },
+    ko: { curated: '여기는 어때요?', fresh: '새 이야기', list: '이야기 목록', count: '편', loading: '불러오는 중' },
+    en: { curated: 'How about these?', fresh: 'New stories', list: 'Story list', count: 'stories', loading: 'Loading' },
+    ja: { curated: 'ここはどうですか？', fresh: '新しいストーリー', list: 'ストーリー一覧', count: '件', loading: '読み込み中' },
+    de: { curated: 'Wie wäre es hier?', fresh: 'Neue Geschichten', list: 'Geschichten', count: 'Stories', loading: 'Wird geladen' },
+    fr: { curated: 'Et ces lieux ?', fresh: 'Nouvelles histoires', list: 'Liste des histoires', count: 'histoires', loading: 'Chargement' },
+    es: { curated: '¿Qué tal estos?', fresh: 'Nuevas historias', list: 'Lista de historias', count: 'historias', loading: 'Cargando' },
+    pt: { curated: 'Que tal estes?', fresh: 'Novas histórias', list: 'Lista de histórias', count: 'histórias', loading: 'Carregando' },
+    'zh-CN': { curated: '这里怎么样？', fresh: '新故事', list: '故事列表', count: '篇', loading: '加载中' },
+    'zh-TW': { curated: '這裡怎麼樣？', fresh: '新故事', list: '故事列表', count: '篇', loading: '載入中' },
+    da: { curated: 'Hvad med disse?', fresh: 'Nye historier', list: 'Historieliste', count: 'historier', loading: 'Indlæser' },
+    fi: { curated: 'Entä nämä?', fresh: 'Uudet tarinat', list: 'Tarinat', count: 'tarinaa', loading: 'Ladataan' },
+    sv: { curated: 'Vad sägs om dessa?', fresh: 'Nya berättelser', list: 'Berättelselista', count: 'berättelser', loading: 'Laddar' },
+    et: { curated: 'Kuidas oleks nendega?', fresh: 'Uued lood', list: 'Lugude nimekiri', count: 'lugu', loading: 'Laadimine' },
 };
 
 function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
@@ -108,10 +221,10 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
         displayContent = sanitizeAI(((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '')).substring(0, 200);
     } else if (cached.title) {
         displayTitle = getDisplayStoryTitle(sanitizeAI(cached.title), post.museums);
-        displayContent = sanitizeAI((cached.content || (post.contentEn || post.content || '').replace(/<[^>]*>/g, '')).substring(0, 200));
+        displayContent = sanitizeAI(safeTranslatedStoryText(cached.content || liveContent || sourceContent, locale, '').substring(0, 200));
     } else {
-        displayTitle = getDisplayStoryTitle(sanitizeAI(liveTitle || sourceTitle), post.museums);
-        displayContent = sanitizeAI((liveContent || sourceContent).substring(0, 200));
+        displayTitle = getDisplayStoryTitle(sanitizeAI(safeTranslatedStoryText(liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
+        displayContent = sanitizeAI(safeTranslatedStoryText(liveContent || sourceContent, locale, '').substring(0, 200));
     }
     const chain = getStoryImageChain(post);
     return (
@@ -136,19 +249,20 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                                 el.src = next;
                             } else {
                                 el.src = '/logo.svg';
-                                el.className = 'w-full h-full object-contain p-3 opacity-20 dark:invert dark:opacity-60';
+                                el.className = 'mm-empty-logo m-auto object-contain dark:invert';
                             }
                         }}
                     />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.svg" alt="" className="w-8 h-8 opacity-20 dark:invert dark:opacity-60" />
+                    <div className="mm-story-empty-thumb w-full h-full flex items-center justify-center">
+                        <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                     </div>
                 )}
             </div>
 
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-1 text-[10px] font-black uppercase tracking-widest flex-wrap" style={{ color: 'var(--mm-brand)' }}>
+                    <StoryCategoryInlineTag category={post.category} locale={locale} />
                     <span>{post.author || 'MM Editor'}</span>
                     <span style={{ color: 'var(--mm-surface-border)' }}>•</span>
                     <span className="font-medium" style={{ color: 'var(--mm-text-tertiary)' }}>{formatDate(post.createdAt, locale)}</span>
@@ -159,7 +273,7 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                         </>
                     )}
                 </div>
-                <h2 className="text-[16px] sm:text-[17px] font-black mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>
+                <h2 className="text-[16px] sm:text-[17px] font-black mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate" style={{ color: 'var(--mm-text-primary)', wordBreak: 'normal' }}>
                     {displayTitle}
                 </h2>
                 <StoryMuseumMeta post={post} locale={locale} className="text-xs leading-relaxed" />
@@ -178,12 +292,13 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
         ? post.title
         : locale === 'en'
             ? (post.titleEn || post.title)
-            : (cached.title || liveTitle || sourceTitle)), post.museums);
+            : safeTranslatedStoryText(cached.title || liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
     const chain = getStoryImageChain(post);
 
     return (
         <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
-            <div className="h-24 sm:h-28 overflow-hidden bg-slate-100 dark:bg-neutral-800">
+            <div className="relative h-24 sm:h-28 overflow-hidden bg-slate-100 dark:bg-neutral-800">
+                <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
                     <img
                         src={chain[0]}
@@ -200,13 +315,13 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
                                 el.src = next;
                             } else {
                                 el.src = '/logo.svg';
-                                el.className = 'w-full h-full object-contain p-10 opacity-20 dark:invert dark:opacity-60';
+                                el.className = 'mm-empty-logo m-auto object-contain dark:invert';
                             }
                         }}
                     />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
+                    <div className="mm-story-empty-thumb w-full h-full flex items-center justify-center">
+                        <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                     </div>
                 )}
             </div>
@@ -228,7 +343,7 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
                         </>
                     )}
                 </div>
-                <h3 className="text-[16px] sm:text-[17px] font-black leading-tight line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>{displayTitle}</h3>
+                <h3 className="mm-story-two-line-title text-[16px] sm:text-[17px] font-black leading-tight line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>{displayTitle}</h3>
                 <StoryMuseumMeta post={post} locale={locale} className="mt-1 text-xs leading-relaxed" />
             </div>
         </button>
@@ -243,13 +358,14 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
         ? post.title
         : locale === 'en'
             ? (post.titleEn || post.title)
-            : (cached.title || liveTitle || sourceTitle)), post.museums);
+            : safeTranslatedStoryText(cached.title || liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
     const chain = getStoryImageChain(post);
     const museumLine = getStoryMuseumLine(post, locale);
 
     return (
         <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
-            <div className="mm-story-mini-thumb">
+            <div className="mm-story-mini-thumb relative">
+                <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
                     <img
                         src={chain[0]}
@@ -266,23 +382,23 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
                                 el.src = next;
                             } else {
                                 el.src = '/logo.svg';
-                                el.className = 'w-full h-full object-contain p-5 opacity-20 dark:invert dark:opacity-60';
+                                el.className = 'mm-empty-logo m-auto object-contain dark:invert';
                             }
                         }}
                     />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.svg" alt="" className="w-9 h-9 opacity-20 dark:invert dark:opacity-60" />
+                    <div className="mm-story-empty-thumb w-full h-full flex items-center justify-center">
+                        <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                     </div>
                 )}
             </div>
             <div className="mm-story-mini-body">
                 <div>
-                    <span>{post.author || 'MM Editor'}</span>
+                    <span className="mm-story-author">{post.author || 'MM Editor'}</span>
                     <span> · </span>
                     <span>{formatDate(post.createdAt, locale)}</span>
                 </div>
-                <h3>{displayTitle}</h3>
+                <h3 className="mm-story-two-line-title">{displayTitle}</h3>
                 <StoryMuseumMeta post={post} locale={locale} className="mt-1.5 text-[11px] leading-snug" />
             </div>
         </button>
@@ -322,7 +438,6 @@ function BlogPageSkeleton({ locale }: { locale: Locale }) {
 
             <div className="mm-section-heading">
                 <h2>{sectionLabels.fresh}</h2>
-                <span>{sectionLabels.freshSub}</span>
             </div>
             <div className="mm-list-surface">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -378,6 +493,7 @@ const SORT_LABELS: Record<SortMode, Record<string, string>> = {
     oldest: { ko: '오래된순', en: 'Oldest', ja: '古い順', zh: '最旧', fr: 'Plus ancien', de: 'Älteste', es: 'Más antiguo' },
     distance: { ko: '거리순', en: 'Nearest', ja: '距離順', zh: '距离', fr: 'Distance', de: 'Entfernung', es: 'Distancia' },
 };
+const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 
 export default function BlogListPage() {
     const { locale } = useApp();
@@ -403,6 +519,7 @@ export default function BlogListPage() {
             sessionStorage.setItem(PAGE_KEY, String(page));
             sessionStorage.setItem(CAT_KEY, activeCategory);
             sessionStorage.setItem(SORT_KEY, sortMode);
+            sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
         } catch { }
         setNavigating(true);
         router.push(`/blog/${id}`);
@@ -515,7 +632,7 @@ export default function BlogListPage() {
             const j = Math.floor(Math.random() * (i + 1));
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
-        return arr.slice(0, 3);
+        return arr.slice(0, 5);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filteredPosts.length, activeCategory]);
     const curatedIds = new Set(curatedPosts.map((post: any) => post.id));
@@ -546,10 +663,11 @@ export default function BlogListPage() {
                             <button
                                 key={cat.key}
                                 onClick={() => handleCategoryChange(cat.key)}
-                                className={`mm-gallery-chip ${isActive ? 'is-active' : ''}`}
+                                className={`mm-gallery-chip mm-story-category-chip ${isActive ? 'is-active' : ''}`}
+                                style={storyCategoryFilterStyle(cat.key, isActive)}
                             >
                                 {cat.icon}
-                                <span>{CATEGORY_LABELS[cat.key]?.[locale] || CATEGORY_LABELS[cat.key]?.en}</span>
+                                <span>{getStoryCategoryLabel(cat.key, locale)}</span>
                             </button>
                         );
                     })}
@@ -560,7 +678,7 @@ export default function BlogListPage() {
             {posts.length === 0 ? (
                 <div className="py-20 sm:py-32 flex flex-col items-center justify-center">
                     <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gray-50 dark:bg-neutral-800/50 rounded-full flex items-center justify-center mb-8">
-                        <img src="/logo.svg" alt="Museum Map" className="w-16 h-16 sm:w-20 sm:h-20 opacity-20 dark:invert dark:opacity-[0.6]" />
+                        <img src="/logo.svg" alt="Museum Map" className="mm-empty-logo dark:invert" />
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 text-center">
                         {t('blog.empty', locale)}
@@ -581,7 +699,6 @@ export default function BlogListPage() {
                         <>
                             <div className="mm-section-heading">
                                 <h2>{sectionLabels.curated}</h2>
-                                <span>{sectionLabels.curatedSub}</span>
                             </div>
                             <div className="mm-rail-scroll stagger-children flex gap-3">
                                 {curatedPosts.map((post: any) => (
@@ -595,7 +712,6 @@ export default function BlogListPage() {
                         <>
                             <div className="mm-section-heading">
                                 <h2>{sectionLabels.fresh}</h2>
-                                <span>{sectionLabels.freshSub}</span>
                             </div>
                             <div className="mm-story-mini-grid">
                                 {freshPosts.map((post: any) => (

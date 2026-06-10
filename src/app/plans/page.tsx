@@ -8,7 +8,44 @@ import { t, formatDate } from '@/lib/i18n';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import * as gtag from '@/lib/gtag';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
-import { clearActiveTripForAccount, getActiveTripForAccount } from '@/lib/accountStorage';
+import { ACTIVE_TRIP_CHANGE_EVENT, clearActiveTripForAccount, getActiveTripForAccount } from '@/lib/accountStorage';
+
+const EMPTY_ACTION_LABELS: Record<string, { primary: string; secondary: string }> = {
+    ko: { primary: '내 픽에서 경로 만들기', secondary: '박물관 찾기' },
+    en: { primary: 'Build from My Pick', secondary: 'Find museums' },
+    ja: { primary: '保存からルート作成', secondary: '博物館を探す' },
+    de: { primary: 'Route aus Picks erstellen', secondary: 'Museen finden' },
+    fr: { primary: 'Créer avec mes choix', secondary: 'Trouver des musées' },
+    es: { primary: 'Crear desde favoritos', secondary: 'Buscar museos' },
+    pt: { primary: 'Criar com favoritos', secondary: 'Encontrar museus' },
+    'zh-CN': { primary: '用我的收藏创建', secondary: '查找博物馆' },
+    'zh-TW': { primary: '用我的收藏建立', secondary: '尋找博物館' },
+    da: { primary: 'Lav rute fra gemte', secondary: 'Find museer' },
+    fi: { primary: 'Luo reitti valinnoista', secondary: 'Etsi museoita' },
+    sv: { primary: 'Skapa från valda', secondary: 'Hitta museer' },
+    et: { primary: 'Loo marsruut valikutest', secondary: 'Leia muuseume' },
+};
+
+function reorderPlanStopsFromActiveTrip(planStops: any[] = [], activeStops: any[] = []) {
+    if (!Array.isArray(planStops) || !Array.isArray(activeStops) || activeStops.length === 0) return planStops;
+    const stopMap = new Map<string, any>();
+    planStops.forEach((stop) => {
+        if (stop?.id) stopMap.set(`stop:${stop.id}`, stop);
+        if (stop?.museumId) stopMap.set(`museum:${stop.museumId}`, stop);
+        if (stop?.museum?.id) stopMap.set(`museum:${stop.museum.id}`, stop);
+    });
+    const used = new Set<any>();
+    const ordered = activeStops
+        .map((activeStop) => {
+            const matched = (activeStop?.id && stopMap.get(`stop:${activeStop.id}`))
+                || (activeStop?.museumId && stopMap.get(`museum:${activeStop.museumId}`));
+            if (matched) used.add(matched);
+            return matched;
+        })
+        .filter(Boolean);
+    const leftovers = planStops.filter((stop) => !used.has(stop));
+    return [...ordered, ...leftovers].map((stop, index) => ({ ...stop, order: index }));
+}
 
 export default function MyPlansPage() {
     const [plans, setPlans] = useState<any[]>([]);
@@ -18,20 +55,60 @@ export default function MyPlansPage() {
     const [activeTripId, setActiveTripId] = useState<string | null>(null);
     const [isPendingTrip, setIsPendingTrip] = useState(false);
     const [tripStartDate, setTripStartDate] = useState<string | null>(null);
+    const emptyActions = EMPTY_ACTION_LABELS[locale] || EMPTY_ACTION_LABELS.en;
 
-    useEffect(() => {
-        // Hydrate active trip
-        const parsed = getActiveTripForAccount();
+    const applyActiveTrip = (parsed: any) => {
         if (parsed?.planId) {
             setActiveTripId(parsed.planId);
             setIsPendingTrip(!!parsed.pending);
             setTripStartDate(parsed.startDate || null);
+            if (Array.isArray(parsed.stops)) {
+                setPlans(prev => prev.map(plan => plan.id === parsed.planId
+                    ? { ...plan, stops: reorderPlanStopsFromActiveTrip(plan.stops, parsed.stops) }
+                    : plan
+                ));
+            }
+        } else {
+            setActiveTripId(null);
+            setIsPendingTrip(false);
+            setTripStartDate(null);
         }
+    };
 
-        fetch('/api/plans')
+    const refreshActiveTrip = (event?: Event) => {
+        const eventTrip = event instanceof CustomEvent ? event.detail : null;
+        applyActiveTrip(eventTrip || getActiveTripForAccount());
+    };
+
+    useEffect(() => {
+        // Hydrate active trip
+        refreshActiveTrip();
+        window.addEventListener('storage', refreshActiveTrip);
+        window.addEventListener('focus', refreshActiveTrip);
+
+        const loadPlans = () => fetch('/api/plans')
             .then(r => r.json())
-            .then(res => { setPlans(res.data || []); setLoading(false); })
+            .then(res => {
+                const parsed = getActiveTripForAccount();
+                const nextPlans = (res.data || []).map((plan: any) => parsed?.planId === plan.id
+                    ? { ...plan, stops: reorderPlanStopsFromActiveTrip(plan.stops, parsed.stops) }
+                    : plan
+                );
+                setPlans(nextPlans);
+                setLoading(false);
+            })
             .catch(() => setLoading(false));
+        loadPlans();
+        const handleActiveTripChange = (event: Event) => {
+            refreshActiveTrip(event);
+            loadPlans();
+        };
+        window.addEventListener(ACTIVE_TRIP_CHANGE_EVENT, handleActiveTripChange);
+        return () => {
+            window.removeEventListener(ACTIVE_TRIP_CHANGE_EVENT, handleActiveTripChange);
+            window.removeEventListener('storage', refreshActiveTrip);
+            window.removeEventListener('focus', refreshActiveTrip);
+        };
     }, []);
 
     const handleDelete = (id: string, e: React.MouseEvent) => {
@@ -110,6 +187,20 @@ export default function MyPlansPage() {
                     </div>
                     <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">{t('plans.empty', locale)}</h2>
                     <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base mb-6">{t('plans.emptyDesc', locale)}</p>
+                    <div className="mm-travel-empty-actions mx-auto grid max-w-sm grid-cols-1 gap-2 sm:grid-cols-2">
+                        <Link href="/saved" className="mm-travel-empty-action mm-travel-empty-action--primary">
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v18l7-5 7 5V3H5z" />
+                            </svg>
+                            {emptyActions.primary}
+                        </Link>
+                        <Link href="/" className="mm-travel-empty-action">
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                            {emptyActions.secondary}
+                        </Link>
+                    </div>
                 </div>
             ) : (
                 <div className="flex flex-col gap-3 sm:gap-4">

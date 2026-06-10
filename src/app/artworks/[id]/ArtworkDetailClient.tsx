@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { buildShareUrl } from '@/lib/utm';
@@ -10,8 +10,8 @@ import { useCachedTranslation } from '@/hooks/useCachedTranslation';
 import type { Locale } from '@/lib/i18n';
 import Link from 'next/link';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
-import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
+import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 
 
 
@@ -28,6 +28,12 @@ function getImageSource(url: string, locale: string): { label: string; link?: st
     if (url.includes('googleapis.com'))
         return { label: 'Google Places', link: 'https://maps.google.com' };
     return { label: locale === 'ko' ? '운영팀에서 추가' : 'Added by operations team' };
+}
+
+function getLocaleJsonValue(value: unknown, locale: string): string {
+    if (!value || typeof value !== 'object') return '';
+    const translated = (value as Record<string, unknown>)[locale];
+    return typeof translated === 'string' ? translated.trim() : '';
 }
 
 interface ArtworkDetailClientProps {
@@ -47,6 +53,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
     const [isFromBack, setIsFromBack] = useState(false);
+    const isBackingRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const lightboxRef = useRef<HTMLDivElement>(null);
     const lightboxTouchStart = useRef({ x: 0, y: 0 });
@@ -54,6 +61,10 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     // Check if we arrived via back navigation (within 500ms)
     useEffect(() => {
         if (typeof window !== 'undefined') {
+            const returnPath = sessionStorage.getItem('artwork-to-museum-return');
+            const here = window.location.pathname + window.location.search;
+            if (returnPath === here) sessionStorage.removeItem('artwork-to-museum-return');
+
             const backTs = sessionStorage.getItem('navigating-back');
             if (backTs && Date.now() - parseInt(backTs) < 500) {
                 setIsFromBack(true);
@@ -63,16 +74,45 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     }, []);
 
     const handleBack = useCallback(() => {
+        if (isBackingRef.current) return;
+        isBackingRef.current = true;
         setIsExiting(true);
-        if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now()));
-        setTimeout(() => router.back(), 200);
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('navigating-back', String(Date.now()));
+            const returnPath = sessionStorage.getItem('artwork-list-return');
+            const historyState = window.history.state;
+            if (returnPath && window.history.length <= 1) {
+                sessionStorage.removeItem('artwork-list-return');
+                router.replace(returnPath);
+                return;
+            }
+            if (historyState?.backAnchor) {
+                router.replace('/artworks');
+                return;
+            }
+            if (window.history.length <= 1) {
+                router.replace('/artworks');
+                return;
+            }
+        }
+        router.back();
     }, [router]);
 
-    const allTexts = artwork
-        ? [artwork.title || '', artwork.description || '', artwork.artist || '',
-        ...(artwork.museums || []).map((m: any) => m.name || ''),
-        ...(artwork.relatedStories || []).map((s: any) => s.title || '')]
-        : [];
+    const allTexts = useMemo(() => {
+        if (!artwork) return [];
+        const sourceTexts = [
+            artwork.titleKo || artwork.titleEn || artwork.title || '',
+            artwork.descriptionKo || artwork.description || '',
+            artwork.artistKo || artwork.artistEn || artwork.artist || '',
+            artwork.title || '',
+            artwork.description || '',
+            artwork.artist || '',
+            ...(artwork.museums || []).map((m: any) => m.nameKo || m.nameEn || m.name || ''),
+            ...(artwork.museums || []).map((m: any) => m.name || ''),
+            ...(artwork.relatedStories || []).map((s: any) => s.title || ''),
+        ];
+        return Array.from(new Set(sourceTexts.filter(Boolean)));
+    }, [artwork]);
     const translations = useTranslatedTexts(allTexts, locale as Locale);
 
     useEffect(() => {
@@ -136,6 +176,16 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
         }
     };
 
+    const handleMuseumClick = useCallback(async (museum: any) => {
+        const museumRouteId = await resolveMuseumRouteId(museum);
+        if (!museumRouteId) return;
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('navigating-forward', String(Date.now()));
+            sessionStorage.setItem('artwork-to-museum-return', window.location.pathname + window.location.search);
+        }
+        router.push(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork`);
+    }, [router]);
+
     if (loading) {
         return null; // Keep previous screen visible until data loads, then slide in
     }
@@ -159,22 +209,26 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const { translations: cachedArtwork } = useCachedTranslation('artwork', artwork?.id, locale);
 
     const getDisplayTitle = () => {
-        // Use DB translations (titleTranslations) first via helper
-        const helperResult = getLocalizedArtworkTitle(artwork, locale);
-        if (helperResult !== artwork.title) return helperResult;
-        // Fallback to cached/realtime translation
         if (locale === 'ko') return artwork.titleKo || artwork.title;
-        return cachedArtwork.title || translations.get(artwork.title) || artwork.title;
+        if (locale === 'en') return artwork.titleEn || artwork.title;
+        const localeJsonTitle = getLocaleJsonValue(artwork.titleTranslations, locale);
+        if (localeJsonTitle) return localeJsonTitle;
+        const sourceTitle = artwork.titleKo || artwork.titleEn || artwork.title;
+        return cachedArtwork.title || translations.get(sourceTitle) || translations.get(artwork.title) || sourceTitle;
     };
     const getDisplayArtist = () => {
-        const helperResult = getLocalizedArtistName(artwork, locale);
-        if (helperResult && helperResult !== artwork.artist) return helperResult;
         if (locale === 'ko') return artwork.artistKo || artwork.artist;
-        return cachedArtwork.artist || translations.get(artwork.artist) || artwork.artist;
+        if (locale === 'en') return artwork.artistEn || artwork.artist;
+        const localeJsonArtist = getLocaleJsonValue(artwork.artistTranslations, locale);
+        if (localeJsonArtist) return localeJsonArtist;
+        const sourceArtist = artwork.artistKo || artwork.artistEn || artwork.artist;
+        return cachedArtwork.artist || translations.get(sourceArtist) || translations.get(artwork.artist) || sourceArtist;
     };
     const getDisplayDesc = () => {
         if (locale === 'ko') return artwork.descriptionKo || artwork.description;
-        return cachedArtwork.description || translations.get(artwork.description) || artwork.description;
+        if (locale === 'en') return artwork.description || artwork.descriptionKo;
+        const sourceDescription = artwork.descriptionKo || artwork.description;
+        return cachedArtwork.description || translations.get(sourceDescription) || translations.get(artwork.description) || sourceDescription;
     };
 
     const displayTitle = getDisplayTitle();
@@ -182,7 +236,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const displayArtist = getDisplayArtist();
 
     return (
-        <div ref={containerRef} className={`mm-editorial-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div ref={containerRef} className={`mm-editorial-page2 mm-artwork-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             <div className="mm-detail-hero2 w-full h-[420px] sm:h-[520px] bg-gray-100 dark:bg-neutral-800 sm:rounded-b-[32px] relative mt-0">
                 <div className="mm-detail-round-actions">
                     <button onClick={handleBack} aria-label="Back" className="mm-detail-top-back">
@@ -190,7 +244,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                         </svg>
                     </button>
-                    <button onClick={handleShare} aria-label="Share">
+                    <button onClick={handleShare} aria-label="Share" className="mm-artwork-share-action">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
@@ -216,12 +270,12 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                             }}
                         />
                         <div className="logo-fallback w-full h-full flex items-center justify-center" style={{ display: 'none' }}>
-                            <img src="/logo.svg" alt="" className="w-2.5 h-2.5 opacity-25 dark:invert dark:opacity-60" />
+                            <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                         </div>
                     </>
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.svg" alt="" className="w-2.5 h-2.5 opacity-25 dark:invert dark:opacity-60" />
+                        <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                     </div>
                 )}
                 <div className="mm-detail-hero-copy">
@@ -233,7 +287,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             </div>
 
             {typeof document !== 'undefined' && createPortal(
-                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back lg:hidden">
+                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back md:hidden">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>
@@ -277,7 +331,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             )}
 
             {/* Content */}
-            <div className="px-5 sm:px-0 mt-6">
+            <div className="mm-artwork-detail-body2 px-5 sm:px-0 mt-6 lg:px-8 lg:py-8">
                 {/* Artist badge */}
                 {displayArtist && (
                     <p className="text-[11px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-2">
@@ -313,39 +367,55 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                             {locale === 'ko' ? '전시 미술관 / 박물관' : 'Exhibition Venue'}
                         </h2>
                         <div className="space-y-3">
-                            {artwork.museums.map((m: any) => (
-                                <Link
-                                    key={m.id}
-                                    href={`/museums/${m.id}`}
-                                    className="flex items-center gap-4 p-4 bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all active:scale-[0.98]"
-                                >
-                                    {/* Museum thumbnail */}
-                                    <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0">
-                                        {m.imageUrl ? (
-                                            <img src={m.imageUrl} alt={m.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-2 opacity-20 dark:invert dark:opacity-60'; }} />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <img src="/logo.svg" alt="" className="w-8 h-8 opacity-20 dark:invert dark:opacity-60" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="font-bold text-sm dark:text-white truncate">
-                                            {getLocalizedMuseumName(m, locale)}
-                                        </h3>
-                                        <p className="text-[11px] text-gray-400 dark:text-neutral-500 mt-0.5 flex items-center gap-1">
-                                            <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            {artwork.museums.map((m: any, index: number) => {
+                                const hasMuseumIdentity = Boolean(m?.id || m?.museumId || m?.museum?.id || m?.name || m?.nameKo || m?.nameEn);
+                                const content = (
+                                    <>
+                                        {/* Museum thumbnail */}
+                                        <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0">
+                                            {m.imageUrl ? (
+                                                <img src={m.imageUrl} alt={m.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'mm-empty-logo m-auto object-contain dark:invert'; }} />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-bold text-sm dark:text-white truncate">
+                                                {getLocalizedMuseumName(m, locale)}
+                                            </h3>
+                                            <p className="text-[11px] text-gray-400 dark:text-neutral-500 mt-0.5 flex items-center gap-1">
+                                                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                                {getLocalizedCityName(m, locale) || m.city}, {(() => { try { return new Intl.DisplayNames([locale], { type: 'region' }).of(m.country); } catch { return m.country; } })()}
+                                            </p>
+                                        </div>
+                                        {hasMuseumIdentity && (
+                                            <svg className="w-4 h-4 text-gray-300 dark:text-neutral-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                                             </svg>
-                                            {getLocalizedCityName(m, locale) || m.city}, {(() => { try { return new Intl.DisplayNames([locale], { type: 'region' }).of(m.country); } catch { return m.country; } })()}
-                                        </p>
+                                        )}
+                                    </>
+                                );
+                                const className = "mm-artwork-detail-card2 flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-[0.98]";
+                                return hasMuseumIdentity ? (
+                                    <button
+                                        type="button"
+                                        key={m.id || m.museumId || m.name || `museum-${index}`}
+                                        onClick={() => handleMuseumClick(m)}
+                                        className={`${className} w-full text-left`}
+                                    >
+                                        {content}
+                                    </button>
+                                ) : (
+                                    <div key={`museum-${index}`} className={`${className} opacity-75`}>
+                                        {content}
                                     </div>
-                                    <svg className="w-4 h-4 text-gray-300 dark:text-neutral-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </Link>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -363,8 +433,8 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                             {artwork.relatedStories.map((s: any) => (
                                 <Link
                                     key={s.id}
-                                    href={`/blog/${s.id}`}
-                                    className="flex items-center gap-4 p-4 bg-white dark:bg-neutral-900 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all active:scale-[0.98]"
+                                    href={`/blog/${s.id}?fromArtwork=${encodeURIComponent(artworkId)}`}
+                                    className="mm-artwork-detail-card2 flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-[0.98]"
                                 >
                                     {s.previewImage && (
                                         <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-neutral-800 overflow-hidden flex-shrink-0">

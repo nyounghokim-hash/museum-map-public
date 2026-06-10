@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslatedText, useTranslatedTexts } from '@/hooks/useTranslation';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -12,8 +12,146 @@ import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
+import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { translateViLabel, translateViValue } from '@/lib/visitorInfoI18n';
 import ReportModal from '@/components/ui/ReportModal';
+
+const STORY_TRANSLATION_TOAST: Record<string, string> = {
+    ko: '다국어 번역 중이에요',
+    en: 'Translating this story',
+    ja: 'ストーリーを翻訳中です',
+    de: 'Diese Story wird übersetzt',
+    fr: 'Traduction de cette histoire en cours',
+    es: 'Traduciendo esta historia',
+    pt: 'Traduzindo esta história',
+    'zh-CN': '正在翻译这篇故事',
+    'zh-TW': '正在翻譯這篇故事',
+    da: 'Oversætter denne historie',
+    fi: 'Tätä tarinaa käännetään',
+    sv: 'Översätter den här berättelsen',
+    et: 'Seda lugu tõlgitakse',
+};
+
+const STORY_COLLECTION_LINK_LABELS: Record<string, string> = {
+    ko: '컬렉션으로 이동하기',
+    en: 'Go to collection',
+    ja: 'コレクションへ',
+    de: 'Zur Sammlung',
+    fr: 'Voir la collection',
+    es: 'Ver colección',
+    pt: 'Ver coleção',
+    'zh-CN': '前往收藏集',
+    'zh-TW': '前往收藏集',
+    da: 'Gå til samling',
+    fi: 'Siirry kokoelmaan',
+    sv: 'Gå till samlingen',
+    et: 'Ava kogu',
+};
+
+const INFO_TRANSLATING_LABELS: Record<string, string> = {
+    ko: '번역 중',
+    en: 'Translating',
+    ja: '翻訳中',
+    de: 'Wird übersetzt',
+    fr: 'Traduction',
+    es: 'Traduciendo',
+    pt: 'Traduzindo',
+    'zh-CN': '翻译中',
+    'zh-TW': '翻譯中',
+    da: 'Oversætter',
+    fi: 'Käännetään',
+    sv: 'Översätter',
+    et: 'Tõlgitakse',
+};
+
+const STORY_CATEGORY_COLORS: Record<string, { color: string; bg: string; activeBg: string; darkBg: string; darkActiveBg: string; border: string; darkBorder: string }> = {
+    ALL: { color: '#2563eb', bg: 'rgba(37, 99, 235, 0.10)', activeBg: 'rgba(37, 99, 235, 0.18)', darkBg: 'rgba(37, 99, 235, 0.16)', darkActiveBg: 'rgba(37, 99, 235, 0.28)', border: 'rgba(37, 99, 235, 0.38)', darkBorder: 'rgba(96, 165, 250, 0.42)' },
+    TRAVEL: { color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.11)', activeBg: 'rgba(14, 165, 233, 0.20)', darkBg: 'rgba(14, 165, 233, 0.16)', darkActiveBg: 'rgba(14, 165, 233, 0.28)', border: 'rgba(14, 165, 233, 0.40)', darkBorder: 'rgba(56, 189, 248, 0.42)' },
+    ART: { color: '#db2777', bg: 'rgba(219, 39, 119, 0.10)', activeBg: 'rgba(219, 39, 119, 0.18)', darkBg: 'rgba(219, 39, 119, 0.15)', darkActiveBg: 'rgba(219, 39, 119, 0.27)', border: 'rgba(219, 39, 119, 0.36)', darkBorder: 'rgba(244, 114, 182, 0.40)' },
+    MUSEUM: { color: '#4f46e5', bg: 'rgba(79, 70, 229, 0.10)', activeBg: 'rgba(79, 70, 229, 0.18)', darkBg: 'rgba(99, 102, 241, 0.15)', darkActiveBg: 'rgba(99, 102, 241, 0.27)', border: 'rgba(79, 70, 229, 0.36)', darkBorder: 'rgba(129, 140, 248, 0.40)' },
+    SPECIAL: { color: '#b45309', bg: 'rgba(245, 158, 11, 0.13)', activeBg: 'rgba(245, 158, 11, 0.22)', darkBg: 'rgba(245, 158, 11, 0.15)', darkActiveBg: 'rgba(245, 158, 11, 0.27)', border: 'rgba(245, 158, 11, 0.40)', darkBorder: 'rgba(251, 191, 36, 0.42)' },
+};
+
+const STORY_CATEGORY_LABELS: Record<string, Record<string, string>> = {
+    ALL: { ko: '전체', en: 'All', ja: 'すべて', 'zh-CN': '全部', 'zh-TW': '全部', fr: 'Tout', de: 'Alle', es: 'Todo', pt: 'Tudo', sv: 'Alla', fi: 'Kaikki', da: 'Alle', et: 'Kõik' },
+    MUSEUM: { ko: '뮤지엄', en: 'Museum', ja: 'ミュージアム', 'zh-CN': '博物馆', 'zh-TW': '博物館', fr: 'Musée', de: 'Museum', es: 'Museo', pt: 'Museu', sv: 'Museum', fi: 'Museo', da: 'Museum', et: 'Muuseum' },
+    TRAVEL: { ko: '여행', en: 'Travel', ja: '旅行', 'zh-CN': '旅行', 'zh-TW': '旅行', fr: 'Voyage', de: 'Reise', es: 'Viaje', pt: 'Viagem', sv: 'Resa', fi: 'Matka', da: 'Rejse', et: 'Reis' },
+    ART: { ko: '아트', en: 'Art', ja: 'アート', 'zh-CN': '艺术', 'zh-TW': '藝術', fr: 'Art', de: 'Kunst', es: 'Arte', pt: 'Arte', sv: 'Konst', fi: 'Taide', da: 'Kunst', et: 'Kunst' },
+    SPECIAL: { ko: '특이', en: 'Unusual', ja: 'ユニーク', 'zh-CN': '特色', 'zh-TW': '特色', fr: 'Insolite', de: 'Kurios', es: 'Insólito', pt: 'Insólito', sv: 'Ovanlig', fi: 'Omalaatuinen', da: 'Usædvanlig', et: 'Ebatavaline' },
+};
+
+function getStoryCategoryKey(category?: string) {
+    return (category || 'MUSEUM').toUpperCase();
+}
+
+function getStoryCategoryLabel(category: string | undefined, locale: string) {
+    const labels = STORY_CATEGORY_LABELS[getStoryCategoryKey(category)] || STORY_CATEGORY_LABELS.MUSEUM;
+    return labels[locale] || labels.en;
+}
+
+function getStoryCategoryStyle(category?: string): CSSProperties {
+    const color = STORY_CATEGORY_COLORS[getStoryCategoryKey(category)] || STORY_CATEGORY_COLORS.MUSEUM;
+    return {
+        '--story-category-color': color.color,
+        '--story-category-bg': color.bg,
+        '--story-category-active-bg': color.activeBg,
+        '--story-category-dark-bg': color.darkBg,
+        '--story-category-dark-active-bg': color.darkActiveBg,
+        '--story-category-border': color.border,
+        '--story-category-dark-border': color.darkBorder,
+    } as CSSProperties;
+}
+
+function getStoryCategoryColors(category?: string) {
+    return STORY_CATEGORY_COLORS[getStoryCategoryKey(category)] || STORY_CATEGORY_COLORS.MUSEUM;
+}
+
+function storyDetailCategoryStyle(category?: string): CSSProperties {
+    const color = getStoryCategoryColors(category);
+    return {
+        ...getStoryCategoryStyle(category),
+        pointerEvents: 'none',
+        display: 'inline-flex',
+        minHeight: 24,
+        maxWidth: 'min(44vw, 180px)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 9px',
+        borderRadius: 999,
+        border: `1px solid ${color.border}`,
+        background: '#ffffff',
+        color: color.color,
+        fontSize: 10,
+        fontWeight: 760,
+        lineHeight: 1,
+        letterSpacing: 0,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        boxShadow: '0 10px 22px rgba(0, 0, 0, 0.16)',
+        backdropFilter: 'blur(12px) saturate(150%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(150%)',
+    };
+}
+
+const STORY_RETURN_TO_KEY = 'mm-story-return-to';
+
+function normalizeInternalReturnTarget(value: string | null | undefined, currentPath: string): string | null {
+    if (!value) return null;
+    try {
+        const url = value.startsWith('http')
+            ? new URL(value)
+            : new URL(value, window.location.origin);
+        if (url.origin !== window.location.origin) return null;
+        const target = `${url.pathname}${url.search}`;
+        if (!target || target === currentPath || url.pathname.startsWith('/blog/')) return null;
+        return target;
+    } catch {
+        if (!value.startsWith('/')) return null;
+        if (value === currentPath || value.startsWith('/blog/')) return null;
+        return value;
+    }
+}
 
 
 /**
@@ -46,6 +184,29 @@ function sanitizeAIHtml(html: string): string {
         .replace(/\u300E([^\u300F]*)\u300F/g, '$1');
 }
 
+function containsKorean(text: string): boolean {
+    return /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/.test(text);
+}
+
+function StoryInfoTableRow({ row, locale }: { row: any; locale: string }) {
+    const label = translateViLabel(row.label, locale);
+    const value = translateViValue(row.value, locale);
+    const labelNeedsLiveTranslation = locale !== 'ko' && containsKorean(label);
+    const valueNeedsLiveTranslation = locale !== 'ko' && containsKorean(value);
+    const liveLabel = useTranslatedText(labelNeedsLiveTranslation ? label : '', locale as Locale, { withLoading: true });
+    const liveValue = useTranslatedText(valueNeedsLiveTranslation ? value : '', locale as Locale, { withLoading: true });
+    const pendingLabel = INFO_TRANSLATING_LABELS[locale] || INFO_TRANSLATING_LABELS.en;
+    const displayLabel = labelNeedsLiveTranslation ? (liveLabel.text || pendingLabel) : label;
+    const displayValue = valueNeedsLiveTranslation ? (liveValue.text || pendingLabel) : value;
+
+    return (
+        <tr>
+            <td>{displayLabel}</td>
+            <td>{displayValue}</td>
+        </tr>
+    );
+}
+
 /**
  * 본문 첫 번째 <h2>가 페이지 제목(h1)과 동일하거나 유사하면 제거
  * - 완전 일치 또는 정규화 후 80% 이상 일치 시 제거
@@ -63,6 +224,23 @@ function removeLeadingDuplicateH2(html: string, pageTitle: string): string {
         }
         return match;
     });
+}
+
+function removeLeadingDuplicateTextTitle(text: string, pageTitle: string): string {
+    if (!text || !pageTitle) return text;
+    const normalize = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
+    const titleNorm = normalize(pageTitle);
+    const lines = text.split(/\r?\n/);
+    const firstContentIndex = lines.findIndex((line) => line.trim().length > 0);
+    if (firstContentIndex < 0) return text;
+    const firstLineNorm = normalize(lines[firstContentIndex]);
+    if (!firstLineNorm) return text;
+    if (firstLineNorm === titleNorm || firstLineNorm.includes(titleNorm) || titleNorm.includes(firstLineNorm)) {
+        return [...lines.slice(0, firstContentIndex), ...lines.slice(firstContentIndex + 1)]
+            .join('\n')
+            .replace(/^\s+/, '');
+    }
+    return text;
 }
 
 function InfoTable({ data, locale }: { data: any[]; locale: string }) {
@@ -88,10 +266,7 @@ function InfoTable({ data, locale }: { data: any[]; locale: string }) {
                 <table>
                     <tbody>
                         {data.map((row: any, i: number) => (
-                            <tr key={i}>
-                                <td>{translateViLabel(row.label, locale)}</td>
-                                <td>{translateViValue(row.value, locale)}</td>
-                            </tr>
+                            <StoryInfoTableRow key={i} row={row} locale={locale} />
                         ))}
                     </tbody>
                 </table>
@@ -105,7 +280,7 @@ function SafeImage({ src, alt, className }: { src: string; alt: string; classNam
     if (!src || error) {
         return (
             <div className={`${className} flex items-center justify-center bg-gray-100 dark:bg-neutral-800`}>
-                <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
+                <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
             </div>
         );
     }
@@ -145,11 +320,11 @@ function ArtworkModal({ work, onClose, translations, locale }: { work: any; onCl
                                 src={work.image}
                                 alt={work.title || ''}
                                 className="w-full h-full object-cover"
-                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-12 opacity-20 dark:invert dark:opacity-60'; }}
+                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'mm-empty-logo m-auto object-contain dark:invert'; }}
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                                <img src="/logo.svg" alt="" className="w-12 h-12 opacity-20 dark:invert dark:opacity-60" />
+                                <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
                             </div>
                         )}
                     </div>
@@ -239,19 +414,28 @@ function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
 
 function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string }) {
     const [showAll, setShowAll] = useState(false);
+    const router = useRouter();
     if (!museums || museums.length === 0) return null;
     const VISIBLE = 2;
     const visibleMuseums = showAll ? museums : museums.slice(0, VISIBLE);
     const hasMore = museums.length > VISIBLE;
     return (
-        <div className="mb-6 -mx-6 sm:-mx-10 md:-mx-12 px-6 sm:px-10 md:px-12">
+        <div className="mm-story-related-museums mb-4 -mx-6 sm:-mx-10 md:-mx-12 px-6 sm:px-10 md:px-12">
             <div className="flex items-start gap-2">
                 <div className="flex flex-wrap gap-2 flex-1">
                     {visibleMuseums.map((m: any) => {
                         const imageSrc = getMuseumImageSrc(m);
+                        const handleMuseumClick = async () => {
+                            const museumRouteId = await resolveMuseumRouteId(m);
+                            if (!museumRouteId) return;
+                            if (typeof window !== 'undefined') {
+                                sessionStorage.setItem('navigating-forward', String(Date.now()));
+                            }
+                            router.push(`/museums/${encodeURIComponent(museumRouteId)}?from=story`);
+                        };
                         return (
                             <div key={m.id} className="inline-flex items-center gap-0">
-                                <Link href={`/museums/${m.id}`} className="mm-museum-chip group">
+                                <button type="button" onClick={handleMuseumClick} className="mm-museum-chip group">
                                 {imageSrc ? (
                                     <SafeImage src={imageSrc} alt={m.name} className="w-7 h-7 rounded-lg object-cover flex-shrink-0" />
                                 ) : (
@@ -263,7 +447,7 @@ function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string })
                                 <svg className="w-3 h-3 group-hover:translate-x-0.5 transition-transform flex-shrink-0" style={{ color: 'var(--mm-brand-light)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                                 </svg>
-                            </Link>
+                            </button>
                         </div>
                     );
                     })}
@@ -299,11 +483,13 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const searchParams = useSearchParams();
 
     const effectiveLocale = locale || serverLocale;
-    const [isExiting, setIsExiting] = useState(false);
     const [isFromBack, setIsFromBack] = useState(false);
+    const isBackingRef = useRef(false);
     const fromMuseum = searchParams.get('fromMuseum');
+    const fromArtwork = searchParams.get('fromArtwork');
     const fromMap = searchParams.get('fromMap') === '1';
     const backHref = fromMuseum && /^[A-Za-z0-9_-]+$/.test(fromMuseum) ? `/museums/${fromMuseum}` : null;
+    const artworkBackHref = fromArtwork && /^[A-Za-z0-9_-]+$/.test(fromArtwork) ? `/artworks/${fromArtwork}` : null;
 
     // Check if we arrived via back navigation
     useEffect(() => {
@@ -330,18 +516,29 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     }, []);
 
     const handleBack = useCallback(() => {
-        setIsExiting(true);
-        if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now()));
-        setTimeout(() => {
-            if (fromMap) {
-                router.replace('/');
-            } else if (backHref) {
-                router.replace(backHref);
-            } else {
-                router.replace('/blog');
-            }
-        }, 200);
-    }, [backHref, fromMap, router]);
+        if (isBackingRef.current) return;
+        isBackingRef.current = true;
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('navigating-back', String(Date.now()));
+        }
+
+        const currentPath = typeof window !== 'undefined'
+            ? `${window.location.pathname}${window.location.search}`
+            : `${pathname || ''}${searchParams?.toString() ? `?${searchParams.toString()}` : ''}`;
+
+        let target = artworkBackHref || backHref || (fromMap ? '/' : null);
+
+        if (!target && typeof window !== 'undefined') {
+            target = normalizeInternalReturnTarget(sessionStorage.getItem(STORY_RETURN_TO_KEY), currentPath);
+            sessionStorage.removeItem(STORY_RETURN_TO_KEY);
+        }
+
+        if (!target && typeof document !== 'undefined') {
+            target = normalizeInternalReturnTarget(document.referrer, currentPath);
+        }
+
+        router.replace(target || '/blog');
+    }, [artworkBackHref, backHref, fromMap, pathname, router, searchParams]);
 
     const handleShare = useCallback(async () => {
         const url = buildShareUrl(window.location.href);
@@ -353,11 +550,11 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     }, []);
 
     // DB-cached translation for non-ko/en locales
-    const { translations: cached } = useCachedTranslation('story', post.id, effectiveLocale);
+    const { translations: cached, loading: cachedLoading, partial: cachedPartial, error: cachedError } = useCachedTranslation('story', post.id, effectiveLocale);
     const sourceTitle = post.titleEn || post.title || '';
     const sourceContent = (post.contentEn || post.content || '').replace(/<[^>]*>/g, '');
-    const liveTitle = useTranslatedText(sourceTitle, effectiveLocale);
-    const liveContent = useTranslatedText(sourceContent, effectiveLocale);
+    const liveTitle = useTranslatedText(sourceTitle, effectiveLocale as Locale, { withLoading: true });
+    const liveContent = useTranslatedText(sourceContent, effectiveLocale as Locale, { withLoading: true });
 
     // Determine display content
     const hasEnglish = !!post.titleEn;
@@ -373,35 +570,67 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     } else if (effectiveLocale === 'en') {
         displayTitle = getDisplayStoryTitle(sanitizeAIContent(post.titleEn || post.title), post.museums);
         displayContent = removeLeadingDuplicateH2(sanitizeAIHtml(post.contentEn || post.content), post.titleEn || post.title);
-    } else if (cached.title) {
-        displayTitle = getDisplayStoryTitle(sanitizeAIContent(cached.title), post.museums);
-        displayContent = cached.content ? sanitizeAIContent(cached.content) : sanitizeAIHtml((post.contentEn || post.content).replace(/<[^>]*>/g, ''));
-        isHtml = !cached.content;
+    } else if (cached.title || cached.content) {
+        const resolvedTitle = cached.title || liveTitle.text || sourceTitle;
+        const resolvedContent = cached.content || liveContent.text || sourceContent;
+        displayTitle = getDisplayStoryTitle(sanitizeAIContent(resolvedTitle), post.museums);
+        displayContent = cached.content || liveContent.text
+            ? sanitizeAIContent(resolvedContent)
+            : sanitizeAIHtml((post.contentEn || post.content).replace(/<[^>]*>/g, ''));
+        isHtml = !(cached.content || liveContent.text);
     } else {
-        displayTitle = getDisplayStoryTitle(sanitizeAIContent(liveTitle || sourceTitle), post.museums);
-        displayContent = sanitizeAIContent(liveContent || sourceContent);
+        displayTitle = getDisplayStoryTitle(sanitizeAIContent(liveTitle.text || sourceTitle), post.museums);
+        displayContent = sanitizeAIContent(liveContent.text || sourceContent);
         isHtml = false;
     }
+
+    if (!isHtml) {
+        displayContent = removeLeadingDuplicateTextTitle(displayContent, displayTitle);
+    }
+
+    const hasResolvedStoryTitle = Boolean(cached.title) || Boolean(liveTitle.text && liveTitle.text !== sourceTitle);
+    const hasResolvedStoryContent = Boolean(cached.content) || Boolean(liveContent.text && liveContent.text !== sourceContent);
+    const hasResolvedStoryTranslation = hasResolvedStoryTitle && hasResolvedStoryContent;
+    const storyTranslationPending = !isKoOrEn && !hasResolvedStoryTranslation && (
+        cachedLoading ||
+        cachedPartial ||
+        cachedError ||
+        liveTitle.isTranslating ||
+        liveContent.isTranslating ||
+        !hasResolvedStoryTranslation
+    );
+    const translationToastLabel = STORY_TRANSLATION_TOAST[effectiveLocale] || STORY_TRANSLATION_TOAST.en;
 
     const [reportOpen, setReportOpen] = useState(false);
 
     const [previewError, setPreviewError] = useState(false);
+    const [storyBackVisible, setStoryBackVisible] = useState(true);
     const showBackControls = pathname?.startsWith('/blog/') && pathname !== '/blog';
 
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const syncBackVisibility = () => {
+            setStoryBackVisible(!document.querySelector('.mm-museum-detail2'));
+        };
+        syncBackVisibility();
+        const observer = new MutationObserver(syncBackVisibility);
+        observer.observe(document.body, { childList: true, subtree: true });
+        return () => observer.disconnect();
+    }, []);
+
     return (
-        <div className={`mm-editorial-page2 mm-story-detail-page2 w-full lg:max-w-[1180px] mx-auto lg:px-8 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div className={`mm-editorial-page2 mm-story-detail-page2 w-full mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             {/* Preview Image with fallback */}
             <div className="mm-detail-hero2 mm-story-detail-hero2 h-[340px] sm:h-[420px] lg:h-[520px] lg:rounded-[32px]">
                 <div className="mm-detail-round-actions">
-                    {showBackControls ? (
-                        <button onClick={handleBack} aria-label="Back" className="mm-detail-top-back">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                            </svg>
-                        </button>
-                    ) : <span />}
-                    <button onClick={handleShare} aria-label="Share story">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <span
+                        className="mm-story-detail-category-tag"
+                        style={storyDetailCategoryStyle(post.category)}
+                    >
+                        {getStoryCategoryLabel(post.category, effectiveLocale)}
+                    </span>
+                    <button onClick={handleShare} aria-label="Share story" className="mm-story-detail-share-action">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                         </svg>
                     </button>
@@ -415,7 +644,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-neutral-800">
-                        <img src="/logo.svg" alt="Museum Map" className="w-20 h-20 opacity-20 dark:invert dark:opacity-60" />
+                        <img src="/logo.svg" alt="Museum Map" className="mm-empty-logo dark:invert" />
                     </div>
                 )}
                 <div className="mm-detail-hero-copy">
@@ -426,8 +655,8 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 </div>
             </div>
 
-            {showBackControls && typeof document !== 'undefined' && createPortal(
-                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back lg:hidden">
+            {showBackControls && storyBackVisible && typeof document !== 'undefined' && createPortal(
+                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back mm-story-floating-back lg:hidden">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>
@@ -435,9 +664,17 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 document.body
             )}
 
+            {storyTranslationPending && typeof document !== 'undefined' && createPortal(
+                <div className="mm-story-translation-toast animate-save-toast-in" role="status" aria-live="polite">
+                    <span className="mm-story-translation-spinner" aria-hidden="true" />
+                    <span>{translationToastLabel}</span>
+                </div>,
+                document.body
+            )}
+
             <div className="mm-story-detail-body2 p-6 sm:p-10 md:p-12">
                 {/* Author & Date */}
-                <div className="flex items-center gap-2 mb-4 text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
+                <div className="mm-story-detail-meta flex items-center gap-2 mb-3 text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
                     <span>{post.author || 'MM Editor'}</span>
                     <span className="text-gray-300 dark:text-neutral-700">•</span>
                     <span className="text-gray-400 font-medium">{formatDate(post.createdAt, effectiveLocale)}</span>
@@ -461,12 +698,12 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
 
                 {/* 컬렉션으로 이동하기 버튼 — 컬렉션이 연결된 스토리만 표시 */}
                 {post.collectionId && (
-                    <div className="mb-6">
+                    <div className="mm-story-collection-link-wrap mb-5">
                         <Link href={`/collections/${post.collectionId}`} className="mm-btn-gradient group">
                             <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                             </svg>
-                            <span>{effectiveLocale === 'ko' ? '컬렉션으로 이동하기' : effectiveLocale === 'ja' ? 'コレクションへ' : effectiveLocale === 'zh-CN' || effectiveLocale === 'zh-TW' ? '前往收藏集' : effectiveLocale === 'de' ? 'Zur Sammlung' : effectiveLocale === 'fr' ? 'Voir la collection' : effectiveLocale === 'es' ? 'Ver colección' : 'Go to Collection'}</span>
+                            <span>{STORY_COLLECTION_LINK_LABELS[effectiveLocale] || STORY_COLLECTION_LINK_LABELS.en}</span>
                             <svg className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                             </svg>

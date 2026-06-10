@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
+import { resolveMuseumOpenStatus } from '@/lib/openStatus';
 
 const NEARBY_LABELS: Record<string, {
     title: string;
@@ -12,29 +13,32 @@ const NEARBY_LABELS: Record<string, {
     deniedBody: string;
     unsupported: string;
     empty: string;
+    statusTitle: string;
+    statusNote: string;
 }> = {
-    ko: { title: '내 주변 박물관', close: '닫기', locating: '현재 위치를 확인하는 중이에요', deniedTitle: '현재 위치를 사용하려면 권한이 필요해요', deniedBody: '브라우저 설정에서 위치 접근을 허용해 주세요.', unsupported: '이 브라우저에서는 현재 위치를 사용할 수 없어요', empty: '주변에서 표시할 박물관을 찾지 못했어요' },
-    en: { title: 'Nearby Museums', close: 'Close', locating: 'Locating...', deniedTitle: 'Location permission required', deniedBody: 'Allow location access in browser settings', unsupported: 'Geolocation is not supported', empty: 'No museums found nearby' },
-    ja: { title: '周辺のミュージアム', close: '閉じる', locating: '現在地を確認しています', deniedTitle: '位置情報の許可が必要です', deniedBody: 'ブラウザ設定で位置情報アクセスを許可してください。', unsupported: 'このブラウザでは位置情報を使用できません', empty: '周辺に表示できるミュージアムが見つかりません' },
-    de: { title: 'Museen in der Nähe', close: 'Schließen', locating: 'Standort wird ermittelt...', deniedTitle: 'Standortberechtigung erforderlich', deniedBody: 'Erlauben Sie den Standortzugriff in den Browsereinstellungen.', unsupported: 'Geolokalisierung wird nicht unterstützt', empty: 'Keine Museen in der Nähe gefunden' },
-    fr: { title: 'Musées à proximité', close: 'Fermer', locating: 'Localisation...', deniedTitle: 'Autorisation de localisation requise', deniedBody: 'Autorisez l’accès à la position dans les paramètres du navigateur.', unsupported: 'La géolocalisation n’est pas prise en charge', empty: 'Aucun musée trouvé à proximité' },
-    es: { title: 'Museos cercanos', close: 'Cerrar', locating: 'Localizando...', deniedTitle: 'Se requiere permiso de ubicación', deniedBody: 'Permite el acceso a la ubicación en la configuración del navegador.', unsupported: 'La geolocalización no es compatible', empty: 'No se encontraron museos cercanos' },
-    pt: { title: 'Museus próximos', close: 'Fechar', locating: 'Localizando...', deniedTitle: 'Permissão de localização necessária', deniedBody: 'Permita o acesso à localização nas configurações do navegador.', unsupported: 'Geolocalização não suportada', empty: 'Nenhum museu encontrado por perto' },
-    'zh-CN': { title: '附近博物馆', close: '关闭', locating: '正在确认当前位置', deniedTitle: '需要位置权限', deniedBody: '请在浏览器设置中允许位置访问。', unsupported: '此浏览器不支持定位', empty: '附近未找到可显示的博物馆' },
-    'zh-TW': { title: '附近博物館', close: '關閉', locating: '正在確認目前位置', deniedTitle: '需要位置權限', deniedBody: '請在瀏覽器設定中允許位置存取。', unsupported: '此瀏覽器不支援定位', empty: '附近未找到可顯示的博物館' },
-    da: { title: 'Museer i nærheden', close: 'Luk', locating: 'Finder placering...', deniedTitle: 'Placeringstilladelse kræves', deniedBody: 'Tillad placeringsadgang i browserindstillingerne.', unsupported: 'Geolokation understøttes ikke', empty: 'Ingen museer fundet i nærheden' },
-    fi: { title: 'Lähistön museot', close: 'Sulje', locating: 'Haetaan sijaintia...', deniedTitle: 'Sijaintilupa tarvitaan', deniedBody: 'Salli sijainnin käyttö selaimen asetuksissa.', unsupported: 'Sijaintia ei tueta tässä selaimessa', empty: 'Lähistöltä ei löytynyt museoita' },
-    sv: { title: 'Museer i närheten', close: 'Stäng', locating: 'Hämtar plats...', deniedTitle: 'Platsbehörighet krävs', deniedBody: 'Tillåt platsåtkomst i webbläsarens inställningar.', unsupported: 'Geolokalisering stöds inte', empty: 'Inga museer hittades i närheten' },
-    et: { title: 'Lähedal muuseumid', close: 'Sulge', locating: 'Asukoha tuvastamine...', deniedTitle: 'Asukoha luba on vajalik', deniedBody: 'Luba asukoha kasutamine brauseri seadetes.', unsupported: 'Geolokatsioon ei ole toetatud', empty: 'Lähedusest muuseume ei leitud' },
+    ko: { title: '내 주변 박물관', close: '닫기', locating: '현재 위치를 확인하는 중이에요', deniedTitle: '현재 위치를 사용하려면 권한이 필요해요', deniedBody: '브라우저 설정에서 위치 접근을 허용해 주세요.', unsupported: '이 브라우저에서는 현재 위치를 사용할 수 없어요', empty: '주변에서 표시할 박물관을 찾지 못했어요', statusTitle: '운영 정보', statusNote: '박물관 및 미술관별 입장 마감 시간이 상이할 수 있습니다.' },
+    en: { title: 'Nearby Museums', close: 'Close', locating: 'Locating...', deniedTitle: 'Location permission required', deniedBody: 'Allow location access in browser settings', unsupported: 'Geolocation is not supported', empty: 'No museums found nearby', statusTitle: 'Hours', statusNote: 'Last admission times may vary by museum or gallery.' },
+    ja: { title: '周辺のミュージアム', close: '閉じる', locating: '現在地を確認しています', deniedTitle: '位置情報の許可が必要です', deniedBody: 'ブラウザ設定で位置情報アクセスを許可してください。', unsupported: 'このブラウザでは位置情報を使用できません', empty: '周辺に表示できるミュージアムが見つかりません', statusTitle: '営業時間', statusNote: '最終入場時間はミュージアムごとに異なる場合があります。' },
+    de: { title: 'Museen in der Nähe', close: 'Schließen', locating: 'Standort wird ermittelt...', deniedTitle: 'Standortberechtigung erforderlich', deniedBody: 'Erlauben Sie den Standortzugriff in den Browsereinstellungen.', unsupported: 'Geolokalisierung wird nicht unterstützt', empty: 'Keine Museen in der Nähe gefunden', statusTitle: 'Öffnungszeiten', statusNote: 'Letzter Einlass kann je nach Museum oder Galerie variieren.' },
+    fr: { title: 'Musées à proximité', close: 'Fermer', locating: 'Localisation...', deniedTitle: 'Autorisation de localisation requise', deniedBody: 'Autorisez l’accès à la position dans les paramètres du navigateur.', unsupported: 'La géolocalisation n’est pas prise en charge', empty: 'Aucun musée trouvé à proximité', statusTitle: 'Horaires', statusNote: 'L’heure de dernière admission peut varier selon le musée ou la galerie.' },
+    es: { title: 'Museos cercanos', close: 'Cerrar', locating: 'Localizando...', deniedTitle: 'Se requiere permiso de ubicación', deniedBody: 'Permite el acceso a la ubicación en la configuración del navegador.', unsupported: 'La geolocalización no es compatible', empty: 'No se encontraron museos cercanos', statusTitle: 'Horario', statusNote: 'La última entrada puede variar según el museo o la galería.' },
+    pt: { title: 'Museus próximos', close: 'Fechar', locating: 'Localizando...', deniedTitle: 'Permissão de localização necessária', deniedBody: 'Permita o acesso à localização nas configurações do navegador.', unsupported: 'Geolocalização não suportada', empty: 'Nenhum museu encontrado por perto', statusTitle: 'Horário', statusNote: 'O horário da última entrada pode variar por museu ou galeria.' },
+    'zh-CN': { title: '附近博物馆', close: '关闭', locating: '正在确认当前位置', deniedTitle: '需要位置权限', deniedBody: '请在浏览器设置中允许位置访问。', unsupported: '此浏览器不支持定位', empty: '附近未找到可显示的博物馆', statusTitle: '开放时间', statusNote: '各博物馆及美术馆的最后入场时间可能不同。' },
+    'zh-TW': { title: '附近博物館', close: '關閉', locating: '正在確認目前位置', deniedTitle: '需要位置權限', deniedBody: '請在瀏覽器設定中允許位置存取。', unsupported: '此瀏覽器不支援定位', empty: '附近未找到可顯示的博物館', statusTitle: '開放時間', statusNote: '各博物館及美術館的最後入場時間可能不同。' },
+    da: { title: 'Museer i nærheden', close: 'Luk', locating: 'Finder placering...', deniedTitle: 'Placeringstilladelse kræves', deniedBody: 'Tillad placeringsadgang i browserindstillingerne.', unsupported: 'Geolokation understøttes ikke', empty: 'Ingen museer fundet i nærheden', statusTitle: 'Åbningstider', statusNote: 'Sidste adgang kan variere efter museum eller galleri.' },
+    fi: { title: 'Lähistön museot', close: 'Sulje', locating: 'Haetaan sijaintia...', deniedTitle: 'Sijaintilupa tarvitaan', deniedBody: 'Salli sijainnin käyttö selaimen asetuksissa.', unsupported: 'Sijaintia ei tueta tässä selaimessa', empty: 'Lähistöltä ei löytynyt museoita', statusTitle: 'Aukiolo', statusNote: 'Viimeinen sisäänpääsy voi vaihdella museoittain tai gallerioittain.' },
+    sv: { title: 'Museer i närheten', close: 'Stäng', locating: 'Hämtar plats...', deniedTitle: 'Platsbehörighet krävs', deniedBody: 'Tillåt platsåtkomst i webbläsarens inställningar.', unsupported: 'Geolokalisering stöds inte', empty: 'Inga museer hittades i närheten', statusTitle: 'Öppettider', statusNote: 'Sista insläpp kan variera mellan museer och gallerier.' },
+    et: { title: 'Lähedal muuseumid', close: 'Sulge', locating: 'Asukoha tuvastamine...', deniedTitle: 'Asukoha luba on vajalik', deniedBody: 'Luba asukoha kasutamine brauseri seadetes.', unsupported: 'Geolokatsioon ei ole toetatud', empty: 'Lähedusest muuseume ei leitud', statusTitle: 'Lahtiolek', statusNote: 'Viimane sissepääs võib muuseumiti või galeriiti erineda.' },
 };
 
 interface Props {
     isOpen: boolean;
+    closing?: boolean;
     onClose: () => void;
     museums: any[];
     onMuseumClick: (id: string) => void;
     /** Horizontal anchor for the popup relative to its trigger button. Defaults to 'left'. */
-    anchor?: 'left' | 'right';
+    anchor?: 'left' | 'right' | 'before';
     /** Vertical placement — 'below' opens downward (default), 'above' opens upward. */
     vertical?: 'below' | 'above';
     /**
@@ -45,6 +49,8 @@ interface Props {
     mode?: 'popover' | 'fixed-bottom';
     /** Trigger element ref — required for 'popover' mode positioning. */
     triggerRef?: RefObject<HTMLElement | null>;
+    /** Optional saved/manual map location. When present, the popup does not request geolocation. */
+    locationOverride?: { lat: number; lng: number } | null;
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -57,7 +63,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
     return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef }: Props) {
+export default function NearbyPopup({ isOpen, closing = false, onClose, museums, onMuseumClick, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef, locationOverride }: Props) {
     const { locale } = useApp();
     type State = 'idle' | 'loading' | 'ready' | 'denied' | 'unsupported';
     const [state, setState] = useState<State>('idle');
@@ -85,13 +91,21 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
         const computePosition = () => {
             const rect = triggerRef.current?.getBoundingClientRect();
             if (!rect) return;
-            const popupWidth = Math.min(300, window.innerWidth - 24);
+            const popupWidth = Math.min(320, window.innerWidth - 24);
             const gap = 8;
+            const estimatedHeight = Math.min(430, window.innerHeight - 120);
+            const bottomSafe = window.innerWidth < 768 ? 118 : 24;
+            const maxTop = Math.max(12, window.innerHeight - estimatedHeight - bottomSafe);
             const style: React.CSSProperties = { position: 'fixed', width: popupWidth };
-            if (vertical === 'below') style.top = Math.round(rect.bottom + gap);
-            else style.bottom = Math.round(window.innerHeight - rect.top + gap);
+            if (anchor === 'before') style.top = Math.min(Math.max(12, Math.round(rect.top)), maxTop);
+            else if (vertical === 'below') style.top = Math.min(Math.max(12, Math.round(rect.bottom + gap)), maxTop);
+            else style.bottom = Math.max(bottomSafe, Math.round(window.innerHeight - rect.top + gap));
             // Compute left always, clamped to viewport
-            const desiredLeft = anchor === 'right' ? rect.right - popupWidth : rect.left;
+            const desiredLeft = anchor === 'before'
+                ? rect.left - popupWidth - gap
+                : anchor === 'right'
+                    ? rect.right - popupWidth
+                    : rect.left;
             style.left = Math.max(12, Math.min(desiredLeft, window.innerWidth - popupWidth - 12));
             setPopoverStyle(style);
         };
@@ -106,6 +120,11 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
 
     useEffect(() => {
         if (!isOpen) return;
+        if (locationOverride) {
+            setUserPos(locationOverride);
+            setState('ready');
+            return;
+        }
         if (userPos) return;
         if (typeof navigator === 'undefined' || !navigator.geolocation) {
             setState('unsupported');
@@ -120,7 +139,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
             () => setState('denied'),
             { enableHighAccuracy: false, timeout: 8000, maximumAge: 60_000 }
         );
-    }, [isOpen, userPos]);
+    }, [isOpen, userPos, locationOverride?.lat, locationOverride?.lng]);
 
     const nearby = useMemo(() => {
         if (!userPos) return [];
@@ -140,7 +159,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
     const headerText = labels.title;
 
     // WCAG AA: 다크 지도·이미지 위에서도 팝업이 뚜렷이 구분되도록 완전 불투명 + 경계 강화 + 더 짙은 그림자
-    const commonClass = 'bg-white dark:bg-neutral-900 backdrop-blur-xl rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.65)] border border-gray-200 dark:border-neutral-700 z-[9999] animate-fadeInUp overflow-hidden';
+    const commonClass = `mm-nearby-popup2 mm-map-popover-motion rounded-2xl z-[9999] overflow-hidden ${closing ? 'is-closing' : ''}`;
     const panel = (
         <div
             ref={panelRef}
@@ -154,7 +173,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
             }
         >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-neutral-700">
-                <h3 className="font-extrabold text-sm text-gray-900 dark:text-white flex items-center gap-2">
+                <h3 className="font-semibold text-sm text-gray-900 dark:text-white flex items-center gap-2">
                     <svg className="w-4 h-4 text-blue-500 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -181,7 +200,7 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                 )}
                 {state === 'denied' && (
                     <div className="py-8 px-5 text-center">
-                        <p className="text-xs font-bold text-gray-700 dark:text-gray-200 mb-1">
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
                             {labels.deniedTitle}
                         </p>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -199,25 +218,34 @@ export default function NearbyPopup({ isOpen, onClose, museums, onMuseumClick, a
                         {labels.empty}
                     </div>
                 )}
-                {state === 'ready' && nearby.map((m: any) => (
-                    <button
-                        key={m.id}
-                        onClick={() => { onMuseumClick(m.id); onClose(); }}
-                        className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 active:scale-[0.98] transition text-left border-b border-gray-100 dark:border-neutral-800 last:border-0 focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-900/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
-                    >
-                        <div className="min-w-0 flex-1">
-                            <h4 className="font-bold text-xs text-gray-900 dark:text-white truncate">
-                                {getLocalizedMuseumName(m, locale) || m.name}
-                            </h4>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                                {getLocalizedCityName(m, locale) || m.city}
-                            </p>
-                        </div>
-                        <div className="shrink-0 px-2 py-1 rounded-lg bg-blue-100 dark:bg-blue-800/60 text-blue-700 dark:text-blue-100 text-[11px] font-bold font-mono">
-                            {m.distance < 1 ? `${Math.round(m.distance * 1000)}m` : `${m.distance.toFixed(1)}km`}
-                        </div>
-                    </button>
-                ))}
+                {state === 'ready' && nearby.map((m: any) => {
+                    const openStatus = resolveMuseumOpenStatus(m, locale);
+                    return (
+                        <button
+                            key={m.id}
+                            onClick={() => { onMuseumClick(m.id); onClose(); }}
+                            className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-blue-50 dark:hover:bg-blue-900/30 active:scale-[0.98] transition text-left border-b border-gray-100 dark:border-neutral-800 last:border-0 focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-900/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <h4 className="font-semibold text-xs text-gray-900 dark:text-white truncate">
+                                    {getLocalizedMuseumName(m, locale) || m.name}
+                                </h4>
+                                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                                    {getLocalizedCityName(m, locale) || m.city}
+                                </p>
+                            </div>
+                            <div className="mm-nearby-popup2-meta shrink-0">
+                                <span className={`mm-nearby-popup2-status is-${openStatus.kind}`}>
+                                    <span aria-hidden="true" />
+                                    {openStatus.label}
+                                </span>
+                                <span className="mm-nearby-popup2-distance">
+                                    {m.distance < 1 ? `${Math.round(m.distance * 1000)}m` : `${m.distance.toFixed(1)}km`}
+                                </span>
+                            </div>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );

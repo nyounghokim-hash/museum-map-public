@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
@@ -105,6 +105,7 @@ export default function LoginPage() {
     // Museum name scroll
     const [museumIdx, setMuseumIdx] = useState(0);
     const [museumVisible, setMuseumVisible] = useState(true);
+    const museumRotateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // UI states
     const [showChoice, setShowChoice] = useState(false);
@@ -142,11 +143,21 @@ export default function LoginPage() {
     };
 
     useEffect(() => {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) return;
+
         const interval = setInterval(() => {
+            if (document.visibilityState === 'hidden') return;
             setMuseumVisible(false);
-            setTimeout(() => { setMuseumIdx(prev => (prev + 1) % FAMOUS_MUSEUMS.length); setMuseumVisible(true); }, 400);
-        }, 2500);
-        return () => clearInterval(interval);
+            museumRotateTimeoutRef.current = setTimeout(() => {
+                setMuseumIdx(prev => (prev + 1) % FAMOUS_MUSEUMS.length);
+                setMuseumVisible(true);
+            }, 400);
+        }, 4200);
+        return () => {
+            clearInterval(interval);
+            if (museumRotateTimeoutRef.current) clearTimeout(museumRotateTimeoutRef.current);
+        };
     }, []);
 
     // Detect in-app browser on mount
@@ -238,7 +249,7 @@ export default function LoginPage() {
             {/* Content */}
             <div className="relative z-10 grid min-h-full grid-rows-[1fr_auto] px-5 pb-8 pt-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:grid-rows-1 lg:items-center lg:gap-16 lg:px-16 lg:py-16">
                 {/* Top — branding */}
-                <div className="flex flex-col items-center justify-center text-center lg:items-start lg:text-left">
+                <div className="login-2-branding flex flex-col items-center justify-center text-center lg:items-start lg:text-left">
                     <div className="mb-7 flex h-20 w-20 items-center justify-center rounded-[1.65rem] border border-blue-200/70 bg-white/76 text-blue-700 shadow-2xl shadow-blue-950/12 backdrop-blur-xl dark:border-white/12 dark:bg-white/10 dark:text-white dark:shadow-blue-950/30">
                         <svg viewBox="0 0 510 286" className="h-11 w-auto fill-current" aria-hidden="true">
                             <path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" />
@@ -250,7 +261,7 @@ export default function LoginPage() {
                             {FAMOUS_MUSEUMS[museumIdx]}
                         </p>
                     </div>
-                    <h1 className="font-serif text-5xl font-semibold leading-none tracking-normal text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
+                    <h1 className="mm-login-brand-title text-5xl leading-none tracking-normal text-slate-950 sm:text-6xl lg:text-7xl dark:text-white">
                         Museum Map
                     </h1>
                     <p className="mt-5 max-w-sm text-base font-semibold leading-relaxed text-slate-600 sm:text-lg dark:text-blue-100/78">
@@ -375,10 +386,16 @@ export default function LoginPage() {
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowChoice(false)} />
 
-                    <div className="relative w-full sm:max-w-sm mx-0 sm:mx-4 glass-popup gradient-border rounded-t-3xl sm:rounded-3xl overflow-hidden animate-slideUp" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+                    <div className="login-2-choice-sheet relative w-full sm:max-w-sm mx-0 sm:mx-4 rounded-t-3xl sm:rounded-3xl overflow-hidden animate-slideUp">
                         <div className="px-6 pt-6 pb-2">
-                            <div className="flex items-center justify-end mb-3">
-                                <button onClick={() => setShowChoice(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/50 dark:bg-white/10 text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                            <div className="flex items-start justify-between gap-4 mb-5">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600/80 dark:text-blue-300/80">Museum Map</p>
+                                    <h2 className="mt-1 text-xl font-extrabold leading-tight text-slate-950 dark:text-white">
+                                        {txt(choiceLabels.title, locale)}
+                                    </h2>
+                                </div>
+                                <button onClick={() => setShowChoice(false)} className="w-9 h-9 flex items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:text-slate-800 transition-colors dark:border-white/10 dark:bg-white/8 dark:text-slate-300 dark:hover:text-white">
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
@@ -386,39 +403,39 @@ export default function LoginPage() {
                             {/* Login */}
                             <button
                                 onClick={handleLogin}
-                                className="w-full text-left p-4 rounded-2xl border border-white/50 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-700 bg-white/90 dark:bg-white/8 hover:bg-white dark:hover:bg-blue-900/10 transition-all active:scale-[0.98] mb-3 group"
+                                className="login-2-choice-option w-full text-left p-4 rounded-2xl transition-all active:scale-[0.98] mb-3 group"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="w-11 h-11 rounded-2xl bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center shrink-0">
+                                    <div className="login-2-choice-icon w-11 h-11 rounded-2xl flex items-center justify-center shrink-0">
                                         <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
                                     </div>
                                     <div>
-                                        <span className="text-base font-extrabold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{txt(choiceLabels.login, locale)}</span>
-                                        <p className="text-[11px] text-gray-600 dark:text-neutral-400 mt-0.5">{txt(choiceLabels.loginDesc, locale)}</p>
+                                        <span className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{txt(choiceLabels.login, locale)}</span>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{txt(choiceLabels.loginDesc, locale)}</p>
                                     </div>
-                                    <svg className="w-4 h-4 text-gray-300 dark:text-neutral-600 ml-auto shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                    <svg className="w-4 h-4 text-blue-400/70 ml-auto shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                 </div>
                             </button>
 
                             {/* Signup */}
                             <button
                                 onClick={handleSignup}
-                                className="w-full text-left p-4 rounded-2xl border border-white/50 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-700 bg-white/90 dark:bg-white/8 hover:bg-white dark:hover:bg-blue-900/10 transition-all active:scale-[0.98] mb-3 group"
+                                className="login-2-choice-option w-full text-left p-4 rounded-2xl transition-all active:scale-[0.98] mb-3 group"
                             >
                                 <div className="flex items-center gap-4">
-                                    <div className="w-11 h-11 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-                                        <svg className="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" /></svg>
+                                    <div className="login-2-choice-icon w-11 h-11 rounded-2xl flex items-center justify-center shrink-0">
+                                        <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" /></svg>
                                     </div>
                                     <div>
-                                        <span className="text-base font-extrabold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{txt(choiceLabels.signup, locale)}</span>
-                                        <p className="text-[11px] text-gray-600 dark:text-neutral-400 mt-0.5">{txt(choiceLabels.signupDesc, locale)}</p>
+                                        <span className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">{txt(choiceLabels.signup, locale)}</span>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{txt(choiceLabels.signupDesc, locale)}</p>
                                     </div>
-                                    <svg className="w-4 h-4 text-gray-300 dark:text-neutral-600 ml-auto shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                    <svg className="w-4 h-4 text-blue-400/70 ml-auto shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                 </div>
                             </button>
                         </div>
                         <div className="px-6 pb-6 pt-2">
-                            <p className="text-[10px] text-center text-gray-500 dark:text-neutral-400">Google OAuth 2.0</p>
+                            <p className="text-[10px] text-center font-semibold text-slate-400 dark:text-slate-500">Google OAuth 2.0</p>
                         </div>
                     </div>
                 </div>
@@ -429,7 +446,7 @@ export default function LoginPage() {
                 <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowConsent(false)} />
 
-                    <div className="relative w-full sm:max-w-md mx-0 sm:mx-4 glass-panel gradient-border rounded-t-3xl sm:rounded-3xl overflow-hidden animate-slideUp" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+                    <div className="mm-consent-modal2 relative w-full sm:max-w-md mx-0 sm:mx-4 glass-panel gradient-border rounded-t-3xl sm:rounded-3xl overflow-hidden animate-slideUp" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
                         {/* Header */}
                         <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-neutral-800">
                             <div className="flex items-center justify-between">
@@ -440,7 +457,7 @@ export default function LoginPage() {
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                 </button>
                             </div>
-                            <button onClick={handleAgreeAll} className={`mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.98] ${allAgreed ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
+                            <button onClick={handleAgreeAll} className={`mm-consent-modal2-all mt-4 w-full flex items-center gap-3 px-4 py-3 rounded-2xl border-2 transition-all active:scale-[0.98] ${allAgreed ? 'is-active border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-neutral-700 hover:border-blue-300 dark:hover:border-blue-700'}`}>
                                 <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${allAgreed ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                                     {allAgreed && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                                 </div>
@@ -451,7 +468,7 @@ export default function LoginPage() {
                         {/* Items */}
                         <div className="px-6 py-4 space-y-3 max-h-[50vh] overflow-y-auto">
                             {/* Terms */}
-                            <div onClick={() => setTermsAgreed((prev: boolean) => !prev)} className={`rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${termsAgreed ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
+                            <div onClick={() => setTermsAgreed((prev: boolean) => !prev)} className={`mm-consent-modal2-item rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${termsAgreed ? 'is-active border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
                                 <div className="flex items-start gap-3">
                                     <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${termsAgreed ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                                         {termsAgreed && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
@@ -471,7 +488,7 @@ export default function LoginPage() {
                             </div>
 
                             {/* Privacy */}
-                            <div onClick={() => setPrivacyAgreed((prev: boolean) => !prev)} className={`rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${privacyAgreed ? 'border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
+                            <div onClick={() => setPrivacyAgreed((prev: boolean) => !prev)} className={`mm-consent-modal2-item rounded-2xl border p-4 cursor-pointer transition-all active:scale-[0.98] ${privacyAgreed ? 'is-active border-blue-300 dark:border-blue-700 bg-blue-50/50 dark:bg-blue-900/10' : 'border-white/40 dark:border-white/10 bg-white/30 dark:bg-white/5'}`}>
                                 <div className="flex items-start gap-3">
                                     <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${privacyAgreed ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-neutral-600'}`}>
                                         {privacyAgreed && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
@@ -492,8 +509,8 @@ export default function LoginPage() {
                         </div>
 
                         {/* Footer */}
-                        <div className="px-6 py-5 border-t border-gray-100 dark:border-neutral-800 flex gap-3">
-                            <button onClick={() => setShowConsent(false)} className="flex-1 py-3.5 rounded-2xl text-sm font-bold text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-white/5 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/10 active:scale-[0.98] transition-all">
+                        <div className="mm-consent-modal2-footer px-6 py-5 border-t border-gray-100 dark:border-neutral-800 flex gap-3">
+                            <button onClick={() => setShowConsent(false)} className="mm-consent-modal2-secondary flex-1 py-3.5 rounded-2xl text-sm font-bold text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-white/5 border border-white/40 dark:border-white/10 hover:bg-white/60 dark:hover:bg-white/10 active:scale-[0.98] transition-all">
                                 {txt(consentLabels.cancel, locale)}
                             </button>
                             <button onClick={handleConsent} disabled={!allAgreed} className={`flex-[2] py-3.5 rounded-2xl text-sm font-bold transition-all active:scale-[0.98] ${allAgreed ? 'gradient-btn shadow-lg' : 'bg-gray-200 dark:bg-neutral-700 text-gray-400 dark:text-neutral-500 cursor-not-allowed'}`}>
@@ -560,7 +577,7 @@ export default function LoginPage() {
             {signupRequired && !showConsent && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center">
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-                    <div className="relative glass-panel gradient-border rounded-3xl p-8 mx-6 max-w-sm w-full text-center" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+                    <div className="mm-signup-required2 relative glass-panel gradient-border rounded-3xl p-8 mx-6 max-w-sm w-full text-center" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
                         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-500/10 dark:bg-blue-400/10 flex items-center justify-center">
                             <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />

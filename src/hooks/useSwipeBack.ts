@@ -14,11 +14,13 @@ export function useSwipeBack(options?: {
     threshold?: number;
     edgeWidth?: number;
     onSwipeRight?: () => void;  // 전체 화면 오른쪽 스와이프 콜백
+    onBack?: () => void;        // 가장자리/기본 뒤로가기 콜백
 }) {
     const router = useRouter();
     const threshold = options?.threshold ?? 60;
     const edgeWidth = options?.edgeWidth ?? 40;
     const onSwipeRight = options?.onSwipeRight;
+    const onBack = options?.onBack;
 
     const startX = useRef(0);
     const startY = useRef(0);
@@ -44,13 +46,14 @@ export function useSwipeBack(options?: {
                 onSwipeRight();
             } else {
                 // 가장자리 스와이프 → 뒤로가기
-                router.back();
+                if (onBack) onBack();
+                else router.back();
             }
         }
 
         isActive.current = false;
         isEdge.current = false;
-    }, [router, threshold, onSwipeRight]);
+    }, [router, threshold, onSwipeRight, onBack]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;

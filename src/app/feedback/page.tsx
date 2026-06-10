@@ -36,7 +36,7 @@ export default function FeedbackPage() {
     }
 
     return (
-        <div className="w-full max-w-[640px] mx-auto px-4 py-6 sm:px-6 sm:py-10 mt-2 sm:mt-6 animate-fadeInUp">
+        <div className="mm-legal-page2 mm-library-page2 no-back-swipe w-full max-w-[640px] mx-auto px-4 py-6 sm:px-6 sm:py-10 mt-2 sm:mt-6 animate-fadeInUp">
             <div className="mb-6 sm:mb-8">
                 <h1 className="text-xl sm:text-2xl font-bold dark:text-white">
                     {t('feedback.title', locale)}
