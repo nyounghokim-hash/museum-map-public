@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import * as gtag from '@/lib/gtag';
 import Link from 'next/link';
+import { navigateWithPending } from '@/lib/route-pending';
 
 /** Detect in-app browsers that block Google OAuth */
 function detectInAppBrowser(): string | null {
@@ -235,7 +236,7 @@ export default function LoginPage() {
         <div className="login-2-shell fixed inset-0 flex flex-col selection:bg-blue-200 selection:text-slate-950 transition-colors duration-300 overflow-hidden lg:overflow-y-auto animate-[fadeIn_0.8s_ease]">
             <button
                 type="button"
-                onClick={() => window.location.assign('/')}
+                onClick={() => navigateWithPending('/', locale)}
                 className="fixed right-4 top-[max(16px,env(safe-area-inset-top,0px))] z-50 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/70 bg-white/76 text-slate-700 shadow-xl shadow-blue-950/10 backdrop-blur-xl transition-all active:scale-95 hover:bg-white/90 dark:border-white/20 dark:bg-blue-950/58 dark:text-white dark:shadow-blue-950/20 dark:hover:bg-blue-950/72"
                 aria-label={locale === 'ko' ? '닫기' : 'Close'}
             >

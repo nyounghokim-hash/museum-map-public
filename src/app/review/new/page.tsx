@@ -5,6 +5,7 @@ import { GlassPanel } from '@/components/ui/glass';
 import { useModal } from '@/components/ui/Modal';
 import { useApp } from '@/components/AppContext';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
+import { navigateWithPending } from '@/lib/route-pending';
 function ReviewCreateForm() {
   const searchParams = useSearchParams();
   const museumId = searchParams.get('museumId');
@@ -29,7 +30,7 @@ function ReviewCreateForm() {
     });
     setLoading(false);
     showAlert(locale === 'ko' ? '리뷰가 제출되었으며 박물관이 방문한 곳으로 등록되었습니다!' : 'Review Submitted & Museum marked as Visited!');
-    window.location.assign(`/museums/${museumId}`);
+    navigateWithPending(`/museums/${encodeURIComponent(String(museumId))}`, locale);
   };
   const lines = content.split('\n');
   const lineCount = lines.length;

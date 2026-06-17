@@ -35,7 +35,7 @@ export default function RoutePendingReset() {
                 const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
                 const next = `${url.pathname}${url.search}${url.hash}`;
                 if (current === next) return;
-                startRoutePending(locale);
+                startRoutePending(locale, anchor.href);
             } catch { }
         };
         document.addEventListener('click', maybeStartPending, true);

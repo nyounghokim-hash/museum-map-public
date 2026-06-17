@@ -182,8 +182,8 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             sessionStorage.setItem('navigating-forward', String(Date.now()));
             sessionStorage.setItem('artwork-to-museum-return', window.location.pathname + window.location.search);
         }
-        window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork`);
-    }, []);
+        navigateWithPending(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork`, locale);
+    }, [locale]);
 
     if (loading) {
         return (

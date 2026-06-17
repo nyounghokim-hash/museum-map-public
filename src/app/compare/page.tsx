@@ -12,10 +12,11 @@ import { t, translateCategory, Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
+import { navigateWithPending } from '@/lib/route-pending';
 
-function goLogin(callbackUrl: string) {
+function goLogin(callbackUrl: string, locale?: string | null) {
     if (typeof window === 'undefined') return;
-    window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    navigateWithPending(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`, locale);
 }
 
 export default function ComparePage() {
@@ -46,7 +47,7 @@ export default function ComparePage() {
         const urlIds = searchParams.get('ids');
         if (urlIds) {
             if (!isAuthenticated) {
-                goLogin('/compare');
+                goLogin('/compare', locale);
                 return;
             }
             const idList = urlIds.split(',').filter(Boolean);
@@ -95,7 +96,7 @@ export default function ComparePage() {
             return;
         }
         if (!isAuthenticated) {
-            goLogin('/compare');
+            goLogin('/compare', locale);
             return;
         }
         setSearchOpen(true);
@@ -107,7 +108,7 @@ export default function ComparePage() {
             return;
         }
         if (!isAuthenticated) {
-            goLogin('/compare');
+            goLogin('/compare', locale);
             return;
         }
         const added = addToCompare(museum.id);

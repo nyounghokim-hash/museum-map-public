@@ -5,6 +5,7 @@ import { GlassPanel } from '@/components/ui/glass';
 import { useModal } from '@/components/ui/Modal';
 import { useApp } from '@/components/AppContext';
 import { t } from '@/lib/i18n';
+import { navigateWithPending } from '@/lib/route-pending';
 
 export default function SharedCollectionPage() {
     const { locale } = useApp();
@@ -81,7 +82,7 @@ export default function SharedCollectionPage() {
                             <p className="text-xs text-gray-500 font-medium">{item.museum.city}, {(() => { try { return new Intl.DisplayNames([locale], { type: 'region' }).of(item.museum.country); } catch { return item.museum.country; } })()}</p>
                         </div>
                         <button
-                            onClick={() => window.location.assign(`/museums/${item.museumId}`)}
+                            onClick={() => navigateWithPending(`/museums/${encodeURIComponent(item.museumId)}`, locale)}
                             className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline px-4 transition-colors"
                         >
                             {t('share.viewDetail', locale)}
