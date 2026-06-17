@@ -4620,6 +4620,11 @@ img:not(.no-dissolve):not([data-loaded]) {
   background: rgba(209, 250, 229, 0.92);
 }
 
+.mm-nearby-popup2-status.is-preparing {
+  color: #2563eb;
+  background: rgba(219, 234, 254, 0.96);
+}
+
 .mm-nearby-popup2-status.is-ended {
   color: #b45309;
   background: rgba(254, 243, 199, 0.92);
@@ -4981,6 +4986,11 @@ img:not(.no-dissolve):not([data-loaded]) {
 :is(.dark, [data-theme="dark"]) .mm-nearby-popup2-status.is-open {
   color: #6ee7b7;
   background: rgba(6,78,59,0.58);
+}
+
+:is(.dark, [data-theme="dark"]) .mm-nearby-popup2-status.is-preparing {
+  color: #93c5fd;
+  background: rgba(30, 64, 175, 0.42);
 }
 
 :is(.dark, [data-theme="dark"]) .mm-nearby-popup2-status.is-ended {
@@ -6852,8 +6862,12 @@ html.is-inapp-browser::after {
   background: rgba(16, 185, 129, 0.12);
 }
 
-.mm-open-status--ended,
 .mm-open-status--preparing {
+  color: #2563eb;
+  background: rgba(219, 234, 254, 0.92);
+}
+
+.mm-open-status--ended {
   color: #b45309;
   background: rgba(245, 158, 11, 0.15);
 }
@@ -6878,8 +6892,12 @@ html.is-inapp-browser::after {
   background: rgba(16, 185, 129, 0.16);
 }
 
-.dark .mm-open-status--ended,
 .dark .mm-open-status--preparing {
+  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.24);
+}
+
+.dark .mm-open-status--ended {
   color: #fcd34d;
   background: rgba(245, 158, 11, 0.18);
 }

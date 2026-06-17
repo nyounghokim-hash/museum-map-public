@@ -2086,11 +2086,9 @@ export default function MainPage() {
     return () => cancelIdle?.();
   }, [fetchCurrentWeather, isLgViewport, mapPrefs.weather]);
 
-  const hasSearchQueryForLock = searchQuery.trim().length > 0;
-
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    const shouldLockSearchScroll = !isLgViewport && !isPanelOpen && (searchFocused || hasSearchQueryForLock);
+    const shouldLockSearchScroll = !isLgViewport && !isPanelOpen && searchFocused;
     if (!shouldLockSearchScroll) return;
 
     const html = document.documentElement;
@@ -2098,72 +2096,35 @@ export default function MainPage() {
     const scrollY = window.scrollY;
     const previous = {
       htmlOverflow: html.style.overflow,
-      htmlColorScheme: html.style.colorScheme,
-      htmlBackground: html.style.background,
       bodyOverflow: body.style.overflow,
       bodyPosition: body.style.position,
       bodyTop: body.style.top,
       bodyLeft: body.style.left,
       bodyRight: body.style.right,
       bodyWidth: body.style.width,
-      bodyBackground: body.style.background,
-      bodyBackgroundColor: body.style.backgroundColor,
-      themeMetas: Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')).map(meta => ({
-        meta,
-        content: meta.getAttribute('content'),
-        media: meta.getAttribute('media'),
-      })),
-      statusMeta: document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]'),
-      statusContent: document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') ?? null,
     };
 
-    const searchStatusColor = isDarkMode ? '#020617' : '#ffffff';
     html.classList.add('mm-search-locking');
-    html.dataset.searchChrome = isDarkMode ? 'dark' : 'light';
-    previous.themeMetas.forEach(({ meta }) => {
-      meta.removeAttribute('media');
-      meta.setAttribute('content', searchStatusColor);
-    });
-    previous.statusMeta?.setAttribute('content', isDarkMode ? 'black-translucent' : 'default');
     html.style.overflow = 'hidden';
-    html.style.colorScheme = isDarkMode ? 'dark' : 'light';
-    html.style.background = searchStatusColor;
     body.style.overflow = 'hidden';
     body.style.position = 'fixed';
     body.style.top = `-${scrollY}px`;
     body.style.left = '0';
     body.style.right = '0';
     body.style.width = '100%';
-    body.style.background = searchStatusColor;
-    body.style.backgroundColor = searchStatusColor;
 
     return () => {
       html.classList.remove('mm-search-locking');
-      delete html.dataset.searchChrome;
       html.style.overflow = previous.htmlOverflow;
-      html.style.colorScheme = previous.htmlColorScheme;
-      html.style.background = previous.htmlBackground;
       body.style.overflow = previous.bodyOverflow;
       body.style.position = previous.bodyPosition;
       body.style.top = previous.bodyTop;
       body.style.left = previous.bodyLeft;
       body.style.right = previous.bodyRight;
       body.style.width = previous.bodyWidth;
-      body.style.background = previous.bodyBackground;
-      body.style.backgroundColor = previous.bodyBackgroundColor;
-      previous.themeMetas.forEach(({ meta, content, media }) => {
-        if (content === null) meta.removeAttribute('content');
-        else meta.setAttribute('content', content);
-        if (media === null) meta.removeAttribute('media');
-        else meta.setAttribute('media', media);
-      });
-      if (previous.statusMeta) {
-        if (previous.statusContent === null) previous.statusMeta.removeAttribute('content');
-        else previous.statusMeta.setAttribute('content', previous.statusContent);
-      }
       window.scrollTo(0, scrollY);
     };
-  }, [hasSearchQueryForLock, isDarkMode, isLgViewport, isPanelOpen, searchFocused]);
+  }, [isLgViewport, isPanelOpen, searchFocused]);
 
   // Sync local stops when activeTrip changes
   useEffect(() => {

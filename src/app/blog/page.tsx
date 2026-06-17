@@ -204,6 +204,16 @@ const STORY_SEARCH_LABELS: Record<string, { placeholder: string; results: string
     ko: { placeholder: '스토리, 미술관, 도시 검색', results: '검색 결과', empty: '일치하는 스토리가 없어요', count: '개 결과' },
     en: { placeholder: 'Search stories, museums, cities...', results: 'Search results', empty: 'No matching stories', count: 'results' },
     ja: { placeholder: 'ストーリー・美術館・都市を検索...', results: '検索結果', empty: '一致するストーリーはありません', count: '件' },
+    de: { placeholder: 'Stories, Museen, Städte suchen...', results: 'Suchergebnisse', empty: 'Keine passenden Geschichten', count: 'Ergebnisse' },
+    fr: { placeholder: 'Rechercher histoires, musées, villes...', results: 'Résultats', empty: 'Aucune histoire correspondante', count: 'résultats' },
+    es: { placeholder: 'Buscar historias, museos, ciudades...', results: 'Resultados', empty: 'No hay historias coincidentes', count: 'resultados' },
+    pt: { placeholder: 'Pesquisar histórias, museus, cidades...', results: 'Resultados', empty: 'Nenhuma história encontrada', count: 'resultados' },
+    'zh-CN': { placeholder: '搜索故事、博物馆、城市...', results: '搜索结果', empty: '没有匹配的故事', count: '条结果' },
+    'zh-TW': { placeholder: '搜尋故事、博物館、城市...', results: '搜尋結果', empty: '沒有符合的故事', count: '筆結果' },
+    da: { placeholder: 'Søg historier, museer, byer...', results: 'Søgeresultater', empty: 'Ingen matchende historier', count: 'resultater' },
+    fi: { placeholder: 'Hae tarinoita, museoita, kaupunkeja...', results: 'Hakutulokset', empty: 'Ei osuvia tarinoita', count: 'tulosta' },
+    sv: { placeholder: 'Sök berättelser, museer, städer...', results: 'Sökresultat', empty: 'Inga matchande berättelser', count: 'resultat' },
+    et: { placeholder: 'Otsi lugusid, muuseume, linnu...', results: 'Otsingutulemused', empty: 'Sobivaid lugusid ei leitud', count: 'tulemust' },
 };
 
 function getStorySearchTitle(post: any, locale: Locale) {
