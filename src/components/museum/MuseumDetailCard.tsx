@@ -569,7 +569,7 @@ function getOpenStatus(hoursValue: string | undefined, country: string | undefin
             et: 'Täna avatud',
         } as Record<string, string>)[locale] || 'Open today',
         ended: ({
-            ko: '오늘 운영 종료',
+            ko: '운영 종료',
             en: 'Closed for today',
             ja: '本日の営業終了',
             de: 'Heute geschlossen',

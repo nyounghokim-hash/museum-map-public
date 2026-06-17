@@ -1,7 +1,7 @@
 import { findVisitorHoursItem, openingHoursToDisplaySource } from '@/lib/openingHoursTemplate';
 import tzLookup from 'tz-lookup';
 
-export type MuseumOpenStatusKind = 'open' | 'ended' | 'todayClosed' | 'closed' | 'unknown';
+export type MuseumOpenStatusKind = 'open' | 'preparing' | 'ended' | 'todayClosed' | 'closed' | 'unknown';
 
 export type MuseumOpenStatus = {
     kind: MuseumOpenStatusKind;
@@ -10,6 +10,14 @@ export type MuseumOpenStatus = {
     remainingMinutes?: number;
     remainingKind?: 'untilClose' | 'untilOpen';
 };
+
+type MuseumOpenStatusInput = {
+    visitorInfo?: unknown;
+    openingHours?: unknown;
+    country?: string;
+    latitude?: unknown;
+    longitude?: unknown;
+} | null | undefined;
 
 const COUNTRY_TIMEZONES: Record<string, string> = {
     KR: 'Asia/Seoul', KOR: 'Asia/Seoul', Korea: 'Asia/Seoul', 'South Korea': 'Asia/Seoul', 대한민국: 'Asia/Seoul',
@@ -70,8 +78,12 @@ const STATUS_LABELS: Record<MuseumOpenStatusKind, Record<string, string>> = {
         ko: '오늘 운영중', en: 'Open today', ja: '本日開館中', de: 'Heute geöffnet', fr: 'Ouvert aujourd’hui', es: 'Abierto hoy', pt: 'Aberto hoje',
         'zh-CN': '今日开放', 'zh-TW': '今日開放', da: 'Åben i dag', fi: 'Auki tänään', sv: 'Öppet idag', et: 'Täna avatud',
     },
+    preparing: {
+        ko: '오늘 운영 준비중', en: 'Opening soon', ja: 'まもなく開館', de: 'Öffnet bald', fr: 'Ouvre bientôt', es: 'Abre pronto', pt: 'Abre em breve',
+        'zh-CN': '即将开放', 'zh-TW': '即將開放', da: 'Åbner snart', fi: 'Avataan pian', sv: 'Öppnar snart', et: 'Avatakse varsti',
+    },
     ended: {
-        ko: '오늘 운영 종료', en: 'Closed for today', ja: '本日の営業終了', de: 'Heute geschlossen', fr: 'Fermé pour aujourd’hui', es: 'Cerrado por hoy', pt: 'Fechado por hoje',
+        ko: '운영 종료', en: 'Closed for today', ja: '本日の営業終了', de: 'Heute geschlossen', fr: 'Fermé pour aujourd’hui', es: 'Cerrado por hoy', pt: 'Fechado por hoje',
         'zh-CN': '今日已闭馆', 'zh-TW': '今日已休館', da: 'Lukket for i dag', fi: 'Suljettu tältä päivältä', sv: 'Stängt för idag', et: 'Tänaseks suletud',
     },
     todayClosed: {
@@ -164,13 +176,15 @@ function detailFor(kind: MuseumOpenStatusKind, locale: string, remainingMinutes?
     }
     return ({
         open: { ko: '현재 운영 중이에요.', en: 'Open right now.', ja: '現在営業中です。' },
-        ended: { ko: '오늘 운영이 종료됐어요.', en: 'Closed for today.', ja: '本日の営業は終了しました。' },
+        preparing: { ko: '곧 운영을 시작해요.', en: 'Opening soon.', ja: 'まもなく開館します。' },
+        ended: { ko: '운영이 종료됐어요.', en: 'Closed for today.', ja: '本日の営業は終了しました。' },
         todayClosed: { ko: '오늘은 휴관일이에요.', en: 'Closed today.', ja: '本日は休館です。' },
         closed: { ko: '장기 휴관으로 확인돼요.', en: 'Marked as a long-term closure.', ja: '長期休館として表示されています。' },
         unknown: { ko: '운영 시간을 확인해야 해요.', en: 'Hours need to be checked.', ja: '営業時間の確認が必要です。' },
     } as Record<MuseumOpenStatusKind, Record<string, string>>)[kind]?.[locale]
         || ({
             open: 'Open right now.',
+            preparing: 'Opening soon.',
             ended: 'Closed for today.',
             todayClosed: 'Closed today.',
             closed: 'Marked as a long-term closure.',
@@ -357,7 +371,7 @@ export function resolveOpenStatusFromHours(hoursValue: string | undefined, count
     }
     const timeZone = resolveMuseumTimeZone(country, location?.latitude, location?.longitude);
     const local = parseLocalParts(timeZone, now);
-    const dayIndex = WEEKDAY_KEYS.indexOf(local.weekday as any);
+    const dayIndex = WEEKDAY_KEYS.indexOf(local.weekday as (typeof WEEKDAY_KEYS)[number]);
     const koDay = WEEKDAY_KO[dayIndex < 0 ? 1 : dayIndex];
     const jaDay = WEEKDAY_JA[dayIndex < 0 ? 1 : dayIndex];
     const dayName = local.weekday;
@@ -413,10 +427,11 @@ export function resolveOpenStatusFromHours(hoursValue: string | undefined, count
         .sort((a, b) => a.start - b.start)[0];
     if (nextRange) {
         const remainingMinutes = Math.max(0, nextRange.start - nextRange.current);
+        const kind: MuseumOpenStatusKind = remainingMinutes <= 120 ? 'preparing' : 'ended';
         return {
-            kind: 'ended',
-            label: labelFor('ended', locale),
-            detailLabel: detailFor('ended', locale, remainingMinutes, 'untilOpen'),
+            kind,
+            label: labelFor(kind, locale),
+            detailLabel: detailFor(kind, locale, remainingMinutes, 'untilOpen'),
             remainingMinutes,
             remainingKind: 'untilOpen',
         };
@@ -433,7 +448,7 @@ export function resolveOpenStatusFromHours(hoursValue: string | undefined, count
     return { kind, label: labelFor(kind, locale), detailLabel: detailFor(kind, locale) };
 }
 
-export function resolveMuseumOpenStatus(museum: any, locale: string): MuseumOpenStatus {
+export function resolveMuseumOpenStatus(museum: MuseumOpenStatusInput, locale: string): MuseumOpenStatus {
     const quickHoursItem = findVisitorHoursItem(museum?.visitorInfo)?.item;
     const hoursValue = normalizeOpeningHoursSource(museum?.openingHours) || quickHoursItem?.value;
     return resolveOpenStatusFromHours(hoursValue, museum?.country, locale, {

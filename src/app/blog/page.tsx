@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, type CSSProperties } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue, type CSSProperties } from 'react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -200,6 +200,64 @@ const STORY_SECTION_LABELS: Record<string, {
     et: { curated: 'Kuidas oleks nendega?', fresh: 'Uued lood', list: 'Lugude nimekiri', count: 'lugu', loading: 'Laadimine' },
 };
 
+const STORY_SEARCH_LABELS: Record<string, { placeholder: string; results: string; empty: string; count: string }> = {
+    ko: { placeholder: '스토리, 미술관, 도시 검색', results: '검색 결과', empty: '일치하는 스토리가 없어요', count: '개 결과' },
+    en: { placeholder: 'Search stories, museums, cities...', results: 'Search results', empty: 'No matching stories', count: 'results' },
+    ja: { placeholder: 'ストーリー・美術館・都市を検索...', results: '検索結果', empty: '一致するストーリーはありません', count: '件' },
+};
+
+function getStorySearchTitle(post: any, locale: Locale) {
+    return getDisplayStoryTitle(sanitizeAI(locale === 'ko' ? post.title : (post.titleEn || post.title)), post.museums);
+}
+
+function getStorySearchText(post: any, locale: Locale) {
+    const museums = post.museums?.map((item: any) => item?.museum).filter(Boolean) || [];
+    const museumText = museums.flatMap((museum: any) => [
+        getLocalizedMuseumName(museum, locale),
+        museum.name,
+        museum.nameKo,
+        museum.nameEn,
+        museum.city,
+        museum.country,
+    ]);
+    return [
+        post.title,
+        post.titleEn,
+        post.author,
+        post.category,
+        post.summary,
+        post.excerpt,
+        post.description,
+        getStoryCategoryLabel(post.category, locale),
+        ...museumText,
+    ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function StorySearchResult({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
+    const chain = getStoryImageChain(post);
+    return (
+        <a
+            href={`/blog/${post.id}`}
+            onClick={() => onNavigate(post.id)}
+            className="mm-story-search-result mm-map2-search-result w-full text-left px-4 py-3 transition-colors border-b last:border-0 flex items-center gap-3"
+        >
+            <div className="mm-map2-search-result-thumb w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+                {chain[0] ? (
+                    <img src={chain[0]} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <img src="/logo.svg" alt="" className="w-5 h-5 opacity-20 dark:invert dark:opacity-60" />
+                    </div>
+                )}
+            </div>
+            <div className="min-w-0 flex-1">
+                <span className="mm-map2-search-result-title truncate">{getStorySearchTitle(post, locale)}</span>
+                <div className="mm-map2-search-result-subtitle truncate">{getStoryMuseumLine(post, locale)}</div>
+            </div>
+        </a>
+    );
+}
+
 function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
     // DB-cached translations for non-ko/en
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
@@ -354,7 +412,6 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
             ? (post.titleEn || post.title)
             : safeTranslatedStoryText(cached.title || liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
     const chain = getStoryImageChain(post);
-    const museumLine = getStoryMuseumLine(post, locale);
 
     return (
         <a href={`/blog/${post.id}`} onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
@@ -501,7 +558,11 @@ export default function BlogListPage() {
     const [activeCategory, setActiveCategory] = useState<string>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('random');
     const [userLocation, setUserLocation] = useState<{lat: number; lng: number} | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
+    const deferredSearchQuery = useDeferredValue(searchQuery);
     const sectionLabels = STORY_SECTION_LABELS[locale] || STORY_SECTION_LABELS.en;
+    const searchLabels = STORY_SEARCH_LABELS[locale] || STORY_SEARCH_LABELS.en;
     const PER_PAGE = 10;
     const SCROLL_KEY = 'blog_scroll_pos';
     const PAGE_KEY = 'blog_page';
@@ -577,7 +638,21 @@ export default function BlogListPage() {
         }
     }, [sortMode, userLocation]);
 
-    const filteredPosts = activeCategory === 'ALL' ? posts : posts.filter(p => (p.category || 'MUSEUM') === activeCategory);
+    const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
+    const categoryFilteredPosts = useMemo(
+        () => activeCategory === 'ALL' ? posts : posts.filter(p => (p.category || 'MUSEUM') === activeCategory),
+        [activeCategory, posts],
+    );
+    const searchFilteredPosts = useMemo(() => {
+        if (!normalizedSearchQuery) return posts;
+        const tokens = normalizedSearchQuery.split(/\s+/).filter(Boolean);
+        return posts.filter(post => {
+            const haystack = getStorySearchText(post, locale);
+            return tokens.every(token => haystack.includes(token));
+        });
+    }, [locale, normalizedSearchQuery, posts]);
+    const searchResults = normalizedSearchQuery ? searchFilteredPosts.slice(0, 8) : [];
+    const filteredPosts = normalizedSearchQuery ? searchFilteredPosts : categoryFilteredPosts;
 
     // Sort posts based on sortMode
     const sortedPosts = useMemo(() => {
@@ -612,8 +687,7 @@ export default function BlogListPage() {
             default:
                 return arr;
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filteredPosts.length, sortMode, activeCategory, userLocation]);
+    }, [filteredPosts, sortMode, userLocation]);
 
     const totalPages = Math.ceil(sortedPosts.length / PER_PAGE);
     const paginatedPosts = sortedPosts.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -640,8 +714,7 @@ export default function BlogListPage() {
             [arr[i], arr[j]] = [arr[j], arr[i]];
         }
         return arr.slice(0, 5);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filteredPosts.length, activeCategory]);
+    }, [filteredPosts]);
     const curatedIds = new Set(curatedPosts.map((post: any) => post.id));
     const freshPosts = [...filteredPosts]
         .filter((post: any) => !curatedIds.has(post.id))
@@ -680,6 +753,48 @@ export default function BlogListPage() {
                 </div>
 
             </div>
+
+            {posts.length > 0 && (
+                <div className="relative mb-5">
+                    <div className={`mm-map2-search relative flex h-[58px] items-center gap-2.5 rounded-full px-[18px] transition-all ${isSearchFocused ? 'is-focused' : ''}`}>
+                        <svg className="w-5 h-5 shrink-0 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setPage(1);
+                            }}
+                            onFocus={() => setIsSearchFocused(true)}
+                            onBlur={() => setIsSearchFocused(false)}
+                            placeholder={searchLabels.placeholder}
+                            className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-gray-800 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-blue-100/50"
+                        />
+                        {searchQuery && (
+                            <button type="button" onClick={() => { setSearchQuery(''); setPage(1); }} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white" aria-label={locale === 'ko' ? '검색어 지우기' : 'Clear search'}>
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        )}
+                    </div>
+                    {normalizedSearchQuery && (
+                        <div className="mm-story-search-results mt-2 rounded-2xl overflow-hidden border border-slate-200/80 bg-white/96 shadow-lg backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-950/94">
+                            <div className="flex items-center justify-between px-4 py-2 text-[11px] font-semibold text-slate-500 dark:text-neutral-400">
+                                <span>{searchLabels.results}</span>
+                                <span>{searchFilteredPosts.length.toLocaleString()} {searchLabels.count}</span>
+                            </div>
+                            {searchResults.length > 0 ? (
+                                searchResults.map((post: any) => (
+                                    <StorySearchResult key={`story-search-${post.id}`} post={post} locale={locale} onNavigate={handleNavigate} />
+                                ))
+                            ) : (
+                                <div className="px-4 py-5 text-center text-sm font-medium text-slate-500 dark:text-neutral-400">{searchLabels.empty}</div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {posts.length === 0 ? (
                 <EmptyStateGame

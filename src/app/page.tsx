@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { ChangeEvent, CSSProperties, RefObject, SyntheticEvent } from 'react';
+import type { ChangeEvent, CSSProperties, RefObject, SyntheticEvent, UIEvent } from 'react';
 import { useCompare } from '@/hooks/useCompare';
 import { useAccountSaves } from '@/hooks/useAccountSaves';
 import { useDragReorder } from '@/hooks/useDragReorder';
@@ -905,6 +905,8 @@ function NewMuseumListItem({ museum, locale, onSelect }: { museum: any; locale: 
   );
 }
 
+const NEW_MUSEUM_BATCH_SIZE = 36;
+
 export default function MainPage() {
   const { compareIds: compareIdsArr } = useCompare({
     initialFetch: 'idle',
@@ -985,6 +987,7 @@ export default function MainPage() {
   const [clusterPopupDismissKey, setClusterPopupDismissKey] = useState(0);
   const [newMuseumsOpen, setNewMuseumsOpen] = useState(false);
   const [newMuseumsClosing, setNewMuseumsClosing] = useState(false);
+  const [newMuseumsVisibleCount, setNewMuseumsVisibleCount] = useState(NEW_MUSEUM_BATCH_SIZE);
   const [showLoading, setShowLoading] = useState(false);
   const [returnFromDetail, setReturnFromDetail] = useState(false);
   const skipTransition = false;
@@ -998,6 +1001,7 @@ export default function MainPage() {
     setTimeout(() => {
       setNewMuseumsOpen(false);
       setNewMuseumsClosing(false);
+      setNewMuseumsVisibleCount(NEW_MUSEUM_BATCH_SIZE);
     }, 220);
   }, [newMuseumsOpen]);
 
@@ -1235,6 +1239,24 @@ export default function MainPage() {
     try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: recent, ts: Date.now(), total: museums.length })); } catch { }
     return recent;
   }, [museums]);
+  const visibleNewMuseums = useMemo(
+    () => newMuseums.slice(0, Math.min(newMuseumsVisibleCount, newMuseums.length)),
+    [newMuseums, newMuseumsVisibleCount],
+  );
+
+  const openNewMuseums = useCallback(() => {
+    closeSearchAndClusterPopup();
+    closeAllPopups('newMuseums');
+    setNewMuseumsClosing(false);
+    setNewMuseumsVisibleCount(NEW_MUSEUM_BATCH_SIZE);
+    setNewMuseumsOpen(true);
+  }, [closeAllPopups, closeSearchAndClusterPopup]);
+
+  const handleNewMuseumsScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    if (target.scrollHeight - target.scrollTop - target.clientHeight > 96) return;
+    setNewMuseumsVisibleCount((count) => Math.min(count + NEW_MUSEUM_BATCH_SIZE, newMuseums.length));
+  }, [newMuseums.length]);
 
   // Prevent body scroll on map page only
   useEffect(() => {
@@ -2590,10 +2612,7 @@ export default function MainPage() {
                   onClick={() => {
                     closeSearchAndClusterPopup();
                     if (newMuseumsOpen) closeNewMuseums();
-                    else {
-                      closeAllPopups('newMuseums');
-                      setNewMuseumsOpen(true);
-                    }
+                    else openNewMuseums();
                   }}
                   aria-label={mobileToolLabels.newMuseums}
                   aria-expanded={newMuseumsOpen}
@@ -2604,7 +2623,7 @@ export default function MainPage() {
                   </span>
                 </button>
                 {(newMuseumsOpen || newMuseumsClosing) && (
-                  <div className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} role="dialog" aria-label={mobileToolLabels.newMuseums}>
+                  <div className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} role="dialog" aria-label={mobileToolLabels.newMuseums} onScroll={handleNewMuseumsScroll}>
                     <div className="mm-map2-new-museums-head">
                       <h3><MuseumNewIcon className="w-4 h-4" />{mobileToolLabels.newMuseums}</h3>
                       <button type="button" onClick={closeNewMuseums} aria-label={mobileToolLabels.close}>
@@ -2614,7 +2633,7 @@ export default function MainPage() {
                       </button>
                     </div>
                     <div className="mm-map2-new-museums-list">
-                      {newMuseums.map((m: any) => (
+                      {visibleNewMuseums.map((m: any) => (
                         <NewMuseumListItem
                           key={m.id}
                           museum={m}
@@ -3106,7 +3125,7 @@ export default function MainPage() {
                   <div className="mm-map2-pc-trip-new-museums relative">
                     <button
                       type="button"
-	                      onClick={() => { closeSearchAndClusterPopup(); if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
+	                      onClick={() => { closeSearchAndClusterPopup(); if (newMuseumsOpen) { closeNewMuseums(); } else { openNewMuseums(); } }}
                       className={`mm-map2-pc-control mm-map2-new-museums-pc-action flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
                         ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                         : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
@@ -3122,8 +3141,8 @@ export default function MainPage() {
                     </button>
 
                     {(newMuseumsOpen || newMuseumsClosing) && (
-                      <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`}>
-                        {newMuseums.map((m: any) => (
+                      <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} onScroll={handleNewMuseumsScroll}>
+                        {visibleNewMuseums.map((m: any) => (
                           <NewMuseumListItem
                             key={m.id}
                             museum={m}
@@ -3170,7 +3189,7 @@ export default function MainPage() {
                 <div className="relative">
                   <button
                     type="button"
-	                    onClick={() => { closeSearchAndClusterPopup(); if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
+	                    onClick={() => { closeSearchAndClusterPopup(); if (newMuseumsOpen) { closeNewMuseums(); } else { openNewMuseums(); } }}
                     className={`mm-map2-pc-control mm-map2-new-museums-pc-action flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
                       ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                       : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
@@ -3187,8 +3206,8 @@ export default function MainPage() {
 
                   {/* Expandable List */}
                   {(newMuseumsOpen || newMuseumsClosing) && (
-                    <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`}>
-                      {newMuseums.map((m: any) => (
+                    <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} onScroll={handleNewMuseumsScroll}>
+                      {visibleNewMuseums.map((m: any) => (
                         <NewMuseumListItem
                           key={m.id}
                           museum={m}

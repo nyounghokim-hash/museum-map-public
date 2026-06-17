@@ -64,9 +64,10 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-@keyframes mm-route-pending-dissolve {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes mm-route-pending-bar {
+  0% { transform: translateX(-100%) scaleX(.38); opacity: .55; }
+  45% { transform: translateX(20vw) scaleX(.9); opacity: 1; }
+  100% { transform: translateX(105vw) scaleX(.46); opacity: .65; }
 }
 
 html.mm-route-pending body {
@@ -76,48 +77,23 @@ html.mm-route-pending body {
 html.mm-route-pending-slow body::after {
   content: "";
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   z-index: 2147483400;
+  width: 42vw;
+  height: 3px;
   pointer-events: none;
-  background: rgba(15, 23, 42, .18);
-  -webkit-backdrop-filter: blur(1.5px);
-  backdrop-filter: blur(1.5px);
-  animation: mm-route-pending-dissolve 260ms ease-out both;
-}
-
-html.mm-route-pending-slow body::before {
-  content: attr(data-route-pending-label);
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  bottom: auto;
-  z-index: 2147483401;
-  max-width: min(280px, calc(100vw - 40px));
-  transform: translate(-50%, -50%);
-  color: #fff;
-  text-shadow: 0 2px 16px rgba(2,6,23,.46);
-  font-size: 15px;
-  font-weight: 650;
-  line-height: 1.35;
-  letter-spacing: 0;
-  text-align: center;
-  white-space: nowrap;
-  pointer-events: none;
-  animation: mm-route-pending-dissolve 260ms ease-out both;
-}
-
-html.dark.mm-route-pending-slow body::after {
-  background: rgba(2, 6, 23, .38);
+  background: linear-gradient(90deg, rgba(37,99,235,0), #60a5fa 28%, #2563eb 70%, rgba(37,99,235,0));
+  filter: drop-shadow(0 4px 12px rgba(37,99,235,.45));
+  transform-origin: left center;
+  animation: mm-route-pending-bar 920ms cubic-bezier(.2,.72,.15,1) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   html.mm-route-pending-slow body::after {
     animation: none;
-  }
-
-  html.mm-route-pending-slow body::before {
-    animation: none;
-    transform: translate(-50%, -50%);
+    transform: none;
+    width: 100vw;
   }
 }
 
@@ -6876,7 +6852,8 @@ html.is-inapp-browser::after {
   background: rgba(16, 185, 129, 0.12);
 }
 
-.mm-open-status--ended {
+.mm-open-status--ended,
+.mm-open-status--preparing {
   color: #b45309;
   background: rgba(245, 158, 11, 0.15);
 }
@@ -6901,7 +6878,8 @@ html.is-inapp-browser::after {
   background: rgba(16, 185, 129, 0.16);
 }
 
-.dark .mm-open-status--ended {
+.dark .mm-open-status--ended,
+.dark .mm-open-status--preparing {
   color: #fcd34d;
   background: rgba(245, 158, 11, 0.18);
 }
@@ -10393,12 +10371,12 @@ html.is-inapp-browser::after {
 }
 
 .mm-map2-new-museums-chip .mm-map2-new-museums-icon {
-  transform: scale(1.5);
+  transform: scale(1.2);
   transform-origin: center;
 }
 
 .mm-map2-new-museums-pc-action .mm-map2-new-museums-icon {
-  transform: scale(1.5);
+  transform: scale(1.2);
   transform-origin: center;
 }
 
@@ -10409,10 +10387,10 @@ html.is-inapp-browser::after {
 
 .mm-map2-new-museums-icon > span {
   position: absolute;
-  top: -10px;
-  right: -12px;
+  top: -9px;
+  right: -10px;
   color: #ef4444;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 950;
   line-height: 1;
   letter-spacing: -0.02em;
