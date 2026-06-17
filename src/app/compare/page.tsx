@@ -7,6 +7,7 @@ import { GlassPanel } from '@/components/ui/glass';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { useCompare } from '@/hooks/useCompare';
+import { useAccountSaves } from '@/hooks/useAccountSaves';
 import { t, translateCategory, Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
@@ -22,29 +23,20 @@ export default function ComparePage() {
     const { showAlert } = useModal();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { compareIds, addToCompare, removeFromCompare, clearCompare, isInCompare, compareCount, isFull, isAuthenticated, isReady } = useCompare();
+    const { compareIds, addToCompare, removeFromCompare, clearCompare, replaceCompare, isInCompare, compareCount, isFull, isAuthenticated, isReady } = useCompare();
+    const { saves: accountSaves } = useAccountSaves();
 
     const [museums, setMuseums] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [initialized, setInitialized] = useState(false);
-    const [savedSuggestions, setSavedSuggestions] = useState<any[]>([]);
-
-    // Load saved museums as suggestions in empty state (auth optional)
-    useEffect(() => {
-        fetch('/api/me/saves')
-            .then(r => { if (!r.ok) throw new Error('unauth'); return r.json(); })
-            .then(res => {
-                const raw = res.data || res || [];
-                const list = (Array.isArray(raw) ? raw : []).map((s: any) => s.museum).filter(Boolean).slice(0, 6);
-                setSavedSuggestions(list);
-            })
-            .catch(() => {});
-    }, []);
+    const savedMuseums = useMemo(() => accountSaves.map(s => s.museum).filter(Boolean), [accountSaves]);
+    const savedSuggestions = useMemo(() => savedMuseums.slice(0, 6), [savedMuseums]);
 
     // Hydrate from URL params, or reset if ?reset=1
     useEffect(() => {
         if (initialized) return;
+        if (!isReady) return;
         if (searchParams.get('reset') === '1') {
             clearCompare();
             router.replace('/compare');
@@ -53,11 +45,15 @@ export default function ComparePage() {
         }
         const urlIds = searchParams.get('ids');
         if (urlIds) {
+            if (!isAuthenticated) {
+                goLogin('/compare');
+                return;
+            }
             const idList = urlIds.split(',').filter(Boolean);
-            idList.forEach(id => addToCompare(id));
+            void replaceCompare(idList);
         }
         setInitialized(true);
-    }, [searchParams, initialized, addToCompare, clearCompare, router]);
+    }, [searchParams, initialized, isReady, isAuthenticated, replaceCompare, clearCompare, router]);
 
     // Fetch museum data when compareIds change
     useEffect(() => {
@@ -294,6 +290,7 @@ export default function ComparePage() {
                     onClose={() => setSearchOpen(false)}
                     onSelect={handleSelectMuseum}
                     isInCompare={isInCompare}
+                    savedMuseums={savedMuseums}
                 />
             )}
         </div>
@@ -565,25 +562,12 @@ function IconGlobe({ className }: IconProps) {
 }
 
 /* ─── Search Modal ─── */
-function CompareSearchModal({ locale, onClose, onSelect, isInCompare }: { locale: Locale; onClose: () => void; onSelect: (m: any) => void; isInCompare: (id: string) => boolean }) {
+function CompareSearchModal({ locale, onClose, onSelect, isInCompare, savedMuseums }: { locale: Locale; onClose: () => void; onSelect: (m: any) => void; isInCompare: (id: string) => boolean; savedMuseums: any[] }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<any[]>([]);
-    const [saved, setSaved] = useState<any[]>([]);
     const [searching, setSearching] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const debounceRef = useRef<NodeJS.Timeout>(null);
-
-    // Load saved museums (skip if not authenticated)
-    useEffect(() => {
-        fetch('/api/me/saves')
-            .then(r => { if (!r.ok) throw new Error('Not auth'); return r.json(); })
-            .then(res => {
-                const raw = res.data || res || [];
-                const list = (Array.isArray(raw) ? raw : []).map((s: any) => s.museum).filter(Boolean);
-                setSaved(list);
-            })
-            .catch(() => {});
-    }, []);
 
     // Focus input
     useEffect(() => { inputRef.current?.focus(); }, []);
@@ -687,17 +671,17 @@ function CompareSearchModal({ locale, onClose, onSelect, isInCompare }: { locale
                     )}
 
                     {/* Saved List */}
-                    {!query.trim() && saved.length > 0 && (
+                    {!query.trim() && savedMuseums.length > 0 && (
                         <div>
                             <div className="px-4 py-2 text-[10px] font-black text-gray-400 dark:text-neutral-500 uppercase tracking-widest">
                                 {t('compare.savedList', locale)}
                             </div>
-                            {saved.map(renderMuseumRow)}
+                            {savedMuseums.map(renderMuseumRow)}
                         </div>
                     )}
 
                     {/* No saved + no search */}
-                    {!query.trim() && saved.length === 0 && (
+                    {!query.trim() && savedMuseums.length === 0 && (
                         <div className="py-12 text-center">
                             <p className="text-sm text-gray-400 dark:text-neutral-500">{t('compare.search', locale)}</p>
                         </div>

@@ -2,9 +2,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { ChangeEvent, CSSProperties, RefObject, SyntheticEvent } from 'react';
 import { useCompare } from '@/hooks/useCompare';
+import { useAccountSaves } from '@/hooks/useAccountSaves';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 import { useApp } from '@/components/AppContext';
@@ -15,7 +15,8 @@ import MuseumDetailCard from '@/components/museum/MuseumDetailCard';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import * as gtag from '@/lib/gtag';
 import { SparkleIcon, StarIcon, AirplaneIcon } from '@/components/ui/Icons';
-import { ACTIVE_TRIP_CHANGE_EVENT, clearActiveTripForAccount, getActiveTripForAccount, getStoredActiveTrip, setActiveTripForAccount } from '@/lib/accountStorage';
+import { ACTIVE_TRIP_CHANGE_EVENT, clearActiveTripForAccount, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
+import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
@@ -203,25 +204,6 @@ function isUsableMuseumsCache(data: unknown) {
 
 function getMuseumsCacheKey(locale: string) {
   return `${MUSEUMS_CACHE_PREFIX}_${locale || 'ko'}`;
-}
-
-function isSameStringSet(set: Set<string>, ids: string[]) {
-  if (set.size !== ids.length) return false;
-  return ids.every(id => set.has(id));
-}
-
-function scheduleIdleTask(callback: () => void, timeout = 4000) {
-  if (typeof window === 'undefined') return undefined;
-  const win = window as Window & typeof globalThis & {
-    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-    cancelIdleCallback?: (handle: number) => void;
-  };
-  if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
-    const idleId = win.requestIdleCallback(callback, { timeout });
-    return () => win.cancelIdleCallback?.(idleId);
-  }
-  const timer = win.setTimeout(callback, timeout);
-  return () => win.clearTimeout(timer);
 }
 
 function readMapPrefs(): MapPrefs {
@@ -880,6 +862,7 @@ function NewMuseumListItem({ museum, locale, onSelect }: { museum: any; locale: 
 
 export default function MainPage() {
   const { compareIds: compareIdsArr } = useCompare();
+  const { savedIds: savedMuseumIds, refresh: refreshSavedIds } = useAccountSaves();
   const compareIdsSet = useMemo(() => new Set(compareIdsArr), [compareIdsArr]);
   const [museums, setMuseums] = useState<any[]>([]);
   const [selectedMuseum, setSelectedMuseum] = useState<any | null>(null);
@@ -892,9 +875,8 @@ export default function MainPage() {
   const [mapSideMenuOpen, setMapSideMenuOpen] = useState(false);
   const { locale, darkMode } = useApp();
   const { showAlert, showConfirm } = useModal();
-  const router = useRouter();
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
-  const [activeTrip, setActiveTrip] = useState<any>(() => getStoredActiveTrip());
+  const [activeTrip, setActiveTrip] = useState<any>(null);
   const [isViewingActiveRoute, setIsViewingActiveRoute] = useState(false);
   const [tripExiting, setTripExiting] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
@@ -902,7 +884,6 @@ export default function MainPage() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [showTripActivatedNotif, setShowTripActivatedNotif] = useState(false);
   const { data: session, status } = useSession();
-  const [savedMuseumIds, setSavedMuseumIds] = useState<Set<string>>(new Set());
   const [showConsentGate, setShowConsentGate] = useState(false);
   const [consentTerms, setConsentTerms] = useState(false);
   const [consentPrivacy, setConsentPrivacy] = useState(false);
@@ -914,11 +895,6 @@ export default function MainPage() {
     syncSearchParams();
     window.addEventListener('popstate', syncSearchParams);
     return () => window.removeEventListener('popstate', syncSearchParams);
-  }, []);
-
-  useEffect(() => {
-    const storedTrip = getStoredActiveTrip();
-    if (storedTrip) setActiveTrip(storedTrip);
   }, []);
 
   // AI Recommend
@@ -1192,29 +1168,6 @@ export default function MainPage() {
     return recent;
   }, [museums]);
 
-  // Fetch saved museum IDs for map marker coloring
-  const refreshSavedIds = useCallback(async () => {
-    if (status !== 'authenticated') {
-      setSavedMuseumIds(prev => (prev.size > 0 ? new Set() : prev));
-      return;
-    }
-    try {
-      const res = await fetch('/api/me/saves');
-      const data = await res.json();
-      if (data.data) {
-        const ids = data.data.map((s: any) => s.museum?.id || s.museumId).filter(Boolean);
-        setSavedMuseumIds(prev => (isSameStringSet(prev, ids) ? prev : new Set(ids)));
-      }
-    } catch { }
-  }, [status]);
-
-  useEffect(() => {
-    if (status === 'authenticated') {
-      return scheduleIdleTask(refreshSavedIds, 5000);
-    }
-    refreshSavedIds();
-  }, [refreshSavedIds, status]);
-
   // Prevent body scroll on map page only
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -1472,7 +1425,6 @@ export default function MainPage() {
     if (status === 'unauthenticated') {
       setActiveTrip(null);
       setIsViewingActiveRoute(false);
-      clearActiveTripForAccount();
       return;
     }
     refreshActiveTrip();
@@ -1497,7 +1449,7 @@ export default function MainPage() {
     if (museum) {
       openMuseumPanel(museum);
     } else {
-      router.push(`/museums/${id}`);
+      window.location.assign(`/museums/${id}`);
     }
   };
 
@@ -2374,7 +2326,7 @@ export default function MainPage() {
           >
             {consentSubmitting ? '...' : cl.submit}
           </button>
-          <button onClick={() => { try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } import('next-auth/react').then(m => m.signOut({ callbackUrl: '/login' })); }} className="mt-3 w-full py-2.5 text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button onClick={() => { clearClientAccountStateForLogout(); try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } import('next-auth/react').then(m => m.signOut({ callbackUrl: '/login' })); }} className="mt-3 w-full py-2.5 text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             {cl.cancel}
           </button>
         </div>
@@ -3371,7 +3323,7 @@ export default function MainPage() {
               onClose={closeMuseumPanel}
               isMapContext={true}
               onMoveToLocation={moveToSelectedMuseumLocation}
-              onSaveChange={refreshSavedIds}
+              onSaveChange={() => { void refreshSavedIds({ force: true }); }}
             />
           </div>
         </div>

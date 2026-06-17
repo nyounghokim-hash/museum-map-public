@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { t, translateCategory } from '@/lib/i18n';
@@ -7,6 +7,7 @@ import { getCountryName, getCityName } from '@/lib/countries';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { getMuseumHistory, clearMuseumHistory } from '@/lib/museum-history';
 import { useCompare } from '@/hooks/useCompare';
+import { useAccountSaves } from '@/hooks/useAccountSaves';
 import * as gtag from '@/lib/gtag';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
@@ -49,24 +50,18 @@ function sameIds(a: string[], b: string[]) {
 
 export default function SavedPage() {
     const [activeTab, setActiveTab] = useState<'saved' | 'history'>('saved');
-    const [saves, setSaves] = useState<any[]>([]);
     const [historyMuseums, setHistoryMuseums] = useState<any[]>([]);
-    const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
     const [selectedMuseums, setSelectedMuseums] = useState<Set<string>>(new Set());
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [sortBy, setSortBy] = useState<SortType>('newest');
-    const [loading, setLoading] = useState(true);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
     const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
     const { locale } = useApp();
     const { showAlert, showConfirm } = useModal();
-    const { compareIds, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare();
-
-    // Fetch saves for "저장" tab
-    useEffect(() => {
-        if (activeTab === 'saved') fetchSaves(selectedFolder);
-    }, [selectedFolder, activeTab]);
+    const { compareIds, replaceCompare, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare();
+    const handleSavesUnauthorized = useCallback(() => goLogin('/saved'), []);
+    const { saves, loading, refresh: refreshSaves, setCachedSaves } = useAccountSaves({ onUnauthorized: handleSavesUnauthorized });
 
     // Load history for "살펴보기" tab
     useEffect(() => {
@@ -79,13 +74,13 @@ export default function SavedPage() {
         const onVisible = () => {
             if (document.visibilityState === 'visible' && Date.now() - lastFetch > 5000) {
                 lastFetch = Date.now();
-                if (activeTab === 'saved') fetchSaves(selectedFolder);
+                if (activeTab === 'saved') void refreshSaves({ force: true }).catch(() => {});
                 else loadHistory();
             }
         };
         document.addEventListener('visibilitychange', onVisible);
         return () => document.removeEventListener('visibilitychange', onVisible);
-    }, [selectedFolder, activeTab]);
+    }, [activeTab, refreshSaves]);
 
     // Get user location for "위치순"
     useEffect(() => {
@@ -104,29 +99,6 @@ export default function SavedPage() {
             );
         }
     }, [sortBy]);
-
-    const fetchSaves = async (folderId: string | null) => {
-        setLoading(true);
-        let url = '/api/me/saves';
-        if (folderId) url += `?folderId=${folderId}`;
-        try {
-            const response = await fetch(url);
-            if (response.status === 401) {
-                goLogin('/saved');
-                return;
-            }
-            if (!response.ok) {
-                setSaves([]);
-                return;
-            }
-            const res = await response.json();
-            if (res.data) setSaves(res.data);
-        } catch {
-            setSaves([]);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const loadHistory = async () => {
         setHistoryLoading(true);
@@ -244,16 +216,10 @@ export default function SavedPage() {
 
         try {
             if (!sameIds(nextCompareIds, compareIds)) {
-                const response = await fetch('/api/me/compare', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: nextCompareIds }),
-                });
-                if (response.status === 401) {
-                    goLogin('/saved');
-                    return;
+                const saved = await replaceCompare(nextCompareIds);
+                if (!saved) {
+                    throw new Error('Failed to save compare list');
                 }
-                if (!response.ok) throw new Error('Failed to save compare list');
             }
             setSelectedMuseums(new Set());
             setIsSelectMode(false);
@@ -366,7 +332,7 @@ export default function SavedPage() {
                                         return;
                                     }
                                     if (responses.some(response => !response.ok)) throw new Error('Failed to delete saves');
-                                    setSaves(prev => prev.filter(s => !idsToDelete.has(s.museum.id)));
+                                    setCachedSaves(prev => prev.filter(s => !idsToDelete.has(s.museum?.id || s.museumId)));
                                     setSelectedMuseums(new Set());
                                 } catch {
                                     showAlert(locale === 'ko' ? '선택한 장소를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.' : 'Could not delete the selected places. Please try again.');

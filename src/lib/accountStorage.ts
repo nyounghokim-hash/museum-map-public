@@ -33,7 +33,6 @@ export function getActiveTripForAccount<T = any>(fallbackEmail?: string | null):
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         if (parsed?.userEmail !== email) {
-            localStorage.removeItem(ACTIVE_TRIP_KEY);
             return null;
         }
         return parsed;

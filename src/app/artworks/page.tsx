@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useApp } from '@/components/AppContext';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import type { Locale } from '@/lib/i18n';
 
 import * as gtag from '@/lib/gtag';
@@ -95,7 +95,6 @@ function translationValues(value: any): string[] {
 
 export default function ArtworksPage() {
     const { locale } = useApp();
-    const router = useRouter();
     const searchParams = useSearchParams();
     const museumIdFilter = searchParams.get('museumId') || '';
     const museumNameFilter = searchParams.get('museumName') || '';
@@ -254,7 +253,7 @@ export default function ArtworksPage() {
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('navigating-forward', String(Date.now()));
         }
-        router.push(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork-list`);
+        window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork-list`);
     };
 
     // Filter artworks by debounced search query — memoized

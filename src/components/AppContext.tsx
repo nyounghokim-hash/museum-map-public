@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Locale, getLocaleFromCountry, t } from '@/lib/i18n';
 import { useSession, signOut } from 'next-auth/react';
+import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -98,6 +99,7 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
         if (session?.user?.name?.startsWith('guest_')) {
             const isGuestFlag = sessionStorage.getItem('isGuest');
             if (!isGuestFlag) {
+                clearClientAccountStateForLogout();
                 signOut({ redirect: false });
                 return;
             }
@@ -111,7 +113,7 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
                         if (savedIp && savedIp !== data.ipHash) {
                             console.log('IP changed, signing out guest');
                             localStorage.removeItem('guestIpHash');
-                            sessionStorage.removeItem('isGuest');
+                            clearClientAccountStateForLogout();
                             signOut({ redirect: false });
                         } else {
                             localStorage.setItem('guestIpHash', data.ipHash);

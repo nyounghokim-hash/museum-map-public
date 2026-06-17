@@ -7,6 +7,7 @@ import { signOut, useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { t, LOCALE_NAMES, Locale } from '@/lib/i18n';
 import { ACTIVE_TRIP_CHANGE_EVENT, getActiveTripForAccount } from '@/lib/accountStorage';
+import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { useTranslatedTexts } from '@/hooks/useTranslation';
 import { useModal } from '@/components/ui/Modal';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
@@ -693,6 +694,7 @@ export default function NavHeader() {
                                                 if (res.ok) {
                                                     showAlert(dl.done);
                                                     setTimeout(() => {
+                                                        clearClientAccountStateForLogout();
                                                         signOut({ callbackUrl: '/login' });
                                                     }, 1500);
                                                 } else {
@@ -779,10 +781,7 @@ export default function NavHeader() {
                     </Link>
                     <button
                         onClick={() => {
-                            sessionStorage.removeItem('user-email');
-                            localStorage.removeItem('compareMuseums');
-                            localStorage.removeItem('activeTrip');
-                            window.dispatchEvent(new Event('compareChange'));
+                            clearClientAccountStateForLogout();
                             try { sessionStorage.setItem('mm-logout-done', '1'); } catch { }
                             signOut({ callbackUrl: '/' });
                         }}

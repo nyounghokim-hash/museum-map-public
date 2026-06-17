@@ -1,17 +1,13 @@
 'use client';
 import { SessionProvider, useSession, signOut } from 'next-auth/react';
 import { useEffect } from 'react';
+import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 
 function GuestSessionGuard({ children }: { children: React.ReactNode }) {
     const { data: session, status } = useSession();
 
     useEffect(() => {
         if (status === 'unauthenticated') {
-            sessionStorage.removeItem('user-email');
-            sessionStorage.removeItem('isGuest');
-            localStorage.removeItem('compareMuseums');
-            localStorage.removeItem('activeTrip');
-            window.dispatchEvent(new Event('compareChange'));
             return;
         }
 
@@ -29,6 +25,7 @@ function GuestSessionGuard({ children }: { children: React.ReactNode }) {
                 const isGuestValidated = sessionStorage.getItem('isGuest');
                 if (!isGuestValidated) {
                     // This means the browser was closed or session storage cleared
+                    clearClientAccountStateForLogout();
                     signOut({ redirect: true, callbackUrl: '/login' });
                 }
             }

@@ -1,12 +1,11 @@
 'use client';
 import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { GlassPanel } from '@/components/ui/glass';
 import { useModal } from '@/components/ui/Modal';
 import { useApp } from '@/components/AppContext';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 function ReviewCreateForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const museumId = searchParams.get('museumId');
   const { showAlert } = useModal();
@@ -30,7 +29,7 @@ function ReviewCreateForm() {
     });
     setLoading(false);
     showAlert(locale === 'ko' ? '리뷰가 제출되었으며 박물관이 방문한 곳으로 등록되었습니다!' : 'Review Submitted & Museum marked as Visited!');
-    router.push(`/museums/${museumId}`);
+    window.location.assign(`/museums/${museumId}`);
   };
   const lines = content.split('\n');
   const lineCount = lines.length;

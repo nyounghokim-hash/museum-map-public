@@ -19,6 +19,7 @@ import { getLocalizedMuseumName, getLocalizedCityName, getLocalizedArtworkTitle,
 import ReportModal from '@/components/ui/ReportModal';
 import { CameraIcon } from '@/components/ui/Icons';
 import { useCompare } from '@/hooks/useCompare';
+import { useAccountSaves } from '@/hooks/useAccountSaves';
 import { translateViLabel, translateViValue, getWebsiteLabels, getFeaturedWorksTitle, getReportLabels, getCopyToast, getTapCopyHint, getUpdatedLabel, getGoogleReviewsTitle, getReviewsLabel, getNoReviewText, getNoReviewsMsg, getNotFoundText, getFullDescriptionLabel } from '@/lib/visitorInfoI18n';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { findVisitorHoursItem, openingHoursToDisplaySource } from '@/lib/openingHoursTemplate';
@@ -754,6 +755,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const { data: session, status } = useSession();
     const router = useRouter();
     const { addToCompare, removeFromCompare, isInCompare } = useCompare();
+    const { saves: accountSaves, loading: savesLoading, setCachedSaves } = useAccountSaves();
     const isSignedInUser = status === 'authenticated' && !session?.user?.name?.startsWith('guest_');
 
     const goLogin = useCallback(() => {
@@ -948,38 +950,22 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     }, [museumId]);
 
     useEffect(() => {
-        if (status === 'loading') return;
+        if (status === 'loading' || savesLoading) return;
         if (!isSignedInUser) {
             setIsPicked(false);
             setSaveId(null);
             return;
         }
 
-        let cancelled = false;
-        fetch('/api/me/saves')
-            .then(async r => {
-                if (r.status === 401) return null;
-                if (!r.ok) throw new Error('Failed to fetch saves');
-                return r.json();
-            })
-            .then(res => {
-                if (cancelled || !res) return;
-                if (res.data) {
-                    const save = res.data.find((s: any) => s.museumId === museumId || s.museum?.id === museumId);
-                    if (save) {
-                        setIsPicked(true);
-                        setSaveId(save.id);
-                    } else {
-                        setIsPicked(false);
-                        setSaveId(null);
-                    }
-                }
-            })
-            .catch(console.error);
-        return () => {
-            cancelled = true;
-        };
-    }, [museumId, status, isSignedInUser]);
+        const save = accountSaves.find(s => s.museumId === museumId || s.museum?.id === museumId);
+        if (save) {
+            setIsPicked(true);
+            setSaveId(save.id);
+        } else {
+            setIsPicked(false);
+            setSaveId(null);
+        }
+    }, [accountSaves, museumId, status, isSignedInUser, savesLoading]);
 
     const fetchRelatedStories = async () => {
         try {
@@ -1067,6 +1053,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     return;
                 }
                 if (!response.ok) throw new Error('Failed to delete save');
+                setCachedSaves(prev => prev.filter(s => s.id !== prevSaveId && s.museumId !== data.id && s.museum?.id !== data.id));
                 onSaveChange?.();
             } catch {
                 setIsPicked(true);
@@ -1092,6 +1079,15 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 const nextSaveId = res.data?.id || res.data?._id;
                 if (!nextSaveId) throw new Error('Missing save id');
                 setSaveId(nextSaveId);
+                setCachedSaves(prev => [
+                    {
+                        ...res.data,
+                        id: nextSaveId,
+                        museumId: res.data?.museumId || data.id,
+                        museum: res.data?.museum || data,
+                    },
+                    ...prev.filter(s => s.museumId !== data.id && s.museum?.id !== data.id),
+                ]);
                 onSaveChange?.();
                 triggerSaveToast();
                 gtag.event('save_museum', { category: 'museum', label: data.name, value: 1 });

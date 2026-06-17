@@ -5,6 +5,8 @@ import { signIn, signOut, useSession } from 'next-auth/react';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/components/AppContext';
 import type { Locale } from '@/lib/i18n';
+import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
+import { useAccountSaves } from '@/hooks/useAccountSaves';
 
 type ProfileLabels = {
   title: string;
@@ -111,6 +113,7 @@ function readDataCount(payload: any): number {
 export default function ProfilePage() {
   const { locale } = useApp();
   const { data: session, status } = useSession();
+  const { saves } = useAccountSaves();
   const labels = labelsFor(locale);
   const [counts, setCounts] = useState({ saved: 0, plans: 0, collections: 0, notifications: 0 });
   const [loadingCounts, setLoadingCounts] = useState(false);
@@ -124,14 +127,13 @@ export default function ProfilePage() {
     let mounted = true;
     setLoadingCounts(true);
     Promise.all([
-      fetch('/api/me/saves').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/plans').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/collections').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/notifications').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([saved, plans, collections, notifications]) => {
+    ]).then(([plans, collections, notifications]) => {
       if (!mounted) return;
       setCounts({
-        saved: readDataCount(saved),
+        saved: saves.length,
         plans: readDataCount(plans),
         collections: readDataCount(collections),
         notifications: readDataCount(notifications),
@@ -140,7 +142,7 @@ export default function ProfilePage() {
       if (mounted) setLoadingCounts(false);
     });
     return () => { mounted = false; };
-  }, [isGuest]);
+  }, [isGuest, saves.length]);
 
   if (status === 'loading') {
     return (
@@ -229,7 +231,7 @@ export default function ProfilePage() {
             </span>
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
           </Link>
-          <button type="button" onClick={() => { try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } signOut({ callbackUrl: '/' }); }} className="mm-profile-action-row2 is-danger">
+          <button type="button" onClick={() => { clearClientAccountStateForLogout(); try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } signOut({ callbackUrl: '/' }); }} className="mm-profile-action-row2 is-danger">
             <span>
               <strong>{labels.logout}</strong>
               <em>{session?.user?.email || labels.account}</em>

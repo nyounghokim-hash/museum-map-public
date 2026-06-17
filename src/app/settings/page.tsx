@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useApp } from '@/components/AppContext';
 import { LOCALE_NAMES, type Locale } from '@/lib/i18n';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
+import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 
 type MapSettingKey = 'location' | 'nearby' | 'weather';
 type MapPrefs = Record<MapSettingKey, boolean>;
@@ -393,7 +394,7 @@ export default function SettingsPage() {
           <SettingsRow onClick={!isAuthenticatedUser ? () => setLoginModalOpen(true) : undefined} href={isAuthenticatedUser ? '/profile' : undefined} icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 7.5a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a8.25 8.25 0 0115 0" /></svg>} label={labels.profile} value={isAuthenticatedUser ? session?.user?.name || '' : ''} />
           <SettingsRow href="/notifications" icon={<svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M14.85 18.25a2.85 2.85 0 01-5.7 0M18 10.5a6 6 0 10-12 0c0 3-1.5 4.5-2 5.5h16c-.5-1-2-2.5-2-5.5z" /></svg>} label={labels.alerts} />
           {isAuthenticatedUser && (
-            <button type="button" onClick={() => { try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } signOut({ callbackUrl: '/' }); }} className="mm-settings-row w-full text-left">
+            <button type="button" onClick={() => { clearClientAccountStateForLogout(); try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } signOut({ callbackUrl: '/' }); }} className="mm-settings-row w-full text-left">
               <Icon><svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m-3-3h8.25m0 0l-3-3m3 3l-3 3" /></svg></Icon>
               <span className="min-w-0 flex-1 text-[15px] font-semibold text-slate-700 dark:text-neutral-200">{labels.logout}</span>
             </button>
