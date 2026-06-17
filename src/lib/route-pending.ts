@@ -1,19 +1,19 @@
 'use client';
 
 const ROUTE_PENDING_LABELS: Record<string, string> = {
-    ko: '화면을 여는 중',
-    en: 'Opening page',
-    ja: '画面を開いています',
-    de: 'Seite wird geöffnet',
-    fr: 'Ouverture de la page',
-    es: 'Abriendo la página',
-    pt: 'Abrindo a página',
-    'zh-CN': '正在打开页面',
-    'zh-TW': '正在開啟頁面',
-    da: 'Åbner siden',
-    fi: 'Avataan sivua',
-    sv: 'Öppnar sidan',
-    et: 'Lehte avatakse',
+    ko: '화면을 준비하고 있어요',
+    en: 'Getting the page ready',
+    ja: '画面を準備しています',
+    de: 'Seite wird vorbereitet',
+    fr: 'Préparation de la page',
+    es: 'Preparando la página',
+    pt: 'Preparando a página',
+    'zh-CN': '正在准备页面',
+    'zh-TW': '正在準備頁面',
+    da: 'Gør siden klar',
+    fi: 'Valmistellaan sivua',
+    sv: 'Förbereder sidan',
+    et: 'Valmistame lehte ette',
 };
 
 let slowTimer: number | undefined;
@@ -32,7 +32,7 @@ export function startRoutePending(locale?: string | null) {
     if (slowTimer) window.clearTimeout(slowTimer);
     slowTimer = window.setTimeout(() => {
         root.classList.add('mm-route-pending-slow');
-    }, 700);
+    }, 1500);
 }
 
 export function clearRoutePending() {

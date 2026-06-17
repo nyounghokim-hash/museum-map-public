@@ -64,22 +64,16 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-@keyframes mm-route-pending-bar {
-  0% { transform: translateX(-100%) scaleX(.38); opacity: .55; }
-  45% { transform: translateX(20vw) scaleX(.9); opacity: 1; }
-  100% { transform: translateX(105vw) scaleX(.46); opacity: .65; }
-}
-
-@keyframes mm-route-pending-pill {
-  from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(.96); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+@keyframes mm-route-pending-dissolve {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 html.mm-route-pending body {
   cursor: progress;
 }
 
-html.mm-route-pending body::after {
+html.mm-route-pending-slow body::after {
   content: "";
   position: fixed;
   inset: 0;
@@ -88,9 +82,10 @@ html.mm-route-pending body::after {
   background: rgba(15, 23, 42, .18);
   -webkit-backdrop-filter: blur(1.5px);
   backdrop-filter: blur(1.5px);
+  animation: mm-route-pending-dissolve 260ms ease-out both;
 }
 
-html.mm-route-pending body::before {
+html.mm-route-pending-slow body::before {
   content: attr(data-route-pending-label);
   position: fixed;
   left: 50%;
@@ -98,45 +93,29 @@ html.mm-route-pending body::before {
   bottom: auto;
   z-index: 2147483401;
   max-width: min(280px, calc(100vw - 40px));
-  padding: 12px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(219,234,254,.9);
-  background: rgba(255,255,255,.94);
-  color: #1d4ed8;
-  box-shadow: 0 18px 42px rgba(15,23,42,.18), inset 0 1px 0 rgba(255,255,255,.88);
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 1;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(2,6,23,.46);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
   letter-spacing: 0;
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  backdrop-filter: blur(18px) saturate(160%);
-  animation: mm-route-pending-pill 140ms ease-out both;
+  animation: mm-route-pending-dissolve 260ms ease-out both;
 }
 
-html.dark.mm-route-pending body::before {
-  border-color: rgba(96,165,250,.28);
-  background: rgba(7,20,38,.94);
-  color: #bfdbfe;
-  box-shadow: 0 18px 42px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.08);
-}
-
-html.dark.mm-route-pending body::after {
+html.dark.mm-route-pending-slow body::after {
   background: rgba(2, 6, 23, .38);
 }
 
-html.mm-route-pending-slow body::before {
-  box-shadow: 0 20px 48px rgba(37,99,235,.22), inset 0 1px 0 rgba(255,255,255,.88);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  html.mm-route-pending body::after {
+  html.mm-route-pending-slow body::after {
     animation: none;
   }
 
-  html.mm-route-pending body::before {
+  html.mm-route-pending-slow body::before {
     animation: none;
     transform: translate(-50%, -50%);
   }
@@ -2150,6 +2129,17 @@ body .login-2-shell .mm-login-brand-title {
 }
 .mm-search-locking {
   overscroll-behavior: contain;
+  background: #fff;
+}
+
+html.mm-search-locking[data-search-chrome="light"],
+html.mm-search-locking[data-search-chrome="light"] body {
+  background: #fff !important;
+}
+
+html.mm-search-locking[data-search-chrome="dark"],
+html.mm-search-locking[data-search-chrome="dark"] body {
+  background: #020617 !important;
 }
 .mm-detail-hero2 {
   position: relative;
