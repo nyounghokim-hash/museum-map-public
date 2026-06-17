@@ -592,11 +592,8 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const hasResolvedStoryTranslation = hasResolvedStoryTitle && hasResolvedStoryContent;
     const storyTranslationPending = !isKoOrEn && !hasResolvedStoryTranslation && (
         cachedLoading ||
-        cachedPartial ||
-        cachedError ||
         liveTitle.isTranslating ||
-        liveContent.isTranslating ||
-        !hasResolvedStoryTranslation
+        liveContent.isTranslating
     );
     const translationToastLabel = STORY_TRANSLATION_TOAST[effectiveLocale] || STORY_TRANSLATION_TOAST.en;
 

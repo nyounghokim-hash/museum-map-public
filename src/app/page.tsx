@@ -2966,6 +2966,42 @@ export default function MainPage() {
 
             {activeTrip && !isPanelOpen && (
               <div className="mm-map2-pc-trip-anchor pointer-events-auto">
+                {newMuseums.length > 0 && (
+                  <div className="mm-map2-pc-trip-new-museums relative">
+                    <button
+                      type="button"
+                      onClick={() => { if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
+                      className={`mm-map2-pc-control mm-map2-new-museums-pc-action flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
+                        ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
+                        : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
+                        }`}
+                      aria-label={mobileToolLabels.newMuseums}
+                      aria-expanded={newMuseumsOpen}
+                      title={mobileToolLabels.newMuseums}
+                    >
+                      <span className="mm-map2-new-museums-icon" aria-hidden="true">
+                        <MuseumNewIcon className="w-4 h-4" />
+                        <span>N</span>
+                      </span>
+                    </button>
+
+                    {(newMuseumsOpen || newMuseumsClosing) && (
+                      <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`}>
+                        {newMuseums.map((m: any) => (
+                          <NewMuseumListItem
+                            key={m.id}
+                            museum={m}
+                            locale={locale}
+                            onSelect={(museum) => {
+                              setNewMuseumsOpen(false);
+                              openMuseumPanel(museum);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setIsViewingActiveRoute(true)}
@@ -2991,27 +3027,23 @@ export default function MainPage() {
             {/* New Museums + Category Dropdown row */}
             <div className="mm-map2-pc-tools flex items-center gap-2 pointer-events-auto w-full">
               {/* New Museums Button */}
-              {newMuseums.length > 0 && (
+              {newMuseums.length > 0 && (!activeTrip || isPanelOpen) && (
                 <div className="relative">
                   <button
+                    type="button"
                     onClick={() => { if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
-                    className={`mm-map2-pc-control flex items-center gap-2 px-4 py-2.5 bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
+                    className={`mm-map2-pc-control mm-map2-new-museums-pc-action flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
                       ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                       : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
                       }`}
                     aria-label={mobileToolLabels.newMuseums}
                     aria-expanded={newMuseumsOpen}
+                    title={mobileToolLabels.newMuseums}
                   >
-                    <span className="mm-map2-new-museums-icon">
+                    <span className="mm-map2-new-museums-icon" aria-hidden="true">
                       <MuseumNewIcon className="w-4 h-4" />
                       <span>N</span>
                     </span>
-                    <span className="text-sm font-bold text-gray-800 dark:text-white">
-                      {mobileToolLabels.newMuseums}
-                    </span>
-                    <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-300 ${newMuseumsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
                   </button>
 
                   {/* Expandable List */}

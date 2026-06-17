@@ -9057,8 +9057,14 @@ html.is-inapp-browser::after {
     width: calc(100% - 76px) !important;
     margin-top: 10px !important;
     display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
     justify-content: flex-start !important;
     pointer-events: auto !important;
+  }
+
+  .mm-map2-pc-trip-new-museums {
+    flex: 0 0 auto !important;
   }
 
   .mm-map2-pc-tools {
@@ -9088,6 +9094,33 @@ html.is-inapp-browser::after {
   .mm-map2-pc-control-wide span,
   .mm-map2-pc-control-wide > svg:last-child {
     display: none !important;
+  }
+
+  .mm-map2-new-museums-pc-action {
+    padding: 0 !important;
+    min-width: 54px !important;
+    justify-content: center !important;
+  }
+
+  .mm-map2-pc-trip-new-museums .mm-map2-new-museums-pc-action {
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+  }
+
+  .mm-map2-new-museums-pc-action .mm-map2-new-museums-icon {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .mm-map2-pc-tools .mm-map2-new-museums-popover-pc {
+    left: auto !important;
+    right: 0 !important;
+  }
+
+  .mm-map2-pc-trip-new-museums .mm-map2-new-museums-popover-pc {
+    left: 0 !important;
+    right: auto !important;
   }
 
   .mm-map2-category-menu-pc {

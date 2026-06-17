@@ -1,10 +1,9 @@
 'use client';
-import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
 import { useTranslatedText } from '@/hooks/useTranslation';
-import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import { getMuseumImageSrc, isRenderableUrl } from '@/lib/getMuseumImage';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
@@ -222,7 +221,6 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
     return (
         <a
             href={`/blog/${post.id}`}
-            onPointerDown={(event) => { if (event.pointerType === 'touch') onNavigate(post.id); }}
             onClick={() => onNavigate(post.id)}
             className="mm-list-row2 group w-full text-left"
         >
@@ -290,7 +288,7 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
     const chain = getStoryImageChain(post);
 
     return (
-        <a href={`/blog/${post.id}`} onPointerDown={(event) => { if (event.pointerType === 'touch') onNavigate(post.id); }} onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
+        <a href={`/blog/${post.id}`} onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
             <div className="relative h-24 sm:h-28 overflow-hidden bg-slate-100 dark:bg-neutral-800">
                 <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
@@ -359,7 +357,7 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
     const museumLine = getStoryMuseumLine(post, locale);
 
     return (
-        <a href={`/blog/${post.id}`} onPointerDown={(event) => { if (event.pointerType === 'touch') onNavigate(post.id); }} onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
+        <a href={`/blog/${post.id}`} onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
             <div className="mm-story-mini-thumb relative">
                 <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
@@ -499,7 +497,6 @@ export default function BlogListPage() {
     const { locale } = useApp();
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [navigating, setNavigating] = useState(false);
     const [page, setPage] = useState(1);
     const [activeCategory, setActiveCategory] = useState<string>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('random');
@@ -510,11 +507,8 @@ export default function BlogListPage() {
     const PAGE_KEY = 'blog_page';
     const CAT_KEY = 'blog_category';
     const SORT_KEY = 'blog_sort';
-    const navigatingStoryRef = useRef<string | null>(null);
 
     const handleNavigate = (id: string) => {
-        if (navigatingStoryRef.current === id) return;
-        navigatingStoryRef.current = id;
         gtag.event('view_blog_post', { category: 'blog', label: id, value: 1 });
         try {
             sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
@@ -523,7 +517,6 @@ export default function BlogListPage() {
             sessionStorage.setItem(SORT_KEY, sortMode);
             sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
         } catch { }
-        setNavigating(true);
     };
 
     useEffect(() => {
@@ -659,7 +652,6 @@ export default function BlogListPage() {
 
     return (
         <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
-            {navigating && <LoadingAnimation />}
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6 animate-fadeInUp">
                 <div className="mm-gallery-kicker mb-3">{locale === 'ko' ? 'Curated' : 'Curated'}</div>
                 <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
@@ -767,7 +759,7 @@ export default function BlogListPage() {
                             {(() => {
                                 const maxVisible = 5;
                                 let start = Math.max(1, page - Math.floor(maxVisible / 2));
-                                let end = Math.min(totalPages, start + maxVisible - 1);
+                                const end = Math.min(totalPages, start + maxVisible - 1);
                                 if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
                                 return Array.from({ length: end - start + 1 }, (_, i) => start + i).map(p => (
                                     <button

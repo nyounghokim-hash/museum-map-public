@@ -4,6 +4,7 @@ import { Locale } from '@/lib/i18n';
 
 // Client-side localStorage cache
 const memoryCache = new Map<string, string>();
+const TRANSLATION_TIMEOUT_MS = 5000;
 
 function getCacheKey(text: string, locale: Locale): string {
     return `tr:${locale}:${text.slice(0, 100)}`;
@@ -59,14 +60,19 @@ export function useTranslatedText(text: string | null | undefined, locale: Local
             if (cached === text) localStorage.removeItem(key);
         } catch { }
 
-        // No cache — mark as translating and fetch
+        // No cache — mark as translating and fetch. Translation is progressive
+        // enhancement, so it must never leave the UI in a permanent loading state.
         setIsTranslating(true);
 
         let cancelled = false;
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), TRANSLATION_TIMEOUT_MS);
+
         fetch('/api/translate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, targetLang: locale }),
+            signal: controller.signal,
         })
             .then(r => r.json())
             .then(data => {
@@ -86,9 +92,16 @@ export function useTranslatedText(text: string | null | undefined, locale: Local
                     setTranslated(prev => (prev && prev !== text ? prev : ''));
                     setIsTranslating(false);
                 }
+            })
+            .finally(() => {
+                window.clearTimeout(timeoutId);
             });
 
-        return () => { cancelled = true; };
+        return () => {
+            cancelled = true;
+            window.clearTimeout(timeoutId);
+            controller.abort();
+        };
     }, [text, locale]);
 
     if (opts?.withLoading) {
@@ -150,18 +163,25 @@ export function useTranslatedTexts(texts: string[], locale: Locale): Map<string,
 
         if (toFetch.length === 0) return;
 
-        // Fetch translations in parallel
+        // Fetch translations in parallel. These are progressive enhancements;
+        // timeout each request so slow translation cannot hold UI feedback open.
+        const controllers: AbortController[] = [];
         Promise.all(
-            toFetch.map(text =>
-                fetch('/api/translate', {
+            toFetch.map(text => {
+                const controller = new AbortController();
+                controllers.push(controller);
+                const timeoutId = window.setTimeout(() => controller.abort(), TRANSLATION_TIMEOUT_MS);
+                return fetch('/api/translate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text, targetLang: locale }),
+                    signal: controller.signal,
                 })
                     .then(r => r.json())
                     .then(data => ({ text, translated: data.translated || '' }))
                     .catch(() => ({ text, translated: '' }))
-            )
+                    .finally(() => window.clearTimeout(timeoutId));
+            })
         ).then(results => {
             if (cancelled) return;
             const updated = new Map(result);
@@ -176,7 +196,10 @@ export function useTranslatedTexts(texts: string[], locale: Locale): Map<string,
             setMap(updated);
         });
 
-        return () => { cancelled = true; };
+        return () => {
+            cancelled = true;
+            controllers.forEach(controller => controller.abort());
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [JSON.stringify(texts), locale]);
 
