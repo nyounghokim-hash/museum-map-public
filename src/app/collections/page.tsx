@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
@@ -186,7 +185,7 @@ export default function CollectionsPage() {
                 <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {visibleCollections.map((col: any) => (
-                            <Link key={col.id} href={`/collections/${col.id}`}>
+                            <a key={col.id} href={`/collections/${col.id}`}>
                                 <div className="mm-collection-card2 p-4 sm:p-5 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative active:scale-[0.98]">
                                     {tab === 'my' && (
                                         <button
@@ -263,7 +262,7 @@ export default function CollectionsPage() {
                                         })()}
                                     </div>
                                 </div>
-                            </Link>
+                            </a>
                         ))}
                     </div>
                     {hasMorePublicCollections && (

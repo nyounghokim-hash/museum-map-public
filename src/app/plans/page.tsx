@@ -212,7 +212,7 @@ export default function MyPlansPage() {
                         const dDayText = dDayNum !== null ? (dDayNum > 0 ? `D-${dDayNum}` : dDayNum === 0 ? 'D-DAY' : '') : '';
 
                         return (
-                            <Link key={plan.id} href={`/plans/${plan.id}`}>
+                            <a key={plan.id} href={`/plans/${plan.id}`}>
                                 <GlassPanel className={`p-4 sm:p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group overflow-hidden relative active:scale-[0.98] !rounded-3xl ${isPending ? 'ring-2 ring-amber-400 bg-amber-50/50 dark:bg-amber-900/10 shadow-md' : isActive ? 'ring-2 ring-blue-500 bg-blue-50/50 dark:bg-blue-900/10 shadow-md' : 'shadow-sm'}`}>
                                     <button
                                         onClick={(e) => handleDelete(plan.id, e)}
@@ -293,7 +293,7 @@ export default function MyPlansPage() {
                                         </svg>
                                     </div>
                                 </GlassPanel>
-                            </Link>
+                            </a>
                         );
                     })}
                 </div>

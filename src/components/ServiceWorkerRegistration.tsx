@@ -8,13 +8,16 @@ export default function ServiceWorkerRegistration() {
 
         const clearServiceWorkerShell = async () => {
             try {
+                const cleanupKey = 'mm-sw-cleaned-v4';
+                if (localStorage.getItem(cleanupKey) === '1') return;
                 const registrations = await navigator.serviceWorker.getRegistrations();
                 await Promise.all(registrations.map((registration) => registration.unregister()));
                 if ('caches' in window) {
                     const keys = await caches.keys();
                     await Promise.all(keys.filter((key) => key.startsWith('mm-')).map((key) => caches.delete(key)));
                 }
-                const reloadKey = 'mm-sw-cleared-v3';
+                localStorage.setItem(cleanupKey, '1');
+                const reloadKey = 'mm-sw-cleared-v4';
                 if (registrations.length > 0 && !sessionStorage.getItem(reloadKey)) {
                     sessionStorage.setItem(reloadKey, '1');
                     window.location.reload();
