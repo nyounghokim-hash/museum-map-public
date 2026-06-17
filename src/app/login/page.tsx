@@ -235,7 +235,7 @@ export default function LoginPage() {
         <div className="login-2-shell fixed inset-0 flex flex-col selection:bg-blue-200 selection:text-slate-950 transition-colors duration-300 overflow-hidden lg:overflow-y-auto animate-[fadeIn_0.8s_ease]">
             <button
                 type="button"
-                onClick={() => router.push('/')}
+                onClick={() => window.location.assign('/')}
                 className="fixed right-4 top-[max(16px,env(safe-area-inset-top,0px))] z-50 flex h-11 w-11 items-center justify-center rounded-full border border-slate-200/70 bg-white/76 text-slate-700 shadow-xl shadow-blue-950/10 backdrop-blur-xl transition-all active:scale-95 hover:bg-white/90 dark:border-white/20 dark:bg-blue-950/58 dark:text-white dark:shadow-blue-950/20 dark:hover:bg-blue-950/72"
                 aria-label={locale === 'ko' ? '닫기' : 'Close'}
             >
@@ -533,7 +533,7 @@ export default function LoginPage() {
                                     <div className="text-xs text-gray-600 dark:text-neutral-400 leading-relaxed space-y-3">
                                         {[
                                             <p key="t0" className="font-bold text-gray-800 dark:text-white">Museum Map 서비스 이용약관</p>,
-                                            <p key="t1">본 약관은 Museum Map 서비스(이하 '서비스')의 이용에 관한 기본 사항을 규정합니다.</p>,
+                                            <p key="t1">본 약관은 Museum Map 서비스(이하 &apos;서비스&apos;)의 이용에 관한 기본 사항을 규정합니다.</p>,
                                             <p key="t2" className="font-semibold text-gray-700 dark:text-gray-300">제1조 (목적)</p>,
                                             <p key="t3">이 약관은 서비스 이용 조건 및 절차, 이용자와 회사의 권리·의무를 규정합니다.</p>,
                                             <p key="t4" className="font-semibold text-gray-700 dark:text-gray-300">제2조 (서비스 내용)</p>,
@@ -564,7 +564,7 @@ export default function LoginPage() {
                                 )}
                             </div>
                             <div className="px-6 py-4 border-t border-gray-100 dark:border-neutral-800">
-                                <button onClick={() => { setConsentView('main'); consentView === 'terms' ? setTermsAgreed(true) : setPrivacyAgreed(true); }} className="w-full py-3 rounded-2xl text-sm font-bold gradient-btn active:scale-[0.98] transition-all shadow-lg">
+                                <button onClick={() => { setConsentView('main'); if (consentView === 'terms') setTermsAgreed(true); else setPrivacyAgreed(true); }} className="w-full py-3 rounded-2xl text-sm font-bold gradient-btn active:scale-[0.98] transition-all shadow-lg">
                                     {consentView === 'terms' ? txt(consentLabels.termsName, locale) : txt(consentLabels.privacyName, locale)} 동의하기
                                 </button>
                             </div>

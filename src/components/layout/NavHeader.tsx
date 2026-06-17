@@ -479,12 +479,12 @@ export default function NavHeader() {
                                 )}
                                 {/* Guest: just Login button / User: profile icon with menu */}
                                 {session.user?.name?.startsWith('guest_') ? (
-                                    <Link
+                                    <a
                                         href="/login"
                                         className="px-4 py-1.5 rounded-full gradient-btn text-xs font-bold shadow-sm active:scale-95 transition-all"
                                     >
                                         {t('login.title', locale) || 'Login'}
-                                    </Link>
+                                    </a>
                                 ) : (
                                     <div className="relative" ref={userMenuRef}>
                                         <button
@@ -504,12 +504,12 @@ export default function NavHeader() {
                                 )}
                             </div>
                         ) : (
-                            <Link
+                            <a
                                 href="/login"
                                 className="px-4 py-1.5 rounded-full gradient-btn text-xs font-bold shadow-sm active:scale-95 transition-all"
                             >
                                 {t('login.title', locale) || 'Login'}
-                            </Link>
+                            </a>
                         )}
 
                         <button
@@ -635,7 +635,7 @@ export default function NavHeader() {
 
                         <div className="p-4 border-t dark:border-neutral-800 space-y-1">
                             {session?.user?.name?.startsWith('guest_') && (
-                                <Link
+                                <a
                                     href="/login"
                                     onClick={() => setMobileOpen(false)}
                                     className="block w-full px-4 py-3 rounded-xl text-sm font-bold text-center text-white gradient-btn active:scale-95 transition-all mb-2"
@@ -646,7 +646,7 @@ export default function NavHeader() {
                                         </svg>
                                         {t('login.title', locale) || 'Login'}
                                     </span>
-                                </Link>
+                                </a>
                             )}
                             <button
                                 onClick={() => setDarkMode(!darkMode)}

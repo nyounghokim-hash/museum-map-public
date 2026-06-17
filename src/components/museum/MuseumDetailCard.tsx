@@ -1006,7 +1006,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
     const handleToggleCompare = () => {
         if (!data) return;
-        if (!isSignedInUser) { router.push('/login'); return; }
+        if (!isSignedInUser) { window.location.assign('/login'); return; }
         if (isInCompare(data.id)) {
             removeFromCompare(data.id);
             triggerCompareToast(t('compare.removed', locale), false, false);
@@ -1020,7 +1020,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const handleTogglePick = async (e?: React.MouseEvent<HTMLButtonElement>) => {
         e?.preventDefault();
         if (!data) return;
-        if (!isSignedInUser) { router.push('/login'); return; }
+        if (!isSignedInUser) { window.location.assign('/login'); return; }
         if (isPicked && saveId) {
             const prevSaveId = saveId;
             setIsPicked(false);

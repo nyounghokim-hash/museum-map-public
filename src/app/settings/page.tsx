@@ -357,9 +357,9 @@ export default function SettingsPage() {
             <p>{labels.loginTitle || LABELS.en.loginTitle}</p>
             <span>{labels.loginBody || LABELS.en.loginBody}</span>
           </div>
-          <Link href="/login?callbackUrl=%2Fsettings" className="mm-settings-login-cta">
+          <a href="/login?callbackUrl=%2Fsettings" className="mm-settings-login-cta">
             {labels.loginCta || LABELS.en.loginCta}
-          </Link>
+          </a>
         </section>
       )}
 

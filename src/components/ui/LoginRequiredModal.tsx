@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 
 const TEXTS: Record<string, { title: string; message: string; login: string; cancel: string }> = {
@@ -28,7 +27,6 @@ interface LoginRequiredModalProps {
 }
 
 export default function LoginRequiredModal({ isOpen, onClose, callbackUrl }: LoginRequiredModalProps) {
-    const router = useRouter();
     const { locale } = useApp();
     const [closing, setClosing] = useState(false);
     const [mounted, setMounted] = useState(false);
@@ -48,8 +46,10 @@ export default function LoginRequiredModal({ isOpen, onClose, callbackUrl }: Log
 
     const handleLogin = () => {
         const url = callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : '/login';
-        router.push(url);
-        onClose();
+        if (typeof window !== 'undefined') {
+            document.documentElement.classList.add('mm-route-pending');
+            window.location.assign(url);
+        }
     };
 
     return createPortal(

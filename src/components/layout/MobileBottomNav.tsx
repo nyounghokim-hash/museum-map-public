@@ -289,7 +289,7 @@ export default function MobileBottomNav() {
     if (!isMobile || !showNavPages.includes(pathname) || detailOpen) return null;
 
     const labels = NAV_LABELS[locale] || NAV_LABELS.en;
-    const isCenterActive = navigatingAway || pathname === '/plans' || pathname.startsWith('/collections') || pathname === '/compare';
+    const isCenterActive = pathname === '/plans' || pathname.startsWith('/collections') || pathname === '/compare';
     const themedShellStyle = darkMode ? {
         background: 'rgba(7,20,38,.94)',
         borderTop: '1px solid rgba(96,165,250,.22)',
