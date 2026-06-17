@@ -551,7 +551,7 @@ export default function NavHeader() {
 
                         <nav className="flex-1 p-4 space-y-1">
                             {NAV_LINKS.map(link => {
-                                const isGuest = session?.user?.name?.startsWith('guest_');
+                                const isGuest = !session || session?.user?.name?.startsWith('guest_');
                                 const isProtectedRoute = ['/saved', '/plans', '/collections', '/compare'].includes(link.href);
 
                                     const handleDrawerClick = (e: React.MouseEvent) => {

@@ -330,7 +330,7 @@ export default function MobileBottomNav() {
 
     const goProtected = (href: string) => {
         closeMenu();
-        if (isGuest && href !== '/compare') {
+        if (isGuest) {
             setLoginCallbackUrl(href);
             setLoginModalOpen(true);
             return;

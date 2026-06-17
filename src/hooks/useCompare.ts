@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 
 const STORAGE_KEY = 'compareMuseums';
@@ -36,7 +36,6 @@ async function pushToServer(ids: string[]) {
 export function useCompare() {
     const { data: session, status } = useSession();
     const [compareIds, setCompareIds] = useState<string[]>([]);
-    const isAuthedRef = useRef(false);
     const isAuthed = status === 'authenticated' && !session?.user?.name?.startsWith('guest_');
 
     // Account-scoped compare list. Legacy localStorage values are cleared so logged-out
@@ -47,18 +46,15 @@ export function useCompare() {
         if (status === 'loading') return;
 
         if (!isAuthed) {
-            isAuthedRef.current = false;
             setCompareIds(prev => (prev.length > 0 ? [] : prev));
             clearLegacyStored();
             return;
         }
 
-        isAuthedRef.current = true;
         clearLegacyStored();
         fetch('/api/me/compare')
             .then(async (r) => {
                 if (r.status === 401) {
-                    isAuthedRef.current = false;
                     return [];
                 }
                 if (!r.ok) return null;
@@ -90,11 +86,11 @@ export function useCompare() {
     }, []);
 
     const syncIfAuthed = useCallback((ids: string[]) => {
-        if (isAuthedRef.current) pushToServer(ids);
-    }, []);
+        if (isAuthed) pushToServer(ids);
+    }, [isAuthed]);
 
     const addToCompare = useCallback((id: string): boolean => {
-        if (!isAuthedRef.current) return false;
+        if (!isAuthed) return false;
         const current = compareIds;
         if (current.length >= MAX_COMPARE || current.includes(id)) return false;
         const next = [...current, id];
@@ -102,15 +98,15 @@ export function useCompare() {
         notifyCompareChanged(next);
         syncIfAuthed(next);
         return true;
-    }, [compareIds, syncIfAuthed]);
+    }, [compareIds, isAuthed, syncIfAuthed]);
 
     const removeFromCompare = useCallback((id: string) => {
-        if (!isAuthedRef.current) return;
+        if (!isAuthed) return;
         const next = compareIds.filter(x => x !== id);
         setCompareIds(next);
         notifyCompareChanged(next);
         syncIfAuthed(next);
-    }, [compareIds, syncIfAuthed]);
+    }, [compareIds, isAuthed, syncIfAuthed]);
 
     const clearCompare = useCallback(() => {
         clearLegacyStored();
@@ -132,5 +128,6 @@ export function useCompare() {
         compareCount: compareIds.length,
         isFull: compareIds.length >= MAX_COMPARE,
         isAuthenticated: isAuthed,
+        isReady: status !== 'loading',
     };
 }

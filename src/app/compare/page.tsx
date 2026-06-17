@@ -12,12 +12,17 @@ import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalized
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
+function goLogin(callbackUrl: string) {
+    if (typeof window === 'undefined') return;
+    window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+}
+
 export default function ComparePage() {
     const { locale } = useApp();
     const { showAlert } = useModal();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { compareIds, addToCompare, removeFromCompare, clearCompare, isInCompare, compareCount, isFull } = useCompare();
+    const { compareIds, addToCompare, removeFromCompare, clearCompare, isInCompare, compareCount, isFull, isAuthenticated, isReady } = useCompare();
 
     const [museums, setMuseums] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -86,6 +91,32 @@ export default function ComparePage() {
     const handleReset = () => {
         clearCompare();
         router.replace('/compare');
+    };
+
+    const openSearch = () => {
+        if (!isReady) {
+            showAlert(locale === 'ko' ? '계정 정보를 확인하는 중이에요. 잠시 후 다시 시도해 주세요.' : 'Checking your account. Please try again in a moment.');
+            return;
+        }
+        if (!isAuthenticated) {
+            goLogin('/compare');
+            return;
+        }
+        setSearchOpen(true);
+    };
+
+    const handleSelectMuseum = (museum: any) => {
+        if (!isReady) {
+            showAlert(locale === 'ko' ? '계정 정보를 확인하는 중이에요. 잠시 후 다시 시도해 주세요.' : 'Checking your account. Please try again in a moment.');
+            return;
+        }
+        if (!isAuthenticated) {
+            goLogin('/compare');
+            return;
+        }
+        const added = addToCompare(museum.id);
+        if (!added) showAlert(t('compare.full', locale));
+        else setSearchOpen(false);
     };
 
     // Extract visitor info field
@@ -163,7 +194,7 @@ export default function ComparePage() {
             {compareCount === 0 && !loading && (
                 <EmptyStateGame locale={locale} title={t('compare.empty', locale)} description={t('compare.emptyDesc', locale)} compact>
                     <button
-                        onClick={() => setSearchOpen(true)}
+                        onClick={openSearch}
                         className="gradient-btn px-5 py-2.5 rounded-xl font-bold text-white text-sm active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         {t('compare.search', locale)}
@@ -190,10 +221,7 @@ export default function ComparePage() {
                                         key={m.id}
                                         museum={m}
                                         locale={locale}
-                                        onAdd={() => {
-                                            const added = addToCompare(m.id);
-                                            if (!added) showAlert(t('compare.full', locale));
-                                        }}
+                                        onAdd={() => handleSelectMuseum(m)}
                                     />
                                 ))}
                             </div>
@@ -237,7 +265,7 @@ export default function ComparePage() {
                         {/* Empty Slot — add more */}
                         {!isFull && (
                             <button
-                                onClick={() => setSearchOpen(true)}
+                                onClick={openSearch}
                                 className="w-[224px] sm:w-[248px] shrink-0"
                             >
                                 <GlassPanel className="p-3 h-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 dark:border-neutral-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer group">
@@ -264,11 +292,7 @@ export default function ComparePage() {
                 <CompareSearchModal
                     locale={locale}
                     onClose={() => setSearchOpen(false)}
-                    onSelect={(museum: any) => {
-                        const added = addToCompare(museum.id);
-                        if (!added) showAlert(t('compare.full', locale));
-                        else setSearchOpen(false);
-                    }}
+                    onSelect={handleSelectMuseum}
                     isInCompare={isInCompare}
                 />
             )}

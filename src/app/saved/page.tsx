@@ -38,6 +38,11 @@ const g = (key: string, locale: string) => ui[key]?.[locale] || ui[key]?.['en'] 
 
 type SortType = 'newest' | 'rating' | 'alpha' | 'oldest' | 'nearby';
 
+function goLogin(callbackUrl: string) {
+    if (typeof window === 'undefined') return;
+    window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+}
+
 export default function SavedPage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'saved' | 'history'>('saved');
@@ -53,7 +58,7 @@ export default function SavedPage() {
     const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
     const { locale } = useApp();
     const { showAlert, showConfirm } = useModal();
-    const { addToCompare, compareCount } = useCompare();
+    const { addToCompare, compareCount, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare();
 
     // Fetch saves for "저장" tab
     useEffect(() => {
@@ -102,8 +107,19 @@ export default function SavedPage() {
         let url = '/api/me/saves';
         if (folderId) url += `?folderId=${folderId}`;
         try {
-            const res = await fetch(url).then(r => r.json());
+            const response = await fetch(url);
+            if (response.status === 401) {
+                goLogin('/saved');
+                return;
+            }
+            if (!response.ok) {
+                setSaves([]);
+                return;
+            }
+            const res = await response.json();
             if (res.data) setSaves(res.data);
+        } catch {
+            setSaves([]);
         } finally {
             setLoading(false);
         }
@@ -188,7 +204,37 @@ export default function SavedPage() {
         if (selectedMuseums.size === 0) { showAlert(t('saved.selectAtLeast', locale)); return; }
         const ids = Array.from(selectedMuseums).join(',');
         gtag.event('generate_autoroute', { category: 'autoroute', label: ids, value: selectedMuseums.size });
-        router.push(`/plans/new?museums=${ids}`);
+        window.location.assign(`/plans/new?museums=${encodeURIComponent(ids)}`);
+    };
+
+    const handleCompareSelected = () => {
+        if (selectedMuseums.size === 0) {
+            setIsSelectMode(true);
+            return;
+        }
+        if (!isCompareReady) {
+            showAlert(locale === 'ko' ? '계정 정보를 확인하는 중이에요. 잠시 후 다시 시도해 주세요.' : 'Checking your account. Please try again in a moment.');
+            return;
+        }
+        if (!isCompareAuthenticated) {
+            goLogin('/saved');
+            return;
+        }
+
+        const ids = Array.from(selectedMuseums);
+        const available = Math.max(0, 3 - compareCount);
+        if (available === 0) { showAlert(t('compare.full', locale)); return; }
+
+        let addedCount = 0;
+        ids.slice(0, available).forEach(id => { if (addToCompare(id)) addedCount++; });
+        if (addedCount === 0) {
+            showAlert(t('compare.full', locale));
+            return;
+        }
+
+        setSelectedMuseums(new Set());
+        setIsSelectMode(false);
+        window.location.assign('/compare');
     };
 
     const handleClearHistory = () => {
@@ -273,17 +319,7 @@ export default function SavedPage() {
                         {t('saved.createAutoRoute', locale)}
                     </button>
                     <button
-                        onClick={() => {
-                            const ids = Array.from(selectedMuseums);
-                            const available = Math.max(0, 3 - compareCount);
-                            if (available === 0) { showAlert(t('compare.full', locale)); return; }
-                            const toAdd = ids.slice(0, available);
-                            let addedCount = 0;
-                            toAdd.forEach(id => { if (addToCompare(id)) addedCount++; });
-                            setSelectedMuseums(new Set());
-                            setIsSelectMode(false);
-                            if (addedCount > 0) router.push('/compare');
-                        }}
+                        onClick={handleCompareSelected}
                         className="bg-white dark:bg-neutral-800 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900"
                         aria-label={t('compare.title', locale)}
                     >
@@ -403,16 +439,7 @@ export default function SavedPage() {
                             <button onClick={selectedMuseums.size > 0 ? handleCreateAutoRoute : () => setIsSelectMode(true)} className="h-11 rounded-2xl bg-blue-600 text-white text-sm font-semibold active:scale-95 transition-all">
                                 {selectedMuseums.size > 0 ? t('saved.createAutoRoute', locale) : g('choosePlaces', locale)}
                             </button>
-                            <button onClick={() => {
-                                if (selectedMuseums.size === 0) { setIsSelectMode(true); return; }
-                                const ids = Array.from(selectedMuseums);
-                                const available = Math.max(0, 3 - compareCount);
-                                if (available === 0) { showAlert(t('compare.full', locale)); return; }
-                                ids.slice(0, available).forEach(id => addToCompare(id));
-                                setSelectedMuseums(new Set());
-                                setIsSelectMode(false);
-                                router.push('/compare');
-                            }} className="h-11 rounded-2xl bg-white text-slate-700 border border-blue-100 text-sm font-semibold active:scale-95 transition-all dark:bg-slate-900 dark:text-slate-100 dark:border-blue-900/50">
+                            <button onClick={handleCompareSelected} className="h-11 rounded-2xl bg-white text-slate-700 border border-blue-100 text-sm font-semibold active:scale-95 transition-all dark:bg-slate-900 dark:text-slate-100 dark:border-blue-900/50">
                                 {g('comparePicked', locale)}
                             </button>
                         </div>
