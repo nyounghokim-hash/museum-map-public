@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { type Museum } from '@/generated_v2/client';
@@ -391,33 +391,6 @@ function applyMapLocale(map: maplibregl.Map, locale: string) {
     }
   }
 }
-/** Hide North Korea (DPRK) country name + all place labels within its bounds */
-function hideNorthKoreaLabels(map: maplibregl.Map) {
-  // North Korea names across all languages
-  const nkNames = [
-    'North Korea', 'NORTH KOREA', '조선민주주의인민공화국', '북한', '朝鮮民主主義人民共和国',
-    '朝鲜', '朝鮮', 'Nordkorea', 'Corée du Nord', 'Corea del Norte', 'Coreia do Norte',
-    'DPRK', "Democratic People's Republic of Korea", 'Põhja-Korea',
-  ];
-
-  const allLayers = [
-    'place_country_1', 'place_country_2',
-    'place_city_r6', 'place_city_r5', 'place_city_dot_r7', 'place_city_dot_r4',
-    'place_city_dot_r2', 'place_city_dot_z7', 'place_capital_dot_z7',
-    'place_town', 'place_villages', 'place_suburbs', 'place_hamlet', 'place_state',
-  ];
-
-  // Build legacy-style filter: ["all", ["!=", "name", "North Korea"], ["!=", "name", "북한"], ...]
-  const nameFilters: any[] = ['all', ...nkNames.map(n => ['!=', 'name', n])];
-
-  for (const layerId of allLayers) {
-    if (!map.getLayer(layerId)) continue;
-    try {
-      map.setFilter(layerId, nameFilters as any);
-    } catch { }
-  }
-}
-
 const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const LIGHT_COLOR = '#2563EB'; // Museum Map 2.0 primary blue
@@ -735,7 +708,6 @@ export default function MapLibreViewer({
       }
       onZoomChangeRef.current?.(map.getZoom());
     });
-    map.on('zoom', () => onZoomChangeRef.current?.(map.getZoom()));
 
     map.on('load', async () => {
       mapLoaded.current = true;

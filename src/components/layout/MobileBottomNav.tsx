@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, MouseEvent, PointerEvent } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import type { CSSProperties, MouseEvent } from 'react';
+import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
@@ -24,9 +23,9 @@ const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; ar
     et: { map: 'Avaleht', saved: 'Salvestatud', plans: 'Reisid', artworks: 'Teosed', story: 'MM Story', collection: 'Kogu', compare: 'Võrdle' },
 };
 
-function markRoutePending() {
-    if (typeof document === 'undefined') return;
-    document.documentElement.classList.add('mm-route-pending');
+function navigateNative(href: string) {
+    if (typeof window === 'undefined') return;
+    window.location.assign(href);
 }
 
 const styles = {
@@ -50,9 +49,9 @@ const styles = {
         borderRadius: '28px 28px 0 0',
         background: 'rgba(255,255,255,.96)',
         borderTop: '1px solid rgba(226,232,240,.76)',
-        boxShadow: '0 -14px 34px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.88)',
-        WebkitBackdropFilter: 'blur(10px) saturate(140%)',
-        backdropFilter: 'blur(10px) saturate(140%)',
+        boxShadow: '0 -18px 48px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.88)',
+        WebkitBackdropFilter: 'blur(18px) saturate(170%)',
+        backdropFilter: 'blur(18px) saturate(170%)',
     } satisfies CSSProperties,
     toolbar: {
         position: 'relative',
@@ -143,8 +142,8 @@ const styles = {
         inset: 0,
         zIndex: 9998,
         background: 'rgba(2, 6, 23, .46)',
-        WebkitBackdropFilter: 'none',
-        backdropFilter: 'none',
+        WebkitBackdropFilter: 'blur(4px) saturate(120%)',
+        backdropFilter: 'blur(4px) saturate(120%)',
     } satisfies CSSProperties,
     menu: {
         position: 'fixed',
@@ -158,9 +157,9 @@ const styles = {
         borderRadius: 24,
         background: 'rgba(255,255,255,.97)',
         border: '1px solid rgba(226,232,240,.88)',
-        boxShadow: '0 20px 48px rgba(15,23,42,.20)',
-        WebkitBackdropFilter: 'blur(10px) saturate(140%)',
-        backdropFilter: 'blur(10px) saturate(140%)',
+        boxShadow: '0 28px 70px rgba(15,23,42,.22)',
+        WebkitBackdropFilter: 'blur(18px) saturate(170%)',
+        backdropFilter: 'blur(18px) saturate(170%)',
     } satisfies CSSProperties,
     menuButton: {
         flex: '1 1 0',
@@ -248,21 +247,17 @@ function CenterMuseumIcon({ active }: { active: boolean }) {
 
 export default function MobileBottomNav() {
     const pathname = usePathname();
-    const router = useRouter();
     const { locale, darkMode } = useApp();
-    const { data: session, status } = useSession();
-    const isGuest = status === 'unauthenticated' || (status === 'authenticated' && !!session?.user?.name?.startsWith('guest_'));
+    const { data: session } = useSession();
+    const isGuest = !session || session.user?.name?.startsWith('guest_');
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuClosing, setMenuClosing] = useState(false);
     const [navigatingAway, setNavigatingAway] = useState(false);
-    const [pendingHref, setPendingHref] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const [loginCallbackUrl, setLoginCallbackUrl] = useState('');
     const menuRef = useRef<HTMLDivElement>(null);
-    const touchCenterHandledRef = useRef(false);
-    const touchRouteHandledRef = useRef<string | null>(null);
 
     useEffect(() => {
         const observer = new MutationObserver(() => {
@@ -288,22 +283,13 @@ export default function MobileBottomNav() {
         setMenuOpen(false);
         setMenuClosing(false);
         setNavigatingAway(false);
-        setPendingHref(null);
-        document.documentElement.classList.remove('mm-route-pending');
     }, [pathname]);
-
-    useEffect(() => {
-        ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'].forEach((href) => {
-            try { router.prefetch(href); } catch { }
-        });
-    }, [router]);
 
     const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
     if (!isMobile || !showNavPages.includes(pathname) || detailOpen) return null;
 
     const labels = NAV_LABELS[locale] || NAV_LABELS.en;
-    const isPendingCenterRoute = pendingHref === '/plans' || pendingHref === '/collections' || pendingHref === '/compare';
-    const isCenterActive = isPendingCenterRoute || pathname === '/plans' || pathname.startsWith('/collections') || pathname === '/compare';
+    const isCenterActive = navigatingAway || pathname === '/plans' || pathname.startsWith('/collections') || pathname === '/compare';
     const themedShellStyle = darkMode ? {
         background: 'rgba(7,20,38,.94)',
         borderTop: '1px solid rgba(96,165,250,.22)',
@@ -324,74 +310,6 @@ export default function MobileBottomNav() {
     const themedMenuButtonStyle = darkMode ? { color: '#e2e8f0' } satisfies CSSProperties : null;
     const themedDividerStyle = darkMode ? { background: 'rgba(96,165,250,.18)' } satisfies CSSProperties : null;
 
-    const requiresLogin = (href: string) => href === '/saved' || href === '/plans' || href === '/compare';
-
-    const startRouteNavigation = (href: string) => {
-        if (typeof window === 'undefined') return;
-        markRoutePending();
-        setPendingHref(href);
-        setNavigatingAway(true);
-        const targetPath = new URL(href, window.location.origin).pathname;
-        router.push(href);
-        window.setTimeout(() => {
-            const staleMapDom = targetPath !== '/' && !!document.querySelector('.mm-map2-top');
-            if (window.location.pathname !== targetPath || staleMapDom) {
-                window.location.assign(href);
-            }
-        }, 1200);
-    };
-
-    const handleTabClick = (href: string, auth?: boolean) => (event: MouseEvent<HTMLAnchorElement>) => {
-        if (touchRouteHandledRef.current === href) {
-            event.preventDefault();
-            return;
-        }
-
-        if (requiresLogin(href) && isGuest) {
-            event.preventDefault();
-            setLoginCallbackUrl(href);
-            setLoginModalOpen(true);
-            return;
-        }
-
-        if (auth && isGuest) {
-            event.preventDefault();
-            setLoginCallbackUrl(href);
-            setLoginModalOpen(true);
-            return;
-        }
-
-        if (href !== pathname && typeof window !== 'undefined') {
-            event.preventDefault();
-            startRouteNavigation(href);
-        }
-    };
-
-    const handleTabPointerDown = (href: string, auth?: boolean) => (event: PointerEvent<HTMLAnchorElement>) => {
-        if (event.pointerType !== 'touch') return;
-
-        if ((requiresLogin(href) || auth) && isGuest) {
-            event.preventDefault();
-            setLoginCallbackUrl(href);
-            setLoginModalOpen(true);
-            return;
-        }
-
-        if (href !== pathname && typeof window !== 'undefined') {
-            event.preventDefault();
-            touchRouteHandledRef.current = href;
-            startRouteNavigation(href);
-            window.setTimeout(() => {
-                if (touchRouteHandledRef.current === href) touchRouteHandledRef.current = null;
-            }, 500);
-        }
-    };
-
-    const closeMenuNow = () => {
-        setMenuOpen(false);
-        setMenuClosing(false);
-    };
-
     const closeMenu = () => {
         if (!menuOpen || menuClosing) return;
         setMenuClosing(true);
@@ -410,79 +328,47 @@ export default function MobileBottomNav() {
         setMenuOpen(true);
     };
 
-    const goMenuRoute = (href: string) => {
-        closeMenuNow();
-        if (requiresLogin(href) && isGuest) {
+    const goProtected = (href: string) => {
+        closeMenu();
+        if (isGuest && href !== '/compare') {
             setLoginCallbackUrl(href);
             setLoginModalOpen(true);
             return;
         }
         setNavigatingAway(true);
-        if (pathname === '/' && typeof window !== 'undefined') {
-            startRouteNavigation(href);
-            return;
-        }
-        startRouteNavigation(href);
+        navigateNative(href);
     };
-
-    const handleCenterPress = () => {
-        toggleMenu();
-    };
-
-    const handleCenterPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-        if (event.pointerType !== 'touch') return;
-        event.preventDefault();
-        touchCenterHandledRef.current = true;
-        handleCenterPress();
-        window.setTimeout(() => {
-            touchCenterHandledRef.current = false;
-        }, 350);
-    };
-
-    const handleCenterClick = () => {
-        if (touchCenterHandledRef.current) return;
-        handleCenterPress();
-    };
-
-    const handleMenuRoutePointerDown = (href: string) => (event: PointerEvent<HTMLButtonElement>) => {
-        if (event.pointerType !== 'touch') return;
-        event.preventDefault();
-        touchRouteHandledRef.current = href;
-        goMenuRoute(href);
-        window.setTimeout(() => {
-            if (touchRouteHandledRef.current === href) touchRouteHandledRef.current = null;
-        }, 450);
-    };
-
-    const handleMenuRouteClick = (href: string) => {
-        if (touchRouteHandledRef.current === href) return;
-        goMenuRoute(href);
-    };
-
-    const tabIsActive = (href: string, current: boolean) => (pendingHref ? pendingHref === href : !navigatingAway && current);
 
     const tabsLeft = [
-        { href: '/', key: 'map' as const, label: labels.map, active: tabIsActive('/', pathname === '/') },
-        { href: '/saved', key: 'saved' as const, label: labels.saved, active: tabIsActive('/saved', pathname.startsWith('/saved')), auth: true },
+        { href: '/', key: 'map' as const, label: labels.map, active: !navigatingAway && pathname === '/' },
+        { href: '/saved', key: 'saved' as const, label: labels.saved, active: !navigatingAway && pathname.startsWith('/saved'), auth: true },
     ];
     const tabsRight = [
-        { href: '/blog', key: 'story' as const, label: labels.story, active: tabIsActive('/blog', pathname.startsWith('/blog')) },
-        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: tabIsActive('/artworks', pathname.startsWith('/artworks')) },
+        { href: '/blog', key: 'story' as const, label: labels.story, active: !navigatingAway && pathname.startsWith('/blog') },
+        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: !navigatingAway && pathname.startsWith('/artworks') },
     ];
 
+    const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
+        if ('auth' in tab && tab.auth && isGuest) {
+            event.preventDefault();
+            setLoginCallbackUrl(tab.href);
+            setLoginModalOpen(true);
+            return;
+        }
+        setNavigatingAway(true);
+    };
+
     const renderTab = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (
-        <Link
+        <a
             key={tab.href}
             href={tab.href}
-            prefetch
-            onPointerDown={handleTabPointerDown(tab.href, 'auth' in tab ? tab.auth : false)}
-            onClick={handleTabClick(tab.href, 'auth' in tab ? tab.auth : false)}
+            onClick={handleTabClick(tab)}
             className={`mm-nav-original-tab ${tab.active && !menuOpen ? 'is-active' : ''}`}
             style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(tab.active && !menuOpen ? styles.tabActive : null) }}
         >
             <TabIcon name={tab.key} active={tab.active && !menuOpen} />
             <span style={{ ...styles.label, fontWeight: tab.active && !menuOpen ? 850 : 600 }}>{tab.label}</span>
-        </Link>
+        </a>
     );
 
     return (
@@ -491,17 +377,17 @@ export default function MobileBottomNav() {
                 <>
                     <div className={`mobile-nav-menu-overlay ${menuClosing ? 'is-closing' : ''}`} style={styles.overlay} onClick={closeMenu} />
                     <div className={`mobile-nav-center-menu ${menuClosing ? 'is-closing' : ''}`} style={{ ...styles.menu, ...themedMenuStyle }}>
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuRoutePointerDown('/plans')} onClick={() => handleMenuRouteClick('/plans')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onClick={() => goProtected('/plans')}>
                             <MenuIcon name="plans" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.plans}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuRoutePointerDown('/collections')} onClick={() => handleMenuRouteClick('/collections')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onClick={() => goProtected('/collections')}>
                             <MenuIcon name="collection" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.collection}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={handleMenuRoutePointerDown('/compare')} onClick={() => handleMenuRouteClick('/compare')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onClick={() => goProtected('/compare')}>
                             <MenuIcon name="compare" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.compare}</span>
                         </button>
@@ -522,8 +408,14 @@ export default function MobileBottomNav() {
                                 aria-label={labels.plans}
                                 className="mobile-nav-center-button"
                                 style={{ ...styles.centerButton, ...(!isCenterActive ? styles.centerInactive : null), ...(!isCenterActive ? themedCenterInactiveStyle : null), ...(menuOpen ? styles.centerPressed : null) }}
-                                onPointerDown={handleCenterPointerDown}
-                                onClick={handleCenterClick}
+                                onClick={() => {
+                                    if (isGuest) {
+                                        setLoginCallbackUrl('/plans');
+                                        setLoginModalOpen(true);
+                                        return;
+                                    }
+                                    toggleMenu();
+                                }}
                             >
                                 <CenterMuseumIcon active={isCenterActive || menuOpen} />
                             </button>

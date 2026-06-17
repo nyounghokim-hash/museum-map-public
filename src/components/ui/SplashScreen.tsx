@@ -113,11 +113,10 @@ const SPLASH_LABELS: Record<string, { kicker: string; loading: string; madeBy: s
     },
 };
 
-const MIN_SHOW_MS = 520;
-const MAX_SHOW_MS = 900;
-const FADE_MS = 160;
-const COMPLETE_HOLD_MS = 40;
-const SPLASH_BACKGROUND_KEY = 'mmSplashBackground';
+const MIN_SHOW_MS = 3000;
+const MAX_SHOW_MS = 3200;
+const FADE_MS = 260;
+const COMPLETE_HOLD_MS = 120;
 
 function finishFoucOverlay() {
     if (typeof document === 'undefined') return;
@@ -139,17 +138,7 @@ function shouldShowSplash(): boolean {
 
 function getSplashBackground(): string {
     if (typeof window === 'undefined') return SPLASH_BACKGROUNDS[0];
-    try {
-        const saved = sessionStorage.getItem(SPLASH_BACKGROUND_KEY);
-        if (saved && SPLASH_BACKGROUNDS.includes(saved as typeof SPLASH_BACKGROUNDS[number])) return saved;
-
-        const selected = SPLASH_BACKGROUNDS[Math.floor(Math.random() * SPLASH_BACKGROUNDS.length)] || SPLASH_BACKGROUNDS[0];
-        sessionStorage.setItem(SPLASH_BACKGROUND_KEY, selected);
-        document.documentElement.style.setProperty('--mm-splash-bg-image', `url("${selected}")`);
-        return selected;
-    } catch {
-        return SPLASH_BACKGROUNDS[Math.floor(Math.random() * SPLASH_BACKGROUNDS.length)] || SPLASH_BACKGROUNDS[0];
-    }
+    return SPLASH_BACKGROUNDS[Math.floor(Math.random() * SPLASH_BACKGROUNDS.length)] || SPLASH_BACKGROUNDS[0];
 }
 
 function getDeviceLang(): string {
@@ -184,13 +173,13 @@ export default function SplashScreen() {
         }
 
         setBackground(getSplashBackground());
-        setLang(getDeviceLang());
         setVisible(true);
     }, []);
 
     useEffect(() => {
         if (!visible) return;
 
+        setLang(getDeviceLang());
         setComplete(false);
         try { sessionStorage.setItem('splashShown', '1'); } catch { }
 
@@ -208,7 +197,7 @@ export default function SplashScreen() {
         }
 
         const startTs = performance.now();
-        let enterFrame = requestAnimationFrame(() => setEntered(true));
+        const enterFrame = requestAnimationFrame(() => setEntered(true));
 
         let progressFrame = 0;
         const animateProgress = (now: number) => {

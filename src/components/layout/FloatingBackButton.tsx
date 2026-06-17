@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 const FLOATING_BACK_ROUTES = new Set([
@@ -46,7 +46,6 @@ function getBackFallback(pathname: string | null) {
 
 export default function FloatingBackButton() {
     const pathname = usePathname();
-    const router = useRouter();
     const backingRef = useRef(false);
     const [isDesktop, setIsDesktop] = useState(false);
 
@@ -66,74 +65,46 @@ export default function FloatingBackButton() {
         if (backingRef.current) return;
         backingRef.current = true;
         if (pathname === '/admin') {
-            router.replace('/profile');
+            window.location.assign('/profile');
             return;
         }
         if (pathname === '/settings' && typeof window !== 'undefined') {
-            const storedFallback = sessionStorage.getItem('mm_settings_return_to');
-            const fallbackTarget = !storedFallback || storedFallback === '/settings' ? '/' : storedFallback;
+            const storedFallback = sessionStorage.getItem('mm_settings_return_to') || '/';
+            const fallbackTarget = storedFallback === '/settings' ? '/' : storedFallback;
             window.dispatchEvent(new Event('mm-settings-exit'));
+            if (window.history.length > 1) {
+                const currentPath = `${window.location.pathname}${window.location.search}`;
+                window.history.back();
+                window.setTimeout(() => {
+                    const nextPath = `${window.location.pathname}${window.location.search}`;
+                    if (nextPath === currentPath) {
+                        window.location.assign(fallbackTarget);
+                    }
+                }, 700);
+                return;
+            }
             window.location.assign(fallbackTarget);
             return;
         }
         if (typeof window !== 'undefined' && window.history.length > 1) {
             const currentPath = `${window.location.pathname}${window.location.search}`;
             const fallbackTarget = getBackFallback(pathname);
-            router.back();
+            window.history.back();
             window.setTimeout(() => {
                 const nextPath = `${window.location.pathname}${window.location.search}`;
                 if (nextPath === currentPath) {
-                    router.replace(fallbackTarget);
+                    window.location.assign(fallbackTarget);
                 }
             }, 420);
         } else {
-            router.replace('/');
+            window.location.assign('/');
         }
     };
-
-    if (pathname === '/settings') {
-        return (
-            <a
-                href="/"
-                onPointerDown={(event) => {
-                    if (event.pointerType === 'touch') {
-                        event.preventDefault();
-                        handleBack();
-                    }
-                }}
-                onClick={(event) => {
-                    if (backingRef.current) {
-                        event.preventDefault();
-                        return;
-                    }
-                    handleBack();
-                }}
-                className="mm-floating-back-button"
-                aria-label="Back"
-            >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-            </a>
-        );
-    }
 
     return (
         <button
             type="button"
-            onPointerDown={(event) => {
-                if (event.pointerType === 'touch') {
-                    event.preventDefault();
-                    handleBack();
-                }
-            }}
-            onClick={(event) => {
-                if (backingRef.current) {
-                    event.preventDefault();
-                    return;
-                }
-                handleBack();
-            }}
+            onClick={handleBack}
             className={`mm-floating-back-button ${pcOnly ? 'mm-floating-back-button--pc-only' : ''}`}
             aria-label="Back"
         >

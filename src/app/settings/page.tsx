@@ -2,13 +2,12 @@
 
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useApp } from '@/components/AppContext';
 import { LOCALE_NAMES, type Locale } from '@/lib/i18n';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 
-type MapSettingKey = 'location' | 'nearby' | 'weather' | 'leftHanded';
+type MapSettingKey = 'location' | 'nearby' | 'weather';
 type MapPrefs = Record<MapSettingKey, boolean>;
 type MapLocationSource = 'current' | 'manual';
 
@@ -16,14 +15,12 @@ const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
   location: 'mm_map_show_location',
   nearby: 'mm_map_show_nearby',
   weather: 'mm_map_show_weather',
-  leftHanded: 'mm_map_left_handed_mode',
 };
 
 const DEFAULT_MAP_PREFS: MapPrefs = {
   location: true,
   nearby: true,
   weather: true,
-  leftHanded: false,
 };
 
 const MAP_SETTING_ICONS: Record<MapSettingKey, ReactNode> = {
@@ -42,11 +39,6 @@ const MAP_SETTING_ICONS: Record<MapSettingKey, ReactNode> = {
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v3m0 14v3m10-10h-3M5 12H2m16.95-6.95l-2.12 2.12M7.17 16.83l-2.12 2.12m0-13.9l2.12 2.12m9.66 9.66l2.12 2.12" />
-    </svg>
-  ),
-  leftHanded: (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.75 4.75 8.25l3.5 3.5M5 8.25h14.25M15.75 12.25l3.5 3.5-3.5 3.5M4.75 15.75H19" />
     </svg>
   ),
 };
@@ -123,7 +115,6 @@ const LABELS: Record<string, {
   location: string;
   nearby: string;
   weather: string;
-  leftHanded: string;
   account: string;
   profile: string;
   saves: string;
@@ -146,7 +137,6 @@ const LABELS: Record<string, {
     location: '현위치/선택위치',
     nearby: '주변 박물관',
     weather: '날씨 표시',
-    leftHanded: '왼손잡이 모드',
     account: '계정',
     profile: '프로필 관리',
     saves: '내 픽 관리',
@@ -169,7 +159,6 @@ const LABELS: Record<string, {
     location: 'Current/Selected location',
     nearby: 'Nearby Museums',
     weather: 'Show Weather',
-    leftHanded: 'Left-handed mode',
     account: 'Account',
     profile: 'Profile',
     saves: 'Saved Space',
@@ -180,17 +169,17 @@ const LABELS: Record<string, {
     loginBody: 'Keep your picks, trips, collections, and alerts safely attached to your account.',
     loginCta: 'Sign in',
   },
-  ja: { title: '設定', general: '一般', language: '言語', theme: 'テーマ', light: 'ライト', dark: 'ダーク', system: 'システム', map: '地図設定', location: '現在地/選択位置', nearby: '周辺ミュージアム', weather: '天気を表示', leftHanded: '左手モード', account: 'アカウント', profile: 'プロフィール', saves: '保存済み', alerts: '通知', logout: 'ログアウト', version: 'バージョン 2.0.0', loginTitle: 'ログインすると保存と旅行を残せます', loginBody: '気に入った場所、旅行ルート、コレクション、通知をアカウントに保存できます。', loginCta: 'ログイン' },
-  de: { title: 'Einstellungen', general: 'Allgemein', language: 'Sprache', theme: 'Design', light: 'Hell', dark: 'Dunkel', system: 'System', map: 'Karteneinstellungen', location: 'Aktueller/gewählter Standort', nearby: 'Museen in der Nähe', weather: 'Wetter anzeigen', leftHanded: 'Linkshänder-Modus', account: 'Konto', profile: 'Profil', saves: 'Gespeicherte Orte', alerts: 'Benachrichtigungen', logout: 'Abmelden', version: 'Version 2.0.0', loginTitle: 'Einloggen, um Favoriten und Reisen zu speichern', loginBody: 'Bewahre Lieblingsorte, Routen, Sammlungen und Hinweise sicher in deinem Konto auf.', loginCta: 'Einloggen' },
-  fr: { title: 'Paramètres', general: 'Général', language: 'Langue', theme: 'Thème', light: 'Clair', dark: 'Sombre', system: 'Système', map: 'Paramètres de carte', location: 'Position actuelle/choisie', nearby: 'Musées proches', weather: 'Afficher la météo', leftHanded: 'Mode gaucher', account: 'Compte', profile: 'Profil', saves: 'Espaces enregistrés', alerts: 'Notifications', logout: 'Déconnexion', version: 'Version 2.0.0', loginTitle: 'Connectez-vous pour garder vos lieux et voyages', loginBody: 'Enregistrez vos coups de cœur, itinéraires, collections et alertes dans votre compte.', loginCta: 'Se connecter' },
-  es: { title: 'Ajustes', general: 'General', language: 'Idioma', theme: 'Tema', light: 'Claro', dark: 'Oscuro', system: 'Sistema', map: 'Ajustes del mapa', location: 'Ubicación actual/elegida', nearby: 'Museos cercanos', weather: 'Mostrar clima', leftHanded: 'Modo zurdo', account: 'Cuenta', profile: 'Perfil', saves: 'Guardados', alerts: 'Notificaciones', logout: 'Cerrar sesión', version: 'Versión 2.0.0', loginTitle: 'Inicia sesión para guardar tus lugares y viajes', loginBody: 'Guarda tus favoritos, rutas, colecciones y alertas en tu cuenta.', loginCta: 'Iniciar sesión' },
-  pt: { title: 'Configurações', general: 'Geral', language: 'Idioma', theme: 'Tema', light: 'Claro', dark: 'Escuro', system: 'Sistema', map: 'Configurações do mapa', location: 'Localização atual/selecionada', nearby: 'Museus próximos', weather: 'Mostrar clima', leftHanded: 'Modo canhoto', account: 'Conta', profile: 'Perfil', saves: 'Salvos', alerts: 'Notificações', logout: 'Sair', version: 'Versão 2.0.0', loginTitle: 'Entre para salvar lugares e viagens', loginBody: 'Guarde favoritos, rotas, coleções e alertas na sua conta.', loginCta: 'Entrar' },
-  'zh-CN': { title: '设置', general: '通用', language: '语言', theme: '主题', light: '浅色', dark: '深色', system: '系统', map: '地图设置', location: '当前位置/所选位置', nearby: '附近博物馆', weather: '显示天气', leftHanded: '左手模式', account: '账户', profile: '个人资料', saves: '已保存', alerts: '通知', logout: '退出登录', version: '版本 2.0.0', loginTitle: '登录后可保存心选地点和旅行', loginBody: '将喜欢的地点、旅行路线、收藏集和提醒保存到你的账户。', loginCta: '登录' },
-  'zh-TW': { title: '設定', general: '一般', language: '語言', theme: '主題', light: '淺色', dark: '深色', system: '系統', map: '地圖設定', location: '目前位置/所選位置', nearby: '附近博物館', weather: '顯示天氣', leftHanded: '左手模式', account: '帳號', profile: '個人資料', saves: '已儲存', alerts: '通知', logout: '登出', version: '版本 2.0.0', loginTitle: '登入後可保存心選地點和旅行', loginBody: '將喜歡的地點、旅行路線、收藏集和提醒保存到你的帳號。', loginCta: '登入' },
-  da: { title: 'Indstillinger', general: 'Generelt', language: 'Sprog', theme: 'Tema', light: 'Lys', dark: 'Mørk', system: 'System', map: 'Kortindstillinger', location: 'Aktuel/valgt placering', nearby: 'Museer i nærheden', weather: 'Vis vejr', leftHanded: 'Venstrehåndstilstand', account: 'Konto', profile: 'Profil', saves: 'Gemte steder', alerts: 'Notifikationer', logout: 'Log ud', version: 'Version 2.0.0', loginTitle: 'Log ind for at gemme steder og rejser', loginBody: 'Gem favoritter, ruter, samlinger og beskeder sikkert på din konto.', loginCta: 'Log ind' },
-  fi: { title: 'Asetukset', general: 'Yleiset', language: 'Kieli', theme: 'Teema', light: 'Vaalea', dark: 'Tumma', system: 'Järjestelmä', map: 'Kartta-asetukset', location: 'Nykyinen/valittu sijainti', nearby: 'Lähimuseot', weather: 'Näytä sää', leftHanded: 'Vasenkätinen tila', account: 'Tili', profile: 'Profiili', saves: 'Tallennetut', alerts: 'Ilmoitukset', logout: 'Kirjaudu ulos', version: 'Versio 2.0.0', loginTitle: 'Kirjaudu sisään tallentaaksesi paikat ja matkat', loginBody: 'Tallenna suosikit, reitit, kokoelmat ja ilmoitukset omalle tilillesi.', loginCta: 'Kirjaudu' },
-  sv: { title: 'Inställningar', general: 'Allmänt', language: 'Språk', theme: 'Tema', light: 'Ljust', dark: 'Mörkt', system: 'System', map: 'Kartinställningar', location: 'Aktuell/vald plats', nearby: 'Museer i närheten', weather: 'Visa väder', leftHanded: 'Vänsterhänt läge', account: 'Konto', profile: 'Profil', saves: 'Sparade', alerts: 'Aviseringar', logout: 'Logga ut', version: 'Version 2.0.0', loginTitle: 'Logga in för att spara platser och resor', loginBody: 'Spara favoriter, rutter, samlingar och aviseringar på ditt konto.', loginCta: 'Logga in' },
-  et: { title: 'Seaded', general: 'Üldine', language: 'Keel', theme: 'Teema', light: 'Hele', dark: 'Tume', system: 'Süsteem', map: 'Kaardi seaded', location: 'Praegune/valitud asukoht', nearby: 'Lähedal muuseumid', weather: 'Kuva ilm', leftHanded: 'Vasakukäeline režiim', account: 'Konto', profile: 'Profiil', saves: 'Salvestatud', alerts: 'Teavitused', logout: 'Logi välja', version: 'Versioon 2.0.0', loginTitle: 'Logi sisse, et salvestada kohad ja reisid', loginBody: 'Hoia lemmikud, marsruudid, kogud ja teavitused oma kontol.', loginCta: 'Logi sisse' },
+  ja: { title: '設定', general: '一般', language: '言語', theme: 'テーマ', light: 'ライト', dark: 'ダーク', system: 'システム', map: '地図設定', location: '現在地/選択位置', nearby: '周辺ミュージアム', weather: '天気を表示', account: 'アカウント', profile: 'プロフィール', saves: '保存済み', alerts: '通知', logout: 'ログアウト', version: 'バージョン 2.0.0', loginTitle: 'ログインすると保存と旅行を残せます', loginBody: '気に入った場所、旅行ルート、コレクション、通知をアカウントに保存できます。', loginCta: 'ログイン' },
+  de: { title: 'Einstellungen', general: 'Allgemein', language: 'Sprache', theme: 'Design', light: 'Hell', dark: 'Dunkel', system: 'System', map: 'Karteneinstellungen', location: 'Aktueller/gewählter Standort', nearby: 'Museen in der Nähe', weather: 'Wetter anzeigen', account: 'Konto', profile: 'Profil', saves: 'Gespeicherte Orte', alerts: 'Benachrichtigungen', logout: 'Abmelden', version: 'Version 2.0.0', loginTitle: 'Einloggen, um Favoriten und Reisen zu speichern', loginBody: 'Bewahre Lieblingsorte, Routen, Sammlungen und Hinweise sicher in deinem Konto auf.', loginCta: 'Einloggen' },
+  fr: { title: 'Paramètres', general: 'Général', language: 'Langue', theme: 'Thème', light: 'Clair', dark: 'Sombre', system: 'Système', map: 'Paramètres de carte', location: 'Position actuelle/choisie', nearby: 'Musées proches', weather: 'Afficher la météo', account: 'Compte', profile: 'Profil', saves: 'Espaces enregistrés', alerts: 'Notifications', logout: 'Déconnexion', version: 'Version 2.0.0', loginTitle: 'Connectez-vous pour garder vos lieux et voyages', loginBody: 'Enregistrez vos coups de cœur, itinéraires, collections et alertes dans votre compte.', loginCta: 'Se connecter' },
+  es: { title: 'Ajustes', general: 'General', language: 'Idioma', theme: 'Tema', light: 'Claro', dark: 'Oscuro', system: 'Sistema', map: 'Ajustes del mapa', location: 'Ubicación actual/elegida', nearby: 'Museos cercanos', weather: 'Mostrar clima', account: 'Cuenta', profile: 'Perfil', saves: 'Guardados', alerts: 'Notificaciones', logout: 'Cerrar sesión', version: 'Versión 2.0.0', loginTitle: 'Inicia sesión para guardar tus lugares y viajes', loginBody: 'Guarda tus favoritos, rutas, colecciones y alertas en tu cuenta.', loginCta: 'Iniciar sesión' },
+  pt: { title: 'Configurações', general: 'Geral', language: 'Idioma', theme: 'Tema', light: 'Claro', dark: 'Escuro', system: 'Sistema', map: 'Configurações do mapa', location: 'Localização atual/selecionada', nearby: 'Museus próximos', weather: 'Mostrar clima', account: 'Conta', profile: 'Perfil', saves: 'Salvos', alerts: 'Notificações', logout: 'Sair', version: 'Versão 2.0.0', loginTitle: 'Entre para salvar lugares e viagens', loginBody: 'Guarde favoritos, rotas, coleções e alertas na sua conta.', loginCta: 'Entrar' },
+  'zh-CN': { title: '设置', general: '通用', language: '语言', theme: '主题', light: '浅色', dark: '深色', system: '系统', map: '地图设置', location: '当前位置/所选位置', nearby: '附近博物馆', weather: '显示天气', account: '账户', profile: '个人资料', saves: '已保存', alerts: '通知', logout: '退出登录', version: '版本 2.0.0', loginTitle: '登录后可保存心选地点和旅行', loginBody: '将喜欢的地点、旅行路线、收藏集和提醒保存到你的账户。', loginCta: '登录' },
+  'zh-TW': { title: '設定', general: '一般', language: '語言', theme: '主題', light: '淺色', dark: '深色', system: '系統', map: '地圖設定', location: '目前位置/所選位置', nearby: '附近博物館', weather: '顯示天氣', account: '帳號', profile: '個人資料', saves: '已儲存', alerts: '通知', logout: '登出', version: '版本 2.0.0', loginTitle: '登入後可保存心選地點和旅行', loginBody: '將喜歡的地點、旅行路線、收藏集和提醒保存到你的帳號。', loginCta: '登入' },
+  da: { title: 'Indstillinger', general: 'Generelt', language: 'Sprog', theme: 'Tema', light: 'Lys', dark: 'Mørk', system: 'System', map: 'Kortindstillinger', location: 'Aktuel/valgt placering', nearby: 'Museer i nærheden', weather: 'Vis vejr', account: 'Konto', profile: 'Profil', saves: 'Gemte steder', alerts: 'Notifikationer', logout: 'Log ud', version: 'Version 2.0.0', loginTitle: 'Log ind for at gemme steder og rejser', loginBody: 'Gem favoritter, ruter, samlinger og beskeder sikkert på din konto.', loginCta: 'Log ind' },
+  fi: { title: 'Asetukset', general: 'Yleiset', language: 'Kieli', theme: 'Teema', light: 'Vaalea', dark: 'Tumma', system: 'Järjestelmä', map: 'Kartta-asetukset', location: 'Nykyinen/valittu sijainti', nearby: 'Lähimuseot', weather: 'Näytä sää', account: 'Tili', profile: 'Profiili', saves: 'Tallennetut', alerts: 'Ilmoitukset', logout: 'Kirjaudu ulos', version: 'Versio 2.0.0', loginTitle: 'Kirjaudu sisään tallentaaksesi paikat ja matkat', loginBody: 'Tallenna suosikit, reitit, kokoelmat ja ilmoitukset omalle tilillesi.', loginCta: 'Kirjaudu' },
+  sv: { title: 'Inställningar', general: 'Allmänt', language: 'Språk', theme: 'Tema', light: 'Ljust', dark: 'Mörkt', system: 'System', map: 'Kartinställningar', location: 'Aktuell/vald plats', nearby: 'Museer i närheten', weather: 'Visa väder', account: 'Konto', profile: 'Profil', saves: 'Sparade', alerts: 'Aviseringar', logout: 'Logga ut', version: 'Version 2.0.0', loginTitle: 'Logga in för att spara platser och resor', loginBody: 'Spara favoriter, rutter, samlingar och aviseringar på ditt konto.', loginCta: 'Logga in' },
+  et: { title: 'Seaded', general: 'Üldine', language: 'Keel', theme: 'Teema', light: 'Hele', dark: 'Tume', system: 'Süsteem', map: 'Kaardi seaded', location: 'Praegune/valitud asukoht', nearby: 'Lähedal muuseumid', weather: 'Kuva ilm', account: 'Konto', profile: 'Profiil', saves: 'Salvestatud', alerts: 'Teavitused', logout: 'Logi välja', version: 'Versioon 2.0.0', loginTitle: 'Logi sisse, et salvestada kohad ja reisid', loginBody: 'Hoia lemmikud, marsruudid, kogud ja teavitused oma kontol.', loginCta: 'Logi sisse' },
 };
 
 type PolicyLabels = {
@@ -280,14 +269,12 @@ function SettingsRow({ icon, label, description, value, href, onClick }: { icon:
 }
 
 export default function SettingsPage() {
-  const router = useRouter();
   const { locale, setLocale, themeMode, setThemeMode } = useApp();
   const { data: session, status } = useSession();
   const [mapPrefs, setMapPrefs] = useState<MapPrefs>(DEFAULT_MAP_PREFS);
   const [locationSource, setLocationSource] = useState<MapLocationSource>('current');
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
-  const backingRef = useRef(false);
   const labels = LABELS[locale] || LABELS.en;
   const policyLabels = POLICY_LABELS[locale] || POLICY_LABELS.en;
   const locationLabels = LOCATION_SETTING_LABELS[locale] || LOCATION_SETTING_LABELS.en;
@@ -300,16 +287,11 @@ export default function SettingsPage() {
     : null;
 
   useEffect(() => {
-    document.documentElement.classList.remove('mm-route-pending');
-  }, []);
-
-  useEffect(() => {
     const savedLocationSource = readMapLocationSourceForAccount(accountLocationEmail);
     setMapPrefs({
       location: getLocalValue(MAP_PREF_KEYS.location) !== 'false',
       nearby: getLocalValue(MAP_PREF_KEYS.nearby) !== 'false',
       weather: getLocalValue(MAP_PREF_KEYS.weather) !== 'false',
-      leftHanded: getLocalValue(MAP_PREF_KEYS.leftHanded) === 'true',
     });
     setLocationSource(savedLocationSource);
   }, [accountLocationEmail]);
@@ -339,60 +321,32 @@ export default function SettingsPage() {
   };
 
   const handleBack = () => {
-    if (backingRef.current) return;
-    backingRef.current = true;
+    if (typeof window === 'undefined') return;
+    const storedFallback = sessionStorage.getItem('mm_settings_return_to') || '/';
+    const fallbackTarget = storedFallback === '/settings' ? '/' : storedFallback;
     setIsExiting(true);
-    document.documentElement.classList.add('mm-route-pending');
-
-    if (typeof window !== 'undefined') {
-      const storedFallback = sessionStorage.getItem('mm_settings_return_to');
-      const fallbackTarget = !storedFallback || storedFallback === '/settings' ? '/' : storedFallback;
-      if (storedFallback && storedFallback !== '/settings' && window.history.length > 1) {
-        window.history.back();
-        window.setTimeout(() => {
-          if (window.location.pathname === '/settings') {
-            window.location.assign(fallbackTarget);
-          }
-        }, 900);
-        return;
-      }
-      router.replace(fallbackTarget);
+    if (window.history.length > 1) {
+      const currentPath = `${window.location.pathname}${window.location.search}`;
+      window.history.back();
       window.setTimeout(() => {
-        if (window.location.pathname === '/settings') {
+        const nextPath = `${window.location.pathname}${window.location.search}`;
+        if (nextPath === currentPath) {
           window.location.assign(fallbackTarget);
         }
-      }, 1200);
+      }, 700);
       return;
     }
-
-    router.replace('/');
+    window.location.assign(fallbackTarget);
   };
 
   return (
     <div className={`mm-settings-page2 no-back-swipe mx-auto w-full max-w-[640px] px-5 pb-32 pt-[max(28px,env(safe-area-inset-top,0px))] lg:pb-12 ${isExiting ? 'mm-settings-page2--exit' : 'mm-settings-page2--enter'}`}>
       <div className="mm-settings-header2 mb-12">
-        <a
-          href="/"
-          className="mm-settings-back-button2"
-          onPointerDown={(event) => {
-            if (event.pointerType === 'touch') {
-              event.preventDefault();
-              handleBack();
-            }
-          }}
-          onClick={(event) => {
-            if (backingRef.current) {
-              event.preventDefault();
-              return;
-            }
-            handleBack();
-          }}
-          aria-label={locale === 'ko' ? '뒤로가기' : 'Back'}
-        >
+        <button type="button" className="mm-settings-back-button2" onClick={handleBack} aria-label={locale === 'ko' ? '뒤로가기' : 'Back'}>
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
-        </a>
+        </button>
         <h1 className="mm-settings-title text-center text-2xl text-slate-900 dark:text-white">{labels.title}</h1>
         <span className="mm-settings-header-spacer2" aria-hidden="true" />
       </div>
@@ -486,7 +440,6 @@ export default function SettingsPage() {
             ['location', labels.location],
             ['nearby', labels.nearby],
             ['weather', labels.weather],
-            ['leftHanded', labels.leftHanded],
           ] as Array<[MapSettingKey, string]>).map(([key, label]) => (
             <button key={key} type="button" className="mm-settings-row w-full text-left" onClick={() => updateMapPref(key)}>
               <Icon>{MAP_SETTING_ICONS[key]}</Icon>

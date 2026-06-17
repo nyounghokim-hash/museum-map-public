@@ -123,9 +123,6 @@ const brandDisplayFont = Permanent_Marker({
   variable: '--font-brand-display',
   display: 'swap',
 });
-const MOBILE_SPLASH_MAX_MS = 900;
-const MOBILE_SPLASH_FADE_MS = 160;
-const ADSENSE_CLIENT_ID = 'ca-pub-5736725257134757';
 
 function isSupportedLayoutLocale(value: string | undefined | null): value is Locale {
   return !!value && SUPPORTED_LAYOUT_LOCALES.includes(value as Locale);
@@ -321,23 +318,6 @@ export default async function RootLayout({
                   gap: 8px !important;
                   pointer-events: auto !important;
                 }
-                .mm-map2-top.is-left-handed .mm-map2-pill-row {
-                  left: 18px !important;
-                  right: auto !important;
-                }
-                .mm-map2-top.is-left-handed .mm-map2-tool-stack {
-                  align-items: flex-start !important;
-                  justify-self: start !important;
-                }
-                .mm-map2-top.is-left-handed .mm-map2-new-museums-mobile {
-                  left: auto !important;
-                  right: 18px !important;
-                  flex-direction: row-reverse !important;
-                }
-                .mm-map2-top.is-left-handed .mm-map2-new-museums-popover {
-                  left: auto !important;
-                  right: 0 !important;
-                }
                 .mm-map2-pill-row::-webkit-scrollbar {
                   display: none !important;
                 }
@@ -410,17 +390,9 @@ export default async function RootLayout({
                   left: auto !important;
                   right: 80px !important;
                   width: min(300px, calc(100vw - 104px)) !important;
-                  max-width: calc(100vw - 104px) !important;
-                }
-                .mm-map2-category-menu.is-left-handed {
-                  left: 80px !important;
-                  right: auto !important;
-                  width: min(300px, calc(100vw - 104px)) !important;
-                  max-width: calc(100vw - 104px) !important;
                 }
                 .mm-map2-floating-list {
-                  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 61px) !important;
-                  z-index: 132 !important;
+                  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 64px) !important;
                   max-height: 290px !important;
                   overflow-y: auto !important;
                 }
@@ -433,16 +405,11 @@ export default async function RootLayout({
                 }
                 .mm-map2-search-result-title {
                   color: #0f172a !important;
-                  font-size: 15px !important;
-                  font-weight: 650 !important;
-                  line-height: 1.25 !important;
+                  font-weight: 750 !important;
                 }
                 .mm-map2-search-result-subtitle {
-                  margin-top: 4px !important;
                   color: #64748b !important;
-                  font-size: 12px !important;
                   font-weight: 600 !important;
-                  line-height: 1.25 !important;
                 }
                 .mm-map2-category-menu {
                   top: calc(max(12px, env(safe-area-inset-top, 0px)) + 124px) !important;
@@ -837,12 +804,6 @@ export default async function RootLayout({
                 backdrop-filter: blur(22px) saturate(170%) !important;
                 -webkit-backdrop-filter: blur(22px) saturate(170%) !important;
               }
-              @media (max-width: 767px) {
-                .mm-map2-category-menu:not(.mm-map2-category-menu-pc) {
-                  width: min(300px, calc(100vw - 104px)) !important;
-                  max-width: calc(100vw - 104px) !important;
-                }
-              }
               .mm-weather-popup2-head,
               .mm-map2-category-menu-head,
               .mm-nearby-popup2 > div:first-child {
@@ -1119,26 +1080,11 @@ export default async function RootLayout({
           }}
         />
         {/* Google AdSense */}
-        <script dangerouslySetInnerHTML={{
-          __html: `
-          (function(){
-            var loaded=false;
-            function loadAds(){
-              if(loaded)return;
-              loaded=true;
-              var s=document.createElement('script');
-              s.async=true;
-              s.crossOrigin='anonymous';
-              s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}';
-              document.head.appendChild(s);
-            }
-            if('requestIdleCallback' in window){
-              requestIdleCallback(loadAds,{timeout:4500});
-            }else{
-              setTimeout(loadAds,3500);
-            }
-          })();
-        `}} />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5736725257134757"
+          crossOrigin="anonymous"
+        />
         {/* FOUC prevention: 2.0 gallery-photo mobile splash overlay until React takes over */}
         <script dangerouslySetInnerHTML={{
           __html: `
@@ -1147,18 +1093,12 @@ export default async function RootLayout({
             try{shown=!!sessionStorage.getItem('splashShown');}catch(e){}
             if(window.innerWidth<768 && window.location.pathname==='/' && !shown){
               var splashImages=['/splash/gallery-splash.jpg','/splash/gallery-splash-2.jpg','/splash/gallery-splash-3.jpg','/splash/gallery-splash-4.jpg','/splash/gallery-splash-5.jpg','/splash/gallery-splash-6.jpg'];
-              var splashImage='';
-              try{splashImage=sessionStorage.getItem('mmSplashBackground')||'';}catch(e){}
-              if(splashImages.indexOf(splashImage)===-1){
-                splashImage=splashImages[Math.floor(Math.random()*splashImages.length)]||splashImages[0];
-                try{sessionStorage.setItem('mmSplashBackground',splashImage);}catch(e){}
-              }
-              document.documentElement.style.setProperty('--mm-splash-bg-image','url("'+splashImage+'")');
+              var splashImage=splashImages[Math.floor(Math.random()*splashImages.length)]||splashImages[0];
               var s=document.createElement('style');
               s.id='splash-fouc';
-              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background-color:#071426;background-image:linear-gradient(180deg,rgba(1,15,38,.76) 0%,rgba(15,70,162,.56) 42%,rgba(2,8,23,.86) 100%),linear-gradient(115deg,rgba(37,99,235,.34) 0%,rgba(14,165,233,.16) 46%,rgba(2,8,23,.22) 100%),var(--mm-splash-bg-image);background-position:center;background-repeat:no-repeat;background-size:cover,cover,cover;pointer-events:none;transition:opacity ${MOBILE_SPLASH_FADE_MS}ms ease}body.splash-done::before{opacity:0;pointer-events:none}';
+              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background-color:#071426;background-image:linear-gradient(180deg,rgba(1,15,38,.76) 0%,rgba(15,70,162,.56) 42%,rgba(2,8,23,.86) 100%),linear-gradient(115deg,rgba(37,99,235,.34) 0%,rgba(14,165,233,.16) 46%,rgba(2,8,23,.22) 100%),url("'+splashImage+'");background-position:center;background-repeat:no-repeat;background-size:cover,cover,cover;pointer-events:none;transition:opacity .28s ease}body.splash-done::before{opacity:0;pointer-events:none}';
               document.head.appendChild(s);
-              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},${MOBILE_SPLASH_FADE_MS});},${MOBILE_SPLASH_MAX_MS});
+              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},320);},3200);
             }
           })();
         `}} />
@@ -1170,38 +1110,17 @@ export default async function RootLayout({
             var isTelegram=/Telegram|TelegramBot|Telegram-iOS|TelegramAndroid/i.test(ua)||!!(window.Telegram&&window.Telegram.WebApp);
             var isInApp=/Telegram|TelegramBot|Telegram-iOS|TelegramAndroid|KAKAOTALK|Line\\/|NAVER\\(inapp|FBAN|FBAV|Instagram|DaumApps|wv\\)|; wv/i.test(ua)||isTelegram;
             if(isTelegram) root.classList.add('is-telegram-webview');
-            var savedTheme='light';
-            var savedDark='false';
-            try{
-              savedTheme=localStorage.getItem('themeMode')||'light';
-              savedDark=localStorage.getItem('darkMode')||'false';
-            }catch(e){}
-            var systemDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
-            var appDark=savedTheme==='system'?systemDark:(savedTheme==='dark'||(savedTheme!=='light'&&savedDark==='true'));
-            var themeColor=appDark?'#020617':'#f8fbff';
-            root.classList.toggle('dark',appDark);
-            root.dataset.theme=appDark?'dark':'light';
-            root.style.colorScheme=appDark?'dark':'light';
-            var metas=document.querySelectorAll('meta[name="theme-color"]');
-            var meta=metas[0];
-            if(!meta){
-              meta=document.createElement('meta');
-              meta.setAttribute('name','theme-color');
-              document.head.appendChild(meta);
-            }
-            meta.removeAttribute('media');
-            meta.setAttribute('content',themeColor);
-            for(var i=1;i<metas.length;i++){metas[i].remove();}
-            var statusMeta=document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-            if(!statusMeta){
-              statusMeta=document.createElement('meta');
-              statusMeta.setAttribute('name','apple-mobile-web-app-status-bar-style');
-              document.head.appendChild(statusMeta);
-            }
-            statusMeta.setAttribute('content',appDark?'black-translucent':'default');
             if(isInApp){
               root.classList.add('is-inapp-browser');
+              var meta=document.querySelector('meta[name="theme-color"]');
+              if(!meta){
+                meta=document.createElement('meta');
+                meta.setAttribute('name','theme-color');
+                document.head.appendChild(meta);
               }
+              var prefersDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+              meta.setAttribute('content',prefersDark?'#020617':'#f8fbff');
+            }
             var lastH=0,lastW=0,viewportFrame=0;
             function setViewportVars(){
               if(viewportFrame)return;

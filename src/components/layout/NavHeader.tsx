@@ -2,8 +2,8 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { usePathname } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { t, LOCALE_NAMES, Locale } from '@/lib/i18n';
 import { ACTIVE_TRIP_CHANGE_EVENT, getActiveTripForAccount } from '@/lib/accountStorage';
@@ -12,7 +12,6 @@ import { useModal } from '@/components/ui/Modal';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 
 export default function NavHeader() {
-    const router = useRouter();
     const { data: session } = useSession();
     const { showAlert, showConfirm } = useModal();
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -126,6 +125,15 @@ export default function NavHeader() {
         setTimeout(() => { setMobileOpen(false); setMobileClosing(false); }, 250);
     };
 
+    const rememberSettingsReturn = () => {
+        if (typeof window === 'undefined') return;
+        try {
+            sessionStorage.setItem('mm_settings_return_to', pathname || '/');
+        } catch { /* ignore */ }
+    };
+
+    // Close transient header UI only when the route changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { closeMobile(); setLangOpen(false); setUserMenuOpen(false); setNotifOpen(false); }, [pathname]);
 
     useEffect(() => {
@@ -303,7 +311,7 @@ export default function NavHeader() {
                             };
 
                             return (
-                                <Link
+                                <a
                                     key={link.href}
                                     href={link.href}
                                     onClick={handleDesktopClick}
@@ -313,7 +321,7 @@ export default function NavHeader() {
                                         }`}
                                 >
                                     {link.label}
-                                </Link>
+                                </a>
                             );
                         })}
                     </nav>
@@ -401,7 +409,7 @@ export default function NavHeader() {
                         {activeTrip && !activeTrip.pending && (
                             <button
                                 type="button"
-                                onClick={() => router.push('/?trip=active')}
+                                onClick={() => { if (typeof window !== 'undefined') window.location.assign('/?trip=active'); }}
                                 className="hidden lg:inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 transition-all hover:bg-blue-100 active:scale-95 dark:border-blue-500/20 dark:bg-blue-500/12 dark:text-blue-300"
                                 aria-label={locale === 'ko' ? '여행 경로 보기' : 'View active trip route'}
                             >
@@ -429,8 +437,9 @@ export default function NavHeader() {
                         </button>
 
                         {/* Settings icon - PC only (gear) */}
-                        <Link
+                        <a
                             href="/settings"
+                            onClick={rememberSettingsReturn}
                             className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             title={locale === 'ko' ? '설정' : 'Settings'}
                             aria-label={locale === 'ko' ? '설정' : 'Settings'}
@@ -439,7 +448,7 @@ export default function NavHeader() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
-                        </Link>
+                        </a>
 
                         {/* Language dropdown */}
                         <div className="relative" ref={langRef}>
@@ -555,7 +564,7 @@ export default function NavHeader() {
                                     };
 
                                     return (
-                                        <Link
+                                        <a
                                             key={link.href}
                                             href={link.href}
                                             onClick={handleDrawerClick}
@@ -565,7 +574,7 @@ export default function NavHeader() {
                                             }`}
                                     >
                                         {link.label}
-                                    </Link>
+                                    </a>
                                 );
                             })}
                         </nav>
@@ -598,9 +607,9 @@ export default function NavHeader() {
                                     Admin
                                 </Link>
                             )}
-                            <Link
+                            <a
                                 href="/settings"
-                                onClick={() => setMobileOpen(false)}
+                                onClick={() => { rememberSettingsReturn(); setMobileOpen(false); }}
                                 className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -608,7 +617,7 @@ export default function NavHeader() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                                 {(() => { const s: Record<string, string> = { ko: '설정', en: 'Settings', ja: '設定', de: 'Einstellungen', fr: 'Paramètres', es: 'Ajustes', pt: 'Configurações', 'zh-CN': '设置', 'zh-TW': '設定', da: 'Indstillinger', fi: 'Asetukset', sv: 'Inställningar', et: 'Seaded' }; return s[locale] || s['en']; })()}
-                            </Link>
+                            </a>
                         </div>
 
                         {/* Mobile language selector */}
@@ -684,7 +693,6 @@ export default function NavHeader() {
                                                 if (res.ok) {
                                                     showAlert(dl.done);
                                                     setTimeout(() => {
-                                                        const { signOut } = require('next-auth/react');
                                                         signOut({ callbackUrl: '/login' });
                                                     }, 1500);
                                                 } else {
@@ -776,7 +784,6 @@ export default function NavHeader() {
                             localStorage.removeItem('activeTrip');
                             window.dispatchEvent(new Event('compareChange'));
                             try { sessionStorage.setItem('mm-logout-done', '1'); } catch { }
-                            const { signOut } = require('next-auth/react');
                             signOut({ callbackUrl: '/' });
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/35 transition-colors focus-visible:outline-none focus-visible:bg-red-50 dark:focus-visible:bg-red-900/35"

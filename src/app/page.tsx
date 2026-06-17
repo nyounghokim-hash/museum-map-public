@@ -1,20 +1,16 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
-import type { ChangeEvent, CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, RefObject, SyntheticEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import type { ChangeEvent, CSSProperties, RefObject, SyntheticEvent } from 'react';
 import { useCompare } from '@/hooks/useCompare';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { GlassPanel, FilterChip } from '@/components/ui/glass';
 import dynamic from 'next/dynamic';
-import { buildMapLinks, isAppleDevice } from '@/lib/mapLinks';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
-import { t, translateCategory, translateDescription, type Locale } from '@/lib/i18n';
+import { t, translateCategory, type Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
-import { useTranslatedText } from '@/hooks/useTranslation';
 import MuseumDetailCard from '@/components/museum/MuseumDetailCard';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import * as gtag from '@/lib/gtag';
@@ -25,14 +21,12 @@ import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
-import type { MapBounds } from '@/components/map/MapLibreViewer';
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
-const TripDetailPanel = dynamic(() => import('@/components/map/TripDetailPanel'), { ssr: false });
 const NearbyPopup = dynamic(() => import('@/components/map/NearbyPopup'), { ssr: false });
 const WeatherPopup = dynamic(() => import('@/components/map/WeatherPopup'), { ssr: false });
 const RETURN_TO_MUSEUM_DETAIL_KEY = 'mm-return-to-museum-detail';
 type MapSettingKey = 'location' | 'nearby' | 'weather';
-type MapPrefs = Record<MapSettingKey, boolean> & { leftHanded: boolean };
+type MapPrefs = Record<MapSettingKey, boolean>;
 type MapLocationSource = 'current' | 'manual';
 type MapLocation = { lat: number; lng: number };
 const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
@@ -43,10 +37,9 @@ const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
 const MAP_LOCATION_SOURCE_KEY = 'mm_map_location_source';
 const MAP_MANUAL_LOCATION_KEY = 'mm_map_manual_location';
 const MAP_LOCATION_PICK_MODE_KEY = 'mm_map_location_pick_mode';
-const MAP_LEFT_HANDED_MODE_KEY = 'mm_map_left_handed_mode';
 const MAP_CATEGORY_FILTER_KEY = 'mm_map_category_filter';
 const MUSEUMS_CACHE_PREFIX = 'museums_cache_v8_map_minimal';
-const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true, leftHanded: false };
+const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true };
 const MAP_ZOOM_MIN = 2;
 const MAP_ZOOM_MAX = 18;
 const MAP_ZOOM_LEVELS = [2, 4.5, 7, 9.5, 12, 15, 18] as const;
@@ -79,11 +72,6 @@ function getNearestMapZoomLevelIndex(zoom: number) {
 
 function snapMapZoom(zoom: number) {
   return MAP_ZOOM_LEVELS[getNearestMapZoomLevelIndex(zoom)];
-}
-
-function markRoutePending() {
-  if (typeof document === 'undefined') return;
-  document.documentElement.classList.add('mm-route-pending');
 }
 
 function getLocalValue(key: string) {
@@ -242,7 +230,6 @@ function readMapPrefs(): MapPrefs {
     location: getLocalValue(MAP_PREF_KEYS.location) !== 'false',
     nearby: getLocalValue(MAP_PREF_KEYS.nearby) !== 'false',
     weather: getLocalValue(MAP_PREF_KEYS.weather) !== 'false',
-    leftHanded: getLocalValue(MAP_LEFT_HANDED_MODE_KEY) === 'true',
   };
 }
 
@@ -301,7 +288,7 @@ const MOBILE_TOOL_LABELS: Record<string, {
   locationError: string;
   close: string;
 }> = {
-  ko: { currentLocation: '내 위치', nearby: '내 주변 미술관/박물관', weather: '오늘 날씨', newMuseums: '새로 추가된 곳', category: '카테고리', categories: '카테고리', locationError: '현재 위치를 불러오지 못했어요', close: '닫기' },
+  ko: { currentLocation: '내 위치', nearby: '주변', weather: '오늘 날씨', newMuseums: '새로 추가된 곳', category: '카테고리', categories: '카테고리', locationError: '현재 위치를 불러오지 못했어요', close: '닫기' },
   en: { currentLocation: 'My location', nearby: 'Nearby', weather: "Today's weather", newMuseums: 'Newly Added', category: 'Category', categories: 'Categories', locationError: 'Unable to get your location', close: 'Close' },
   ja: { currentLocation: '現在地', nearby: '周辺', weather: '今日の天気', newMuseums: '新しく追加', category: 'カテゴリ', categories: 'カテゴリ', locationError: '現在地を取得できませんでした', close: '閉じる' },
   de: { currentLocation: 'Mein Standort', nearby: 'In der Nähe', weather: 'Wetter heute', newMuseums: 'Neu hinzugefügt', category: 'Kategorie', categories: 'Kategorien', locationError: 'Standort konnte nicht abgerufen werden', close: 'Schließen' },
@@ -368,17 +355,6 @@ const TRIP_REORDER_LABELS: Record<Locale, { title: string; message: string; save
 };
 
 type CurrentWeather = { temp: number; code: number; cityName?: string };
-
-function getWeatherChipIcon(code?: number | null) {
-  if (code == null) return '☁';
-  if ([0].includes(code)) return '☀';
-  if ([1, 2].includes(code)) return '⛅';
-  if ([45, 48].includes(code)) return '🌫';
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return '❄';
-  if ([82, 95, 96, 99].includes(code)) return '⛈';
-  if ([51, 53, 55, 61, 63, 65, 80, 81].includes(code)) return '🌧';
-  return '☁';
-}
 
 function WeatherChipSvg({ code }: { code?: number | null }) {
   const isClear = code === 0;
@@ -527,7 +503,7 @@ const mm2 = {
     position: 'absolute',
     left: 18,
     right: 18,
-    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 61px)',
+    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 64px)',
     zIndex: 120,
     maxHeight: 290,
     overflowY: 'auto',
@@ -911,15 +887,9 @@ export default function MainPage() {
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [categoryDropdownClosing, setCategoryDropdownClosing] = useState(false);
   const categoryCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const categoryDropdownOpenRef = useRef(false);
   const nearbyOpenRef = useRef(false);
   const weatherOpenRef = useRef(false);
-  const newMuseumsOpenRef = useRef(false);
-  const chipOpenRef = useRef(false);
-  const mapSideMenuOpenRef = useRef(false);
-  const interactionHoldUntilRef = useRef(0);
   const [mapSideMenuOpen, setMapSideMenuOpen] = useState(false);
-  const [countExpanded, setCountExpanded] = useState(false);
   const { locale, darkMode } = useApp();
   const { showAlert, showConfirm } = useModal();
   const router = useRouter();
@@ -928,8 +898,6 @@ export default function MainPage() {
   const [isViewingActiveRoute, setIsViewingActiveRoute] = useState(false);
   const [tripExiting, setTripExiting] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
-  const [completedTrip, setCompletedTrip] = useState<any | null>(null);
-  const [visitedCollectionCreating, setVisitedCollectionCreating] = useState(false);
   const [navToolbarReady, setNavToolbarReady] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [showTripActivatedNotif, setShowTripActivatedNotif] = useState(false);
@@ -939,10 +907,6 @@ export default function MainPage() {
   const [consentTerms, setConsentTerms] = useState(false);
   const [consentPrivacy, setConsentPrivacy] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
-
-  useEffect(() => {
-    document.documentElement.classList.remove('mm-route-pending');
-  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -975,43 +939,6 @@ export default function MainPage() {
     }, 250);
   }, []);
 
-  const markMenuInteraction = useCallback(() => {
-    interactionHoldUntilRef.current = Date.now() + 1200;
-  }, []);
-
-  const isMapInteractionLayerOpen = useCallback(() => (
-    categoryDropdownOpenRef.current
-    || newMuseumsOpenRef.current
-    || nearbyOpenRef.current
-    || weatherOpenRef.current
-    || chipOpenRef.current
-    || mapSideMenuOpenRef.current
-  ), []);
-
-  const scheduleMapWorkAfterInteraction = useCallback((callback: () => void) => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let cancelReadyTask: (() => void) | undefined;
-    const startedAt = Date.now();
-    const run = () => {
-      if (cancelled) return;
-      const waitedTooLong = Date.now() - startedAt > 5000;
-      if (!waitedTooLong && (Date.now() < interactionHoldUntilRef.current || isMapInteractionLayerOpen())) {
-        timer = setTimeout(run, 140);
-        return;
-      }
-      cancelReadyTask = scheduleIdleTask(() => {
-        if (!cancelled) callback();
-      }, 900);
-    };
-    timer = setTimeout(run, 0);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      cancelReadyTask?.();
-    };
-  }, [isMapInteractionLayerOpen]);
-
   // Smooth close category dropdown with exit animation
   const closeCategoryDropdown = useCallback(() => {
     if (!categoryDropdownOpen) return;
@@ -1028,45 +955,30 @@ export default function MainPage() {
   }, [categoryDropdownOpen]);
   const [chipOpen, setChipOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [newMuseumsOpen, setNewMuseumsOpen] = useState(false);
   const [newMuseumsClosing, setNewMuseumsClosing] = useState(false);
-  const newMuseumsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showLoading, setShowLoading] = useState(false);
   const [returnFromDetail, setReturnFromDetail] = useState(false);
-  const [skipTransition, setSkipTransition] = useState(false);
+  const skipTransition = false;
   const [detailPanelEntered, setDetailPanelEntered] = useState(false);
   const [detailPanelClosing, setDetailPanelClosing] = useState(false);
 
   // Smooth close new museums dropdown with exit animation
   const closeNewMuseums = useCallback(() => {
     if (!newMuseumsOpen) return;
-    if (newMuseumsCloseTimerRef.current) {
-      clearTimeout(newMuseumsCloseTimerRef.current);
-      newMuseumsCloseTimerRef.current = null;
-    }
     setNewMuseumsClosing(true);
-    newMuseumsCloseTimerRef.current = setTimeout(() => {
+    setTimeout(() => {
       setNewMuseumsOpen(false);
       setNewMuseumsClosing(false);
-      newMuseumsCloseTimerRef.current = null;
-    }, 140);
+    }, 220);
   }, [newMuseumsOpen]);
 
   // Helper: close all popups/dropdowns (mutual exclusion)
   const closeAllPopups = useCallback((except?: string) => {
     if (except !== 'newMuseums') {
       if (newMuseumsOpen) {
-        if (newMuseumsCloseTimerRef.current) {
-          clearTimeout(newMuseumsCloseTimerRef.current);
-          newMuseumsCloseTimerRef.current = null;
-        }
         setNewMuseumsClosing(true);
-        newMuseumsCloseTimerRef.current = setTimeout(() => {
-          setNewMuseumsOpen(false);
-          setNewMuseumsClosing(false);
-          newMuseumsCloseTimerRef.current = null;
-        }, 140);
+        setTimeout(() => { setNewMuseumsOpen(false); setNewMuseumsClosing(false); }, 220);
       }
     }
     if (except !== 'category') {
@@ -1105,15 +1017,6 @@ export default function MainPage() {
     }
     if (except !== 'sideMenu') setMapSideMenuOpen(false);
   }, [categoryDropdownOpen, newMuseumsOpen]);
-  const openNewMuseums = useCallback(() => {
-    if (newMuseumsCloseTimerRef.current) {
-      clearTimeout(newMuseumsCloseTimerRef.current);
-      newMuseumsCloseTimerRef.current = null;
-    }
-    setNewMuseumsClosing(false);
-    closeAllPopups('newMuseums');
-    setNewMuseumsOpen(true);
-  }, [closeAllPopups]);
   const openCategoryDropdown = useCallback(() => {
     if (categoryCloseTimerRef.current) {
       clearTimeout(categoryCloseTimerRef.current);
@@ -1123,30 +1026,6 @@ export default function MainPage() {
     closeAllPopups('category');
     setCategoryDropdownOpen(true);
   }, [closeAllPopups]);
-
-  const settingsNavigationRef = useRef(false);
-  const navigateToSettings = useCallback((event?: ReactMouseEvent<HTMLAnchorElement> | ReactPointerEvent<HTMLAnchorElement>) => {
-    if (settingsNavigationRef.current) {
-      event?.preventDefault();
-      return;
-    }
-    settingsNavigationRef.current = true;
-    event?.preventDefault();
-    try {
-      sessionStorage.setItem('mm_settings_return_to', '/');
-    } catch {}
-    markRoutePending();
-    router.prefetch('/settings');
-    router.push('/settings');
-    if (typeof window !== 'undefined') {
-      window.setTimeout(() => {
-        const staleMapDom = !!document.querySelector('.mm-map2-top');
-        if (window.location.pathname !== '/settings' || staleMapDom) {
-          window.location.assign('/settings');
-        }
-      }, 1000);
-    }
-  }, [router]);
   const prevSelectedRef = useRef<any>(null);
   const selectedMuseumRef = useRef<any>(null);
   const isHandlingPopState = useRef(false);
@@ -1236,9 +1115,6 @@ export default function MainPage() {
     return () => {
       if (detailPanelCloseTimerRef.current) {
         clearTimeout(detailPanelCloseTimerRef.current);
-      }
-      if (newMuseumsCloseTimerRef.current) {
-        clearTimeout(newMuseumsCloseTimerRef.current);
       }
     };
   }, []);
@@ -1374,81 +1250,66 @@ export default function MainPage() {
     const maxRetries = 5;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelCacheWrite: (() => void) | undefined;
-    let cancelCacheRead: (() => void) | undefined;
-    let cancelDataApply: (() => void) | undefined;
     const museumsCacheKey = getMuseumsCacheKey(locale);
-    interactionHoldUntilRef.current = Math.max(interactionHoldUntilRef.current, Date.now() + 2200);
 
-    const retryFetch = () => {
-      if (cancelled || retries >= maxRetries) return;
-      retries++;
-      timer = setTimeout(fetchMuseums, 2000 * retries);
-    };
-
-    // Keep the controls responsive: cache JSON parse can be large on real phones.
-    cancelCacheRead = scheduleMapWorkAfterInteraction(() => {
-      let cached: string | null = null;
-      try {
-        cached = sessionStorage.getItem(museumsCacheKey);
-      } catch { }
-      if (!cached) return;
-      parseJsonOffMainThread<any>(cached)
-        .then(data => {
-          if (cancelled) return;
-          if (isUsableMuseumsCache(data)) {
-            setMuseums(data);
-          } else {
+    // Parse cached map data outside the main thread so mobile taps stay responsive.
+    try {
+      const cached = sessionStorage.getItem(museumsCacheKey);
+      if (cached) {
+        parseJsonOffMainThread<any>(cached)
+          .then(data => {
+            if (cancelled) return;
+            if (isUsableMuseumsCache(data)) {
+              setMuseums(data);
+            } else {
+              try { sessionStorage.removeItem(museumsCacheKey); } catch { }
+            }
+          })
+          .catch(() => {
             try { sessionStorage.removeItem(museumsCacheKey); } catch { }
-          }
-        })
-        .catch(() => {
-          try { sessionStorage.removeItem(museumsCacheKey); } catch { }
-        });
-    });
+          });
+      }
+    } catch { }
 
-    function fetchMuseums() {
+    const fetchMuseums = () => {
       fetch(`/api/museums?limit=5000&view=map&locale=${encodeURIComponent(locale)}`)
         .then(r => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.text();
         })
-        .then(text => {
+        .then(text => parseJsonOffMainThread<any>(text))
+        .then(res => {
           if (cancelled) return;
-          cancelDataApply?.();
-          cancelDataApply = scheduleMapWorkAfterInteraction(() => {
-            parseJsonOffMainThread<any>(text)
-              .then(res => {
-                if (cancelled) return;
-                const data = res?.data?.data || res?.data || [];
-                if (Array.isArray(data) && data.length > 0) {
-                  setMuseums(data);
-                  if (isUsableMuseumsCache(data)) {
-                    cancelCacheWrite?.();
-                    cancelCacheWrite = scheduleSessionJsonCache(museumsCacheKey, data);
-                  }
-                } else {
-                  retryFetch();
-                }
-              })
-              .catch(() => {
-                retryFetch();
-              });
-          });
+          const data = res?.data?.data || res?.data || [];
+          if (Array.isArray(data) && data.length > 0) {
+            setMuseums(data);
+            if (isUsableMuseumsCache(data)) {
+              cancelCacheWrite?.();
+              cancelCacheWrite = scheduleSessionJsonCache(museumsCacheKey, data);
+            }
+            return;
+          }
+          if (retries < maxRetries) {
+            retries++;
+            timer = setTimeout(fetchMuseums, 2000 * retries);
+          }
         })
         .catch(() => {
-          retryFetch();
+          if (cancelled) return;
+          if (retries < maxRetries) {
+            retries++;
+            timer = setTimeout(fetchMuseums, 2000 * retries);
+          }
         });
-    }
+    };
 
     fetchMuseums();
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      cancelCacheRead?.();
-      cancelDataApply?.();
       cancelCacheWrite?.();
     };
-  }, [locale, scheduleMapWorkAfterInteraction]);
+  }, [locale]);
 
   // Show loading overlay only after 1s delay (avoids flash for fast loads)
   useEffect(() => {
@@ -1554,9 +1415,6 @@ export default function MainPage() {
             const endDate = new Date(parsed.endDate);
             endDate.setHours(23, 59, 59, 999); // End of day
             if (new Date() > endDate) {
-              setActiveTrip(null);
-              setTripStopsLocal([]);
-              setIsViewingActiveRoute(false);
               clearActiveTripForAccount();
               try { fetch(`/api/plans/${parsed.planId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: false }) }); } catch { }
               return;
@@ -1629,32 +1487,6 @@ export default function MainPage() {
   }, [status, refreshActiveTrip]);
 
   useEffect(() => {
-    if (!activeTrip?.planId || !activeTrip.endDate) return;
-    const endDate = new Date(activeTrip.endDate);
-    endDate.setHours(23, 59, 59, 999);
-    const expireTrip = () => {
-      setActiveTrip(null);
-      setTripStopsLocal([]);
-      setIsViewingActiveRoute(false);
-      clearActiveTripForAccount();
-      fetch(`/api/plans/${activeTrip.planId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: false }),
-      }).catch(() => { });
-    };
-
-    const delay = endDate.getTime() - Date.now();
-    if (delay <= 0) {
-      expireTrip();
-      return;
-    }
-
-    const timer = window.setTimeout(expireTrip, Math.min(delay + 1, 2_147_483_647));
-    return () => window.clearTimeout(timer);
-  }, [activeTrip?.endDate, activeTrip?.planId]);
-
-  useEffect(() => {
     if (searchParams?.get('trip') !== 'active' || !activeTrip || activeTrip.pending) return;
     setSelectedMuseum(null);
     setIsViewingActiveRoute(true);
@@ -1672,7 +1504,7 @@ export default function MainPage() {
   // Listen for browser back (swipe/button) to close panel instead of navigating away
   // NOTE: No dependency on selectedMuseum — uses ref to avoid stale closure & handler recreation
   useEffect(() => {
-    const handlePopState = (e: PopStateEvent) => {
+    const handlePopState = () => {
       // Guard against rapid double-fire
       if (isHandlingPopState.current) return;
       // If we're back to museumPanel state (e.g. photo zoom just closed), keep detail open
@@ -1687,49 +1519,51 @@ export default function MainPage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [closeMuseumPanel]);
 
-  // Map markers are filtered by category only. Keep this memoized because the map receives the array by identity.
-  const mapMuseums = useMemo(() => (
-    activeFilter === 'All' ? museums : museums.filter(m => m.type === activeFilter)
-  ), [activeFilter, museums]);
+  // Map museums: filtered by category only (search should NOT hide markers)
+  const mapMuseums = useMemo(
+    () => museums.filter(m => activeFilter === 'All' || m.type === activeFilter),
+    [museums, activeFilter],
+  );
+  const normalizedSearchQuery = searchQuery.toLowerCase().trim();
 
-  const categoryCounts = useMemo(() => museums.reduce<Record<string, number>>((acc, museum) => {
-    const type = museum.type || 'General Museum';
-    acc[type] = (acc[type] || 0) + 1;
-    return acc;
-  }, { All: museums.length }), [museums]);
-
-  const getCategoryCount = useCallback((filter: string) => (
-    filter === 'All' ? museums.length : (categoryCounts[filter] || 0)
-  ), [categoryCounts, museums.length]);
-
-  // Search covers all museums while markers remain category-filtered.
-  const searchResults = useMemo(() => {
-    const q = deferredSearchQuery.toLowerCase().trim();
-    if (!q) return [];
-
-    const results: { kind: 'museum'; museum: any }[] = [];
-    for (const museum of museums) {
-      const searchableText = [
-        museum.name,
-        museum.nameKo,
-        museum.nameEn,
-        museum.city,
-        museum.cityKo,
-        museum.country,
-        museum.type,
-        getLocalizedMuseumName(museum, locale),
-        getLocalizedCityName(museum, locale),
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (!searchableText.includes(q)) continue;
-      results.push({ kind: 'museum', museum });
-      if (results.length >= 8) break;
-    }
-    return results;
-  }, [deferredSearchQuery, museums, locale]);
+  // Search results: museums only. Map markers are still filtered only by category.
+  const museumSearchResults = useMemo(() => {
+    if (!normalizedSearchQuery) return mapMuseums;
+    return mapMuseums.filter(m => {
+      const values = [
+        m.name,
+        m.nameKo,
+        m.nameEn,
+        m.city,
+        m.cityKo,
+        m.country,
+        m.type,
+        m.summary,
+        m.descriptionKo,
+        getLocalizedMuseumName(m, locale),
+        getLocalizedCityName(m, locale),
+      ];
+      return values.some(value => String(value || '').toLowerCase().includes(normalizedSearchQuery));
+    });
+  }, [mapMuseums, normalizedSearchQuery, locale]);
+  const searchResults = useMemo(
+    () => museumSearchResults.slice(0, 8).map(museum => ({ kind: 'museum' as const, museum })),
+    [museumSearchResults],
+  );
 
   // Alias for category counts and total display
   const filteredMuseums = mapMuseums;
-  const mobileListMuseums = mapMuseums.slice(0, 120);
+  const mobileListMuseums = useMemo(() => mapMuseums.slice(0, 120), [mapMuseums]);
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const museum of filteredMuseums) {
+      const type = museum.type || 'OTHER';
+      if (type === 'Aquarium') continue;
+      const translated = translateCategory(type, locale);
+      counts[translated] = (counts[translated] || 0) + 1;
+    }
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [filteredMuseums, locale]);
   const mobileToolLabels = MOBILE_TOOL_LABELS[locale] || MOBILE_TOOL_LABELS.en;
   const mapLocationLabels = MAP_LOCATION_LABELS[locale] || MAP_LOCATION_LABELS.en;
   const mapZoomLabels = MAP_ZOOM_LABELS[locale] || MAP_ZOOM_LABELS.en;
@@ -1795,10 +1629,6 @@ export default function MainPage() {
   }, [weatherOpen]);
   useEffect(() => { nearbyOpenRef.current = nearbyOpen; }, [nearbyOpen]);
   useEffect(() => { weatherOpenRef.current = weatherOpen; }, [weatherOpen]);
-  useEffect(() => { categoryDropdownOpenRef.current = categoryDropdownOpen; }, [categoryDropdownOpen]);
-  useEffect(() => { newMuseumsOpenRef.current = newMuseumsOpen; }, [newMuseumsOpen]);
-  useEffect(() => { chipOpenRef.current = chipOpen; }, [chipOpen]);
-  useEffect(() => { mapSideMenuOpenRef.current = mapSideMenuOpen; }, [mapSideMenuOpen]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const mq = window.matchMedia('(min-width: 768px)');
@@ -1868,9 +1698,12 @@ export default function MainPage() {
     setLocationSource(source);
   }, [accountLocationEmail]);
 
-  const requestCurrentLocation = useCallback((moveMap = true, silent = false) => {
+  const requestCurrentLocation = useCallback((moveMap = true, showError = true) => {
+    const notifyLocationError = () => {
+      if (showError) showAlert(mobileToolLabels.locationError);
+    };
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      if (!silent) showAlert(mobileToolLabels.locationError);
+      notifyLocationError();
       return;
     }
     try {
@@ -1879,25 +1712,25 @@ export default function MainPage() {
           const lat = Number(pos.coords.latitude);
           const lng = Number(pos.coords.longitude);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            if (!silent) showAlert(mobileToolLabels.locationError);
+            notifyLocationError();
             return;
           }
           const nextLocation = { lng, lat };
           setUserLocation(nextLocation);
           if (moveMap) setMapFlyTo({ ...nextLocation, zoom: 15, key: Date.now() });
         },
-        () => { if (!silent) showAlert(mobileToolLabels.locationError); },
-        { enableHighAccuracy: true, timeout: 9000, maximumAge: 60_000 }
+        notifyLocationError,
+        { enableHighAccuracy: moveMap, timeout: moveMap ? 9000 : 4500, maximumAge: moveMap ? 60_000 : 180_000 }
       );
     } catch {
-      if (!silent) showAlert(mobileToolLabels.locationError);
+      notifyLocationError();
     }
   }, [mobileToolLabels.locationError, showAlert]);
 
   useEffect(() => {
     if (locationSource !== 'current') return;
     setCurrentWeather(null);
-    requestCurrentLocation(false, true);
+    requestCurrentLocation(false, false);
   }, [locationSource, requestCurrentLocation]);
 
   const handleCurrentLocationPress = useCallback(() => {
@@ -2000,7 +1833,7 @@ export default function MainPage() {
   }, [accountLocationEmail, mapLocationLabels.manualSaved, mobileToolLabels.locationError, showAlert]);
 
   useEffect(() => {
-    if (!selectedMuseum || typeof window === 'undefined') {
+    if (!selectedMuseum?.id || typeof window === 'undefined') {
       setDetailPanelEntered(false);
       return;
     }
@@ -2175,77 +2008,30 @@ export default function MainPage() {
     const scrollY = window.scrollY;
     const previous = {
       htmlOverflow: html.style.overflow,
-      htmlBackgroundColor: html.style.backgroundColor,
-      htmlColorScheme: html.style.colorScheme,
       bodyOverflow: body.style.overflow,
       bodyPosition: body.style.position,
       bodyTop: body.style.top,
       bodyLeft: body.style.left,
       bodyRight: body.style.right,
       bodyWidth: body.style.width,
-      bodyBackgroundColor: body.style.backgroundColor,
-      themeColors: Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')).map((meta) => ({
-        element: meta,
-        content: meta.getAttribute('content'),
-        media: meta.getAttribute('media'),
-      })),
-      statusBarStyle: document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') || '',
     };
-    const isDarkTheme = html.classList.contains('dark') || html.dataset.theme === 'dark';
-    const lockedThemeColor = isDarkTheme ? '#020617' : '#ffffff';
-    let themeColorMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
-    let createdThemeColorMeta: HTMLMetaElement | null = null;
-    if (themeColorMetas.length === 0) {
-      createdThemeColorMeta = document.createElement('meta');
-      createdThemeColorMeta.setAttribute('name', 'theme-color');
-      document.head.appendChild(createdThemeColorMeta);
-      themeColorMetas = [createdThemeColorMeta];
-    }
-    let statusBarMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]');
-    if (!statusBarMeta) {
-      statusBarMeta = document.createElement('meta');
-      statusBarMeta.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
-      document.head.appendChild(statusBarMeta);
-    }
 
     html.style.overflow = 'hidden';
-    html.style.backgroundColor = lockedThemeColor;
-    html.style.colorScheme = isDarkTheme ? 'dark' : 'light';
     body.style.overflow = 'hidden';
     body.style.position = 'fixed';
     body.style.top = `-${scrollY}px`;
     body.style.left = '0';
     body.style.right = '0';
     body.style.width = '100%';
-    body.style.backgroundColor = lockedThemeColor;
-    themeColorMetas.forEach((meta) => {
-      meta.removeAttribute('media');
-      meta.setAttribute('content', lockedThemeColor);
-    });
-    statusBarMeta.setAttribute('content', isDarkTheme ? 'black-translucent' : 'default');
 
     return () => {
       html.style.overflow = previous.htmlOverflow;
-      html.style.backgroundColor = previous.htmlBackgroundColor;
-      html.style.colorScheme = previous.htmlColorScheme;
       body.style.overflow = previous.bodyOverflow;
       body.style.position = previous.bodyPosition;
       body.style.top = previous.bodyTop;
       body.style.left = previous.bodyLeft;
       body.style.right = previous.bodyRight;
       body.style.width = previous.bodyWidth;
-      body.style.backgroundColor = previous.bodyBackgroundColor;
-      if (createdThemeColorMeta) {
-        createdThemeColorMeta.remove();
-      }
-      previous.themeColors.forEach(({ element, content, media }) => {
-        if (!element.isConnected) document.head.appendChild(element);
-        if (content === null) element.removeAttribute('content');
-        else element.setAttribute('content', content);
-        if (media === null) element.removeAttribute('media');
-        else element.setAttribute('media', media);
-      });
-      if (previous.statusBarStyle) statusBarMeta.setAttribute('content', previous.statusBarStyle);
       window.scrollTo(0, scrollY);
     };
   }, [isLgViewport, isPanelOpen, searchFocused, searchQuery]);
@@ -2290,86 +2076,6 @@ export default function MainPage() {
   const tripDragIndex = tripDrag.dragIndex;
   const tripOverIndex = tripDrag.overIndex;
   const tripIsDragging = tripDrag.isDragging;
-
-  const syncActiveTripStops = useCallback((stops: any[]) => {
-    setTripStopsLocal(stops);
-    setActiveTrip((prev: any) => {
-      if (!prev) return prev;
-      const nextTrip = { ...prev, stops };
-      setActiveTripForAccount(nextTrip);
-      return nextTrip;
-    });
-  }, []);
-
-  const handleToggleTripStopVisited = useCallback(async (stop: any) => {
-    if (!activeTrip || activeTrip.pending || !stop?.museumId) return;
-    const wasVisited = !!stop.visitedAt;
-    const nextVisitedAt = wasVisited ? null : new Date().toISOString();
-    const optimisticStops = (tripStopsLocal.length > 0 ? tripStopsLocal : activeTrip.stops || []).map((s: any) =>
-      (s.id && stop.id && s.id === stop.id) || s.museumId === stop.museumId
-        ? { ...s, visitedAt: nextVisitedAt, reviewId: wasVisited ? null : s.reviewId }
-        : s
-    );
-    syncActiveTripStops(optimisticStops);
-
-    try {
-      const res = await fetch('/api/visited', {
-        method: wasVisited ? 'DELETE' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planStopId: stop.id, museumId: stop.museumId, reviewId: stop.reviewId }),
-      });
-      if (!res.ok) throw new Error('visited update failed');
-      const json = await res.json();
-      const visit = json.data;
-      const syncedStops = optimisticStops.map((s: any) =>
-        (s.id && stop.id && s.id === stop.id) || s.museumId === stop.museumId
-          ? { ...s, visitedAt: wasVisited ? null : (visit?.visitedAt || nextVisitedAt), reviewId: wasVisited ? null : visit?.id }
-          : s
-      );
-      syncActiveTripStops(syncedStops);
-    } catch {
-      syncActiveTripStops(tripStopsLocal.length > 0 ? tripStopsLocal : activeTrip.stops || []);
-      showAlert(locale === 'ko' ? '다녀감 표시를 저장하지 못했어요.' : 'Could not save visit status.');
-    }
-  }, [activeTrip, locale, showAlert, syncActiveTripStops, tripStopsLocal]);
-
-  const createVisitedCollection = useCallback(async () => {
-    if (!completedTrip || visitedCollectionCreating) return;
-    const stops = (completedTrip.stops || []).filter((stop: any) => stop.museumId);
-    if (stops.length === 0) return;
-    setVisitedCollectionCreating(true);
-    try {
-      const date = new Date(completedTrip.completedAt || Date.now());
-      const title = locale === 'ko'
-        ? `다녀간 컬렉션 · ${completedTrip.title || '내 여행'}`
-        : `Visited Collection · ${completedTrip.title || 'My Trip'}`;
-      const description = locale === 'ko'
-        ? `${date.getMonth() + 1}/${date.getDate()}에 완료한 여행에서 만든 컬렉션`
-        : `Created from a completed trip on ${date.getMonth() + 1}/${date.getDate()}`;
-      const res = await fetch('/api/collections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          description,
-          isPublic: false,
-          items: stops.map((stop: any, index: number) => ({
-            museumId: stop.museumId,
-            reviewId: stop.reviewId || null,
-            order: stop.order ?? index,
-          })),
-        }),
-      });
-      if (!res.ok) throw new Error('collection create failed');
-      const json = await res.json();
-      setCompletedTrip(null);
-      router.push(json.data?.id ? `/collections/${json.data.id}` : '/collections');
-    } catch {
-      showAlert(locale === 'ko' ? '다녀간 컬렉션을 만들지 못했어요.' : 'Could not create visited collection.');
-    } finally {
-      setVisitedCollectionCreating(false);
-    }
-  }, [completedTrip, locale, router, showAlert, visitedCollectionCreating]);
 
   // Dynamic map padding for mobile active-trip view so route isn't hidden by the top drawer
   const [tripViewportH, setTripViewportH] = useState(0);
@@ -2431,22 +2137,9 @@ export default function MainPage() {
       try { await fetch('/api/plans/active-trip', { method: 'DELETE' }); } catch { }
     };
     const isPendingTrip = !!activeTrip.pending;
-    const visitedCount = tripStops.filter((stop: any) => !!stop.visitedAt).length;
-    const totalStopCount = tripStops.length;
-    const visitedProgressLabel = locale === 'ko'
-      ? `${visitedCount} / ${totalStopCount} 다녀감`
-      : `${visitedCount} / ${totalStopCount} visited`;
     const dDayNum = activeTrip.startDate ? Math.ceil((new Date(activeTrip.startDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000) : null;
     const dDayText = dDayNum !== null ? (dDayNum > 0 ? `D-${dDayNum}` : dDayNum === 0 ? 'D-DAY' : '') : '';
     const tripDateRange = activeTrip.startDate ? (() => { const s = new Date(activeTrip.startDate); const e = activeTrip.endDate ? new Date(activeTrip.endDate) : null; const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`; return e ? `${fmt(s)} ~ ${fmt(e)}` : fmt(s); })() : '';
-    const formatVisitedDate = (value?: string | Date | null) => {
-      if (!value) return '';
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return '';
-      return locale === 'ko'
-        ? `${date.getMonth() + 1}/${date.getDate()} 다녀감`
-        : `Visited ${date.getMonth() + 1}/${date.getDate()}`;
-    };
     return (
       <div className="mm-active-trip-view2" style={{ animation: tripExiting ? 'slideToRight 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards' : 'slideFromRight 0.4s cubic-bezier(0.32, 0.72, 0, 1)' }}>
         {/* Desktop: side-by-side */}
@@ -2481,17 +2174,6 @@ export default function MainPage() {
                   </div>
                   <h1 className="text-4xl font-extrabold dark:text-white mb-2">{activeTrip.title}</h1>
                   {tripDateRange && <p className="text-sm text-gray-400 dark:text-gray-500 font-medium mb-4">📅 {tripDateRange}</p>}
-                  {!isPendingTrip && (
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-blue-600 dark:text-blue-300 mb-1.5">
-                        <span>{locale === 'ko' ? '방문 진행률' : 'Visit progress'}</span>
-                        <span>{visitedProgressLabel}</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-950/60 overflow-hidden">
-                        <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: totalStopCount ? `${(visitedCount / totalStopCount) * 100}%` : '0%' }} />
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -2501,7 +2183,6 @@ export default function MainPage() {
                 {tripStops.map((stop: any, i: number) => {
                   const isBeingDragged = tripDragIndex === i;
                   const isDropTarget = tripOverIndex === i && tripDragIndex !== i;
-                  const isVisited = !!stop.visitedAt;
                   return (
                     <div key={stop.museumId + '-' + i}
                       data-drag-index={i}
@@ -2515,31 +2196,14 @@ export default function MainPage() {
                       onPointerCancel={tripDrag.cancelPress}
                       onPointerLeave={tripDrag.cancelPress}
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isVisited ? 'bg-emerald-500 text-white shadow-sm' : isBeingDragged ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-sm'}`}>
-                        {isVisited ? (
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" /></svg>
-                        ) : i + 1}
-                      </div>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isBeingDragged ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-sm'}`}>{i + 1}</div>
                       <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleMuseumClick(stop.museumId)}>
                         <h3 className="font-bold text-base truncate dark:text-white">{(() => { const m = museums.find(x => x.id === stop.museumId); return m ? getLocalizedMuseumName(m, locale) : stop.name; })()}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           {fmtDur(getVisitDuration(stop.type), locale)}
-                          {isVisited && formatVisitedDate(stop.visitedAt) ? (
-                            <span className="ml-1 text-emerald-600 dark:text-emerald-300">· {formatVisitedDate(stop.visitedAt)}</span>
-                          ) : null}
                         </p>
                       </div>
-                      {!isPendingTrip && (
-                        <button
-                          type="button"
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => { event.stopPropagation(); handleToggleTripStopVisited(stop); }}
-                          className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${isVisited ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/70'}`}
-                        >
-                          {isVisited ? (locale === 'ko' ? '다녀감' : 'Visited') : (locale === 'ko' ? '다녀감 표시' : 'Mark')}
-                        </button>
-                      )}
                     </div>
                   );
                 })}
@@ -2575,7 +2239,6 @@ export default function MainPage() {
                 {tripStops.map((stop: any, i: number) => {
                   const isBeingDragged = tripDragIndex === i;
                   const isDropTarget = tripOverIndex === i && tripDragIndex !== i;
-                  const isVisited = !!stop.visitedAt;
                   return (
                     <div key={stop.museumId + '-' + i}
                       data-drag-index={i}
@@ -2589,31 +2252,14 @@ export default function MainPage() {
                       onPointerCancel={tripDrag.cancelPress}
                       onPointerLeave={tripDrag.cancelPress}
                     >
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isVisited ? 'bg-emerald-500 text-white' : isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>
-                        {isVisited ? (
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" /></svg>
-                        ) : i + 1}
-                      </div>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>{i + 1}</div>
                       <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleMuseumClick(stop.museumId)}>
                         <h3 className="font-bold text-sm truncate dark:text-white">{(() => { const m = museums.find(x => x.id === stop.museumId); return m ? getLocalizedMuseumName(m, locale) : stop.name; })()}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           {fmtDur(getVisitDuration(stop.type), locale)}
-                          {isVisited && formatVisitedDate(stop.visitedAt) ? (
-                            <span className="ml-1 text-emerald-600 dark:text-emerald-300">· {formatVisitedDate(stop.visitedAt)}</span>
-                          ) : null}
                         </p>
                       </div>
-                      {!isPendingTrip && (
-                        <button
-                          type="button"
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => { event.stopPropagation(); handleToggleTripStopVisited(stop); }}
-                          className={`shrink-0 self-center rounded-full px-2.5 py-1.5 text-[10px] font-bold transition active:scale-95 ${isVisited ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/70'}`}
-                        >
-                          {isVisited ? (locale === 'ko' ? '완료' : 'Done') : (locale === 'ko' ? '다녀감' : 'Mark')}
-                        </button>
-                      )}
                     </div>
                   );
                 })}
@@ -2626,7 +2272,7 @@ export default function MainPage() {
             {/* Drawer handle — at bottom */}
             <button onClick={() => setTripSheetOpen(prev => !prev)} className="flex flex-col items-center w-full pt-2 pb-3 shrink-0">
               <span className="text-xs font-bold mb-1.5 text-blue-600 dark:text-blue-400">
-                {isPendingTrip && dDayText ? `${dDayText} • ` : ''}{activeTrip.title} • {tripStops.length} {t('plans.stops', locale)}{!isPendingTrip ? ` • ${visitedProgressLabel}` : ''}{tripDateRange ? ` • 📅 ${tripDateRange}` : ''}
+                {isPendingTrip && dDayText ? `${dDayText} • ` : ''}{activeTrip.title} • {tripStops.length} {t('plans.stops', locale)}{tripDateRange ? ` • 📅 ${tripDateRange}` : ''}
               </span>
               <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-neutral-600" />
             </button>
@@ -2775,7 +2421,7 @@ export default function MainPage() {
       {/* Mobile Map Discovery 2.0 */}
       {!isViewingActiveRoute && (
         <>
-          <div className={`mm-map2-top md:hidden ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
+          <div className={`mm-map2-top md:hidden ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
             <div className="mm-map2-search-row" style={mm2.searchRow}>
               <div className={`mm-map2-search ${searchFocused ? 'is-focused' : ''}`} style={{ ...mm2.search, ...(searchFocused ? { borderColor: 'rgba(37,99,235,.34)', boxShadow: '0 16px 36px rgba(37,99,235,.16), inset 0 1px 0 rgba(255,255,255,.9)' } : null) }}>
                 <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2796,20 +2442,24 @@ export default function MainPage() {
                   </button>
                 )}
               </div>
-              <Link
-                href="/settings"
-                prefetch
+              <button
+                type="button"
                 className="mm-map2-icon-pill"
                 style={mm2.iconPill}
-                onPointerDown={navigateToSettings}
-                onClick={navigateToSettings}
+                onClick={() => {
+                  closeAllPopups();
+                  try {
+                    sessionStorage.setItem('mm_settings_return_to', '/');
+                  } catch {}
+                  window.location.assign('/settings');
+                }}
                 aria-label={locale === 'ko' ? '설정' : 'Settings'}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-              </Link>
+              </button>
             </div>
 
             {newMuseums.length > 0 && (
@@ -2817,11 +2467,12 @@ export default function MainPage() {
                 <button
                   type="button"
                   className={`mm-map2-new-museums-chip ${newMuseumsOpen ? 'is-active' : ''}`}
-                  onPointerDown={markMenuInteraction}
-                  onClick={(event) => {
-                    markMenuInteraction();
+                  onClick={() => {
                     if (newMuseumsOpen) closeNewMuseums();
-                    else openNewMuseums();
+                    else {
+                      closeAllPopups('newMuseums');
+                      setNewMuseumsOpen(true);
+                    }
                   }}
                   aria-label={mobileToolLabels.newMuseums}
                   aria-expanded={newMuseumsOpen}
@@ -2831,32 +2482,11 @@ export default function MainPage() {
                     <span>N</span>
                   </span>
                 </button>
-                {activeTrip && (
-                  <button
-                    type="button"
-                    onClick={() => setIsViewingActiveRoute(true)}
-                    className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
-                    style={mm2.toolPill}
-                    aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
-                  >
-                    {activeTrip.pending ? (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
-                      </svg>
-                    )}
-                    <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
-                  </button>
-                )}
                 {(newMuseumsOpen || newMuseumsClosing) && (
                   <div className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} role="dialog" aria-label={mobileToolLabels.newMuseums}>
                     <div className="mm-map2-new-museums-head">
-                      <h3><MuseumNewIcon />{mobileToolLabels.newMuseums}</h3>
-                      <button type="button" className="mm-map2-new-museums-close" onClick={closeNewMuseums} aria-label={mobileToolLabels.close}>
+                      <h3><MuseumNewIcon className="w-4 h-4" />{mobileToolLabels.newMuseums}</h3>
+                      <button type="button" onClick={closeNewMuseums} aria-label={mobileToolLabels.close}>
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -2896,7 +2526,7 @@ export default function MainPage() {
               </div>
             )}
 
-            {activeTrip && newMuseums.length === 0 && (
+            {activeTrip && (
               <div className="mm-map2-trip-anchor">
                 <button
                   type="button"
@@ -2926,9 +2556,7 @@ export default function MainPage() {
                   <button
                     ref={weatherBtnRefMobile}
 	                    type="button"
-	                    onPointerDown={markMenuInteraction}
-	                    onClick={(event) => {
-	                      markMenuInteraction();
+	                    onClick={() => {
 	                      if (weatherOpen) closeWeatherPopup();
 	                      else openWeatherPopup(weatherBtnRefMobile);
 	                    }}
@@ -2944,12 +2572,7 @@ export default function MainPage() {
                 <button
                   type="button"
                   onMouseDown={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => {
-                    markMenuInteraction();
-                    event.stopPropagation();
-                  }}
                   onClick={(event) => {
-                    markMenuInteraction();
                     event.stopPropagation();
                     if (categoryDropdownOpen) closeCategoryDropdown();
                     else openCategoryDropdown();
@@ -2968,12 +2591,7 @@ export default function MainPage() {
                   <button
                     ref={nearbyBtnRefMobile}
                     type="button"
-	                    onPointerDown={markMenuInteraction}
-	                    onClick={(event) => {
-	                      markMenuInteraction();
-	                      if (nearbyOpen) closeNearbyPopup();
-	                      else openNearbyPopup(nearbyBtnRefMobile);
-	                    }}
+	                    onClick={() => { if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefMobile); }}
                     className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${nearbyOpen ? 'is-active' : ''}`}
                     style={{ ...mm2.toolPill, ...(nearbyOpen ? mm2.activePill : null) }}
                     aria-label={mobileToolLabels.nearby}
@@ -3040,7 +2658,7 @@ export default function MainPage() {
                       type="button"
                       onClick={() => {
                         setMapSideMenuOpen(false);
-                        router.push('/login');
+                        window.location.assign('/login');
                       }}
                     >
                       <span className="h-6 w-6 overflow-hidden rounded-full bg-blue-100 text-xs font-semibold text-blue-700 flex items-center justify-center">
@@ -3054,20 +2672,29 @@ export default function MainPage() {
                       type="button"
                       onClick={() => {
                         setMapSideMenuOpen(false);
-                        router.push('/admin');
+                        window.location.assign('/admin');
                       }}
                     >
                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold text-white">A</span>
                       Admin
                     </button>
                   )}
-                  <a href="/settings" onPointerDown={navigateToSettings} onClick={navigateToSettings}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMapSideMenuOpen(false);
+                      try {
+                        sessionStorage.setItem('mm_settings_return_to', '/');
+                      } catch {}
+                      window.location.assign('/settings');
+                    }}
+                  >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     {locale === 'ko' ? '설정' : 'Settings'}
-                  </a>
+                  </button>
                 </div>
                 <div className="mm-map2-side-actions">
                   <button
@@ -3112,8 +2739,7 @@ export default function MainPage() {
                         }}
                       >
                         <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
-                        <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
-                        <span className="mm-map2-category-count">{getCategoryCount(f).toLocaleString()}</span>
+                        {translateCategory(f, locale)}
                       </button>
                     ))}
                   </div>
@@ -3124,7 +2750,7 @@ export default function MainPage() {
 
           {(categoryDropdownOpen || categoryDropdownClosing) && !isPanelOpen && (
             <div
-              className={`mm-map2-category-menu mm-map-popover-motion md:hidden ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${categoryDropdownClosing ? 'is-closing' : ''}`}
+              className={`mm-map2-category-menu mm-map-popover-motion md:hidden ${categoryDropdownClosing ? 'is-closing' : ''}`}
               style={mm2.categoryMenu}
               role="dialog"
               aria-label={mobileToolLabels.categories}
@@ -3166,8 +2792,7 @@ export default function MainPage() {
                     }}
                   >
                     <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
-                    <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
-                    <span className="mm-map2-category-count">{getCategoryCount(f).toLocaleString()}</span>
+                    {translateCategory(f, locale)}
                   </button>
                 ))}
               </div>
@@ -3213,14 +2838,20 @@ export default function MainPage() {
           </div>
         )}
 
-        {/* Non-blocking map-data status. Controls and menus must remain usable. */}
+        {/* Loading overlay — shown while museums are being fetched */}
         {museums.length === 0 && !isViewingActiveRoute && showLoading && (
-          <div className="pointer-events-none absolute left-1/2 top-[calc(max(12px,env(safe-area-inset-top,0px))+146px)] z-10 -translate-x-1/2 transition-opacity duration-300 md:top-24" role="status" aria-live="polite">
-            <div className="flex items-center gap-2 rounded-full border border-white/80 bg-white/92 px-3 py-2 text-[11px] font-bold text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/86 dark:text-slate-200">
-              <LoadingAnimation size={28} inline />
-              <span>
-                {({ ko: '장소 불러오는 중', en: 'Loading places', ja: '読込中', zh: '加载中', de: 'Wird geladen', fr: 'Chargement', es: 'Cargando', pt: 'Carregando', sv: 'Laddar', fi: 'Ladataan', da: 'Indlæser', et: 'Laadimine' } as Record<string, string>)[locale] || 'Loading places'}
-              </span>
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none transition-opacity duration-700">
+            <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-[2px]" />
+            <div className="relative flex flex-col items-center gap-6 animate-fadeInUp">
+              <LoadingAnimation size={50} inline />
+              <div className="text-center">
+                <p className="text-white text-base font-bold tracking-wide drop-shadow-lg">
+                  {({ ko: '박물관과 미술관을 불러오는 중이에요', en: 'Loading museums...', ja: '美術館を読み込んでいます', zh: '正在加载博物馆...', de: 'Museen werden geladen...', fr: 'Chargement des musées...', es: 'Cargando museos...', pt: 'Carregando museus...', sv: 'Laddar museer...', fi: 'Ladataan museoita...', da: 'Indlæser museer...', et: 'Muuseumide laadimine...' } as Record<string, string>)[locale] || 'Loading museums...'}
+                </p>
+                <p className="text-white/60 text-xs mt-1 font-medium drop-shadow">
+                  {({ ko: '잠시만 기다려주세요', en: 'Please wait a moment', ja: '少々お待ちください', zh: '请稍等', de: 'Bitte warten', fr: 'Veuillez patienter', es: 'Espere un momento', pt: 'Aguarde um momento', sv: 'Vänta ett ögonblick', fi: 'Odota hetki', da: 'Vent venligst', et: 'Palun oodake' } as Record<string, string>)[locale] || 'Please wait a moment'}
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -3333,7 +2964,7 @@ export default function MainPage() {
               </div>
             </div>
 
-            {activeTrip && !isPanelOpen && newMuseums.length === 0 && (
+            {activeTrip && !isPanelOpen && (
               <div className="mm-map2-pc-trip-anchor pointer-events-auto">
                 <button
                   type="button"
@@ -3361,14 +2992,9 @@ export default function MainPage() {
             <div className="mm-map2-pc-tools flex items-center gap-2 pointer-events-auto w-full">
               {/* New Museums Button */}
               {newMuseums.length > 0 && (
-                <div className="relative flex items-center gap-4">
+                <div className="relative">
                   <button
-                    onPointerDown={markMenuInteraction}
-                    onClick={(event) => {
-                      markMenuInteraction();
-                      if (newMuseumsOpen) closeNewMuseums();
-                      else openNewMuseums();
-                    }}
+                    onClick={() => { if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
                     className={`mm-map2-pc-control flex items-center gap-2 px-4 py-2.5 bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
                       ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                       : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
@@ -3387,27 +3013,6 @@ export default function MainPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {activeTrip && !isPanelOpen && (
-                    <button
-                      type="button"
-                      onClick={() => setIsViewingActiveRoute(true)}
-                      className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
-                      style={mm2.toolPill}
-                      aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
-                    >
-                      {activeTrip.pending ? (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
-                        </svg>
-                      )}
-                      <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
-                    </button>
-                  )}
 
                   {/* Expandable List */}
                   {(newMuseumsOpen || newMuseumsClosing) && (
@@ -3432,12 +3037,7 @@ export default function MainPage() {
               <div className="mm-map2-pc-category-anchor relative ml-auto">
                 <button
                   onMouseDown={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => {
-                    markMenuInteraction();
-                    event.stopPropagation();
-                  }}
                   onClick={(event) => {
-                    markMenuInteraction();
                     event.stopPropagation();
                     if (categoryDropdownOpen) closeCategoryDropdown();
                     else openCategoryDropdown();
@@ -3504,8 +3104,7 @@ export default function MainPage() {
                           }}
                         >
                           <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
-                          <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
-                          <span className="mm-map2-category-count">{getCategoryCount(f).toLocaleString()}</span>
+                          {translateCategory(f, locale)}
                         </button>
                       ))}
                     </div>
@@ -3541,13 +3140,8 @@ export default function MainPage() {
               {mapPrefs.nearby && <div className="mm-map2-pc-nearby-anchor relative shrink-0">
                 <button
                   ref={nearbyBtnRefPC}
-                  onPointerDown={markMenuInteraction}
-                  onClick={(event) => {
-                    markMenuInteraction();
-                    if (nearbyOpen) closeNearbyPopup();
-                    else openNearbyPopup(nearbyBtnRefPC);
-                  }}
-                  aria-label={locale === 'ko' ? '내 주변 미술관/박물관' : 'Nearby museums'}
+                  onClick={() => { if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefPC); }}
+                  aria-label={locale === 'ko' ? '내 주변' : 'Nearby museums'}
                   aria-expanded={nearbyOpen}
                   className={`mm-map2-pc-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${nearbyOpen ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
                 >
@@ -3562,12 +3156,7 @@ export default function MainPage() {
               {mapPrefs.weather && <div className="mm-map2-pc-weather-anchor relative shrink-0">
                 <button
                   ref={weatherBtnRefPC}
-	                  onPointerDown={markMenuInteraction}
-	                  onClick={(event) => {
-	                    markMenuInteraction();
-	                    if (weatherOpen) closeWeatherPopup();
-	                    else openWeatherPopup(weatherBtnRefPC);
-	                  }}
+	                  onClick={() => { if (weatherOpen) closeWeatherPopup(); else openWeatherPopup(weatherBtnRefPC); }}
                   aria-label={locale === 'ko' ? '오늘 날씨' : "Today's weather"}
                   aria-expanded={weatherOpen}
                   className={`mm-map2-pc-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${weatherOpen ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
@@ -3630,11 +3219,12 @@ export default function MainPage() {
                 {chipOpen && (
                   <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-md rounded-2xl shadow-xl p-3 min-w-[160px] animate-fadeInUp">
                     <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">{locale === 'ko' ? '카테고리별' : 'By Category'}</div>
-                    {(() => {
-                      const counts: Record<string, number> = {};
-                      filteredMuseums.forEach((m: any) => { const type = m.type || 'OTHER'; if (type === 'Aquarium') return; const translated = translateCategory(type, locale); counts[translated] = (counts[translated] || 0) + 1; });
-                      return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => (<div key={name} className="flex justify-between items-center py-1"><span className="text-[11px] text-white/80">{name}</span><span className="text-[11px] font-bold text-white ml-4">{count}</span></div>));
-                    })()}
+                    {categoryCounts.map(([name, count]) => (
+                      <div key={name} className="flex justify-between items-center py-1">
+                        <span className="text-[11px] text-white/80">{name}</span>
+                        <span className="text-[11px] font-bold text-white ml-4">{count}</span>
+                      </div>
+                    ))}
                     <div className="border-t border-white/10 mt-1.5 pt-1.5 flex justify-between items-center"><span className="text-[11px] font-bold text-white/60">{locale === 'ko' ? '전체' : 'Total'}</span><span className="text-sm font-black text-white">{filteredMuseums.length.toLocaleString()}</span></div>
                   </div>
                 )}
@@ -3675,11 +3265,12 @@ export default function MainPage() {
                       {chipOpen && (
                         <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-md rounded-2xl shadow-xl p-3 min-w-[160px] animate-fadeInUp">
                           <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">{locale === 'ko' ? '카테고리별' : 'By Category'}</div>
-                          {(() => {
-                            const counts: Record<string, number> = {};
-                            filteredMuseums.forEach((m: any) => { const type = m.type || 'OTHER'; if (type === 'Aquarium') return; const translated = translateCategory(type, locale); counts[translated] = (counts[translated] || 0) + 1; });
-                            return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => (<div key={name} className="flex justify-between items-center py-1"><span className="text-[11px] text-white/80">{name}</span><span className="text-[11px] font-bold text-white ml-4">{count}</span></div>));
-                          })()}
+                          {categoryCounts.map(([name, count]) => (
+                            <div key={name} className="flex justify-between items-center py-1">
+                              <span className="text-[11px] text-white/80">{name}</span>
+                              <span className="text-[11px] font-bold text-white ml-4">{count}</span>
+                            </div>
+                          ))}
                           <div className="border-t border-white/10 mt-1.5 pt-1.5 flex justify-between items-center"><span className="text-[11px] font-bold text-white/60">{locale === 'ko' ? '전체' : 'Total'}</span><span className="text-sm font-black text-white">{filteredMuseums.length.toLocaleString()}</span></div>
                         </div>
                       )}
@@ -3718,46 +3309,6 @@ export default function MainPage() {
             >
               ✕ {t('modal.cancel', locale) || 'Cancel'}
             </button>
-          </div>
-        )}
-
-        {completedTrip && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center px-5" role="dialog" aria-modal="true">
-            <button type="button" className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCompletedTrip(null)} aria-label={locale === 'ko' ? '닫기' : 'Close'} />
-            <div className="relative w-full max-w-sm rounded-3xl border border-blue-100/80 bg-white p-6 text-center shadow-[0_28px_70px_rgba(15,23,42,0.22)] dark:border-blue-400/20 dark:bg-[#071426]">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-white shadow-[0_16px_32px_rgba(37,99,235,0.28)]">
-                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-black text-slate-950 dark:text-white">
-                {locale === 'ko' ? '여행을 모두 다녀왔어요' : 'Trip completed'}
-              </h3>
-              <p className="mt-2 text-sm font-medium text-slate-500 dark:text-blue-100/70">
-                {locale === 'ko'
-                  ? `${completedTrip.title || '내 여행'}의 ${completedTrip.stops?.length || 0}곳을 모두 방문 처리했어요.`
-                  : `All ${completedTrip.stops?.length || 0} stops in ${completedTrip.title || 'your trip'} are marked visited.`}
-              </p>
-              <div className="mt-5 flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={createVisitedCollection}
-                  disabled={visitedCollectionCreating}
-                  className="h-12 rounded-2xl bg-blue-600 px-4 text-sm font-bold text-white shadow-[0_14px_30px_rgba(37,99,235,0.24)] transition active:scale-95 disabled:opacity-60"
-                >
-                  {visitedCollectionCreating
-                    ? (locale === 'ko' ? '만드는 중...' : 'Creating...')
-                    : (locale === 'ko' ? '다녀간 컬렉션 만들기' : 'Create visited collection')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCompletedTrip(null)}
-                  className="h-11 rounded-2xl border border-slate-200 text-sm font-bold text-slate-500 transition active:scale-95 dark:border-blue-400/15 dark:text-blue-100/70"
-                >
-                  {locale === 'ko' ? '나중에' : 'Later'}
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -3815,7 +3366,6 @@ export default function MainPage() {
         anchor="before"
         triggerRef={activeNearbyRef}
         locationOverride={locationSource === 'manual' ? manualLocation : null}
-        categoryFilter={activeFilter}
       />
       <WeatherPopup
         isOpen={weatherOpen || weatherClosing}
