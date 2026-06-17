@@ -1087,6 +1087,38 @@ body .login-2-shell .mm-login-brand-title {
   transform: translateY(1px) scale(.965) !important;
 }
 
+html.mm-route-pending::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100000;
+  width: 56vw;
+  max-width: 360px;
+  height: 3px;
+  border-radius: 999px;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(147,197,253,0) 0%, #60a5fa 28%, #2563eb 72%, rgba(37,99,235,0) 100%);
+  box-shadow: 0 0 18px rgba(37,99,235,.46);
+  transform-origin: left center;
+  animation: mmRoutePendingBar 920ms cubic-bezier(.22, 1, .36, 1) infinite;
+}
+
+@keyframes mmRoutePendingBar {
+  0% {
+    transform: translateX(-62vw) scaleX(.32);
+    opacity: .42;
+  }
+  44% {
+    transform: translateX(18vw) scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(108vw) scaleX(.48);
+    opacity: .36;
+  }
+}
+
 .mobile-nav-menu-overlay {
   animation: mmCenterMenuOverlayIn 180ms ease-out both;
 }

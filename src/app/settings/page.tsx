@@ -300,6 +300,10 @@ export default function SettingsPage() {
     : null;
 
   useEffect(() => {
+    document.documentElement.classList.remove('mm-route-pending');
+  }, []);
+
+  useEffect(() => {
     const savedLocationSource = readMapLocationSourceForAccount(accountLocationEmail);
     setMapPrefs({
       location: getLocalValue(MAP_PREF_KEYS.location) !== 'false',
@@ -338,11 +342,26 @@ export default function SettingsPage() {
     if (backingRef.current) return;
     backingRef.current = true;
     setIsExiting(true);
+    document.documentElement.classList.add('mm-route-pending');
 
     if (typeof window !== 'undefined') {
       const storedFallback = sessionStorage.getItem('mm_settings_return_to');
       const fallbackTarget = !storedFallback || storedFallback === '/settings' ? '/' : storedFallback;
-      window.location.assign(fallbackTarget);
+      if (storedFallback && storedFallback !== '/settings' && window.history.length > 1) {
+        window.history.back();
+        window.setTimeout(() => {
+          if (window.location.pathname === '/settings') {
+            window.location.assign(fallbackTarget);
+          }
+        }, 900);
+        return;
+      }
+      router.replace(fallbackTarget);
+      window.setTimeout(() => {
+        if (window.location.pathname === '/settings') {
+          window.location.assign(fallbackTarget);
+        }
+      }, 1200);
       return;
     }
 

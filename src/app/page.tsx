@@ -4,6 +4,7 @@ import type { ChangeEvent, CSSProperties, MouseEvent as ReactMouseEvent, Pointer
 import { useCompare } from '@/hooks/useCompare';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { GlassPanel, FilterChip } from '@/components/ui/glass';
@@ -78,6 +79,11 @@ function getNearestMapZoomLevelIndex(zoom: number) {
 
 function snapMapZoom(zoom: number) {
   return MAP_ZOOM_LEVELS[getNearestMapZoomLevelIndex(zoom)];
+}
+
+function markRoutePending() {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.add('mm-route-pending');
 }
 
 function getLocalValue(key: string) {
@@ -935,6 +941,10 @@ export default function MainPage() {
   const [consentSubmitting, setConsentSubmitting] = useState(false);
 
   useEffect(() => {
+    document.documentElement.classList.remove('mm-route-pending');
+  }, []);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const syncSearchParams = () => setSearchParams(new URLSearchParams(window.location.search));
     syncSearchParams();
@@ -1116,19 +1126,27 @@ export default function MainPage() {
 
   const settingsNavigationRef = useRef(false);
   const navigateToSettings = useCallback((event?: ReactMouseEvent<HTMLAnchorElement> | ReactPointerEvent<HTMLAnchorElement>) => {
-    const isTouchStart = event?.type === 'pointerdown' && 'pointerType' in event && event.pointerType === 'touch';
-    if (settingsNavigationRef.current) return;
+    if (settingsNavigationRef.current) {
+      event?.preventDefault();
+      return;
+    }
     settingsNavigationRef.current = true;
+    event?.preventDefault();
     try {
       sessionStorage.setItem('mm_settings_return_to', '/');
     } catch {}
-    if (isTouchStart && typeof window !== 'undefined') {
-      event.preventDefault();
-      window.requestAnimationFrame(() => {
-        window.setTimeout(() => window.location.assign('/settings'), 0);
-      });
+    markRoutePending();
+    router.prefetch('/settings');
+    router.push('/settings');
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        const staleMapDom = !!document.querySelector('.mm-map2-top');
+        if (window.location.pathname !== '/settings' || staleMapDom) {
+          window.location.assign('/settings');
+        }
+      }, 1000);
     }
-  }, []);
+  }, [router]);
   const prevSelectedRef = useRef<any>(null);
   const selectedMuseumRef = useRef<any>(null);
   const isHandlingPopState = useRef(false);
@@ -2778,8 +2796,9 @@ export default function MainPage() {
                   </button>
                 )}
               </div>
-              <a
+              <Link
                 href="/settings"
+                prefetch
                 className="mm-map2-icon-pill"
                 style={mm2.iconPill}
                 onPointerDown={navigateToSettings}
@@ -2790,7 +2809,7 @@ export default function MainPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-              </a>
+              </Link>
             </div>
 
             {newMuseums.length > 0 && (

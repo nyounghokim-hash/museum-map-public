@@ -24,6 +24,11 @@ const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; ar
     et: { map: 'Avaleht', saved: 'Salvestatud', plans: 'Reisid', artworks: 'Teosed', story: 'MM Story', collection: 'Kogu', compare: 'Võrdle' },
 };
 
+function markRoutePending() {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.add('mm-route-pending');
+}
+
 const styles = {
     root: {
         position: 'fixed',
@@ -284,7 +289,14 @@ export default function MobileBottomNav() {
         setMenuClosing(false);
         setNavigatingAway(false);
         setPendingHref(null);
+        document.documentElement.classList.remove('mm-route-pending');
     }, [pathname]);
+
+    useEffect(() => {
+        ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'].forEach((href) => {
+            try { router.prefetch(href); } catch { }
+        });
+    }, [router]);
 
     const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
     if (!isMobile || !showNavPages.includes(pathname) || detailOpen) return null;
@@ -314,15 +326,19 @@ export default function MobileBottomNav() {
 
     const requiresLogin = (href: string) => href === '/saved' || href === '/plans' || href === '/compare';
 
-    const startDocumentNavigation = (href: string) => {
+    const startRouteNavigation = (href: string) => {
         if (typeof window === 'undefined') return;
+        markRoutePending();
         setPendingHref(href);
         setNavigatingAway(true);
-        window.requestAnimationFrame(() => {
-            window.setTimeout(() => {
+        const targetPath = new URL(href, window.location.origin).pathname;
+        router.push(href);
+        window.setTimeout(() => {
+            const staleMapDom = targetPath !== '/' && !!document.querySelector('.mm-map2-top');
+            if (window.location.pathname !== targetPath || staleMapDom) {
                 window.location.assign(href);
-            }, 0);
-        });
+            }
+        }, 1200);
     };
 
     const handleTabClick = (href: string, auth?: boolean) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -345,9 +361,9 @@ export default function MobileBottomNav() {
             return;
         }
 
-        if (pathname === '/' && href !== '/' && typeof window !== 'undefined') {
+        if (href !== pathname && typeof window !== 'undefined') {
             event.preventDefault();
-            startDocumentNavigation(href);
+            startRouteNavigation(href);
         }
     };
 
@@ -361,10 +377,10 @@ export default function MobileBottomNav() {
             return;
         }
 
-        if (pathname === '/' && href !== '/' && typeof window !== 'undefined') {
+        if (href !== pathname && typeof window !== 'undefined') {
             event.preventDefault();
             touchRouteHandledRef.current = href;
-            startDocumentNavigation(href);
+            startRouteNavigation(href);
             window.setTimeout(() => {
                 if (touchRouteHandledRef.current === href) touchRouteHandledRef.current = null;
             }, 500);
@@ -403,10 +419,10 @@ export default function MobileBottomNav() {
         }
         setNavigatingAway(true);
         if (pathname === '/' && typeof window !== 'undefined') {
-            startDocumentNavigation(href);
+            startRouteNavigation(href);
             return;
         }
-        router.push(href);
+        startRouteNavigation(href);
     };
 
     const handleCenterPress = () => {
@@ -458,7 +474,7 @@ export default function MobileBottomNav() {
         <Link
             key={tab.href}
             href={tab.href}
-            prefetch={false}
+            prefetch
             onPointerDown={handleTabPointerDown(tab.href, 'auth' in tab ? tab.auth : false)}
             onClick={handleTabClick(tab.href, 'auth' in tab ? tab.auth : false)}
             className={`mm-nav-original-tab ${tab.active && !menuOpen ? 'is-active' : ''}`}
