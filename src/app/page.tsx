@@ -862,7 +862,10 @@ function NewMuseumListItem({ museum, locale, onSelect }: { museum: any; locale: 
 
 export default function MainPage() {
   const { compareIds: compareIdsArr } = useCompare();
-  const { savedIds: savedMuseumIds, refresh: refreshSavedIds } = useAccountSaves();
+  const { savedIds: savedMuseumIds, refresh: refreshSavedIds } = useAccountSaves({
+    initialFetch: 'idle',
+    idleTimeout: 3500,
+  });
   const compareIdsSet = useMemo(() => new Set(compareIdsArr), [compareIdsArr]);
   const [museums, setMuseums] = useState<any[]>([]);
   const [selectedMuseum, setSelectedMuseum] = useState<any | null>(null);

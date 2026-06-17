@@ -14,6 +14,11 @@ export type AccountSaveRecord = {
 type SessionUserLike = { email?: string | null; name?: string | null };
 type SessionLike = { user?: SessionUserLike | null } | null | undefined;
 type CacheEntry = { data: AccountSaveRecord[]; ts: number };
+type UseAccountSavesOptions = {
+    onUnauthorized?: () => void;
+    initialFetch?: 'immediate' | 'idle';
+    idleTimeout?: number;
+};
 
 const CACHE_TTL_MS = 30_000;
 const savesCache = new Map<string, CacheEntry>();
@@ -57,6 +62,23 @@ function sameSaveList(a: AccountSaveRecord[], b: AccountSaveRecord[]) {
 function emitSavesChanged(accountKey: string | null) {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent(ACCOUNT_SAVES_CHANGE_EVENT, { detail: { accountKey } }));
+}
+
+function scheduleIdle(callback: () => void, timeout = 2500) {
+    if (typeof window === 'undefined') {
+        callback();
+        return undefined;
+    }
+    const win = window as Window & typeof globalThis & {
+        requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+        cancelIdleCallback?: (handle: number) => void;
+    };
+    if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+        const id = win.requestIdleCallback(callback, { timeout });
+        return () => win.cancelIdleCallback?.(id);
+    }
+    const id = win.setTimeout(callback, timeout);
+    return () => win.clearTimeout(id);
 }
 
 export function getCachedAccountSaves(accountKey: string | null) {
@@ -116,9 +138,9 @@ export async function fetchAccountSaves(accountKey: string | null, options: { fo
     return promise;
 }
 
-export function useAccountSaves(options: { onUnauthorized?: () => void } = {}) {
+export function useAccountSaves(options: UseAccountSavesOptions = {}) {
     const { data: session, status } = useSession();
-    const { onUnauthorized } = options;
+    const { onUnauthorized, initialFetch = 'immediate', idleTimeout = 2500 } = options;
     const accountKey = getSessionAccountKey(session, status);
     const [saves, setSaves] = useState<AccountSaveRecord[]>(() => getCachedAccountSaves(accountKey));
     const [loading, setLoading] = useState(status === 'loading');
@@ -156,26 +178,36 @@ export function useAccountSaves(options: { onUnauthorized?: () => void } = {}) {
 
         const cached = getCachedAccountSaves(accountKey);
         if (cached.length > 0) setSaves(prev => (sameSaveList(prev, cached) ? prev : cached));
-        setLoading(!savesCache.has(accountKey));
+        setLoading(!savesCache.has(accountKey) && initialFetch === 'immediate');
         setError(null);
 
-        fetchAccountSaves(accountKey)
-            .then(next => {
-                if (!cancelled) setSaves(prev => (sameSaveList(prev, next) ? prev : next));
-            })
-            .catch(err => {
-                if (cancelled) return;
-                setError(err instanceof Error ? err : new Error('Failed to fetch saves'));
-                if (err instanceof AccountSavesUnauthorizedError) onUnauthorized?.();
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
+        const load = () => {
+            if (cancelled) return;
+            if (!savesCache.has(accountKey)) setLoading(true);
+            fetchAccountSaves(accountKey)
+                .then(next => {
+                    if (!cancelled) setSaves(prev => (sameSaveList(prev, next) ? prev : next));
+                })
+                .catch(err => {
+                    if (cancelled) return;
+                    setError(err instanceof Error ? err : new Error('Failed to fetch saves'));
+                    if (err instanceof AccountSavesUnauthorizedError) onUnauthorized?.();
+                })
+                .finally(() => {
+                    if (!cancelled) setLoading(false);
+                });
+        };
+
+        const cancelIdle = initialFetch === 'idle' && !savesCache.has(accountKey)
+            ? scheduleIdle(load, idleTimeout)
+            : undefined;
+        if (!cancelIdle) load();
 
         return () => {
             cancelled = true;
+            cancelIdle?.();
         };
-    }, [accountKey, status, onUnauthorized]);
+    }, [accountKey, status, onUnauthorized, initialFetch, idleTimeout]);
 
     const refresh = useCallback((refreshOptions: { force?: boolean } = { force: true }) => {
         if (!accountKey) {
