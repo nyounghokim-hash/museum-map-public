@@ -9,6 +9,7 @@ import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import * as gtag from '@/lib/gtag';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { ACTIVE_TRIP_CHANGE_EVENT, clearActiveTripForAccount, getActiveTripForAccount } from '@/lib/accountStorage';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
 const EMPTY_ACTION_LABELS: Record<string, { primary: string; secondary: string }> = {
     ko: { primary: '내 픽에서 경로 만들기', secondary: '박물관 찾기' },
@@ -136,7 +137,7 @@ export default function MyPlansPage() {
     };
 
     return (
-        <div className="no-back-swipe mm-editorial-page2 mm-travel-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10 overflow-visible">
+        <div className="no-back-swipe mm-editorial-page2 mm-travel-page2 mm-plans-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10 overflow-visible">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 {loading ? (
                     <>
@@ -171,7 +172,7 @@ export default function MyPlansPage() {
                                 <div className={`mm-skel-line ${i === 0 ? 'w-3/4' : 'w-1/2'} mt-3`} />
                                 <div className="flex items-center gap-1 mt-3">
                                     {Array.from({ length: i === 0 ? 4 : i === 1 ? 3 : 2 }).map((_, j) => (
-                                        <div key={j} className="mm-skel-circle w-9 h-9 sm:w-10 sm:h-10 shrink-0" />
+                                        <div key={j} className="mm-skel-block rounded-xl w-9 h-9 sm:w-10 sm:h-10 shrink-0" />
                                     ))}
                                 </div>
                             </div>
@@ -179,14 +180,7 @@ export default function MyPlansPage() {
                     ))}
                 </div>
             ) : plans.length === 0 ? (
-                <div className="py-16 sm:py-20 text-center">
-                    <div className="text-5xl sm:text-6xl mb-4">
-                        <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                        </svg>
-                    </div>
-                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">{t('plans.empty', locale)}</h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base mb-6">{t('plans.emptyDesc', locale)}</p>
+                <EmptyStateGame locale={locale} title={t('plans.empty', locale)} description={t('plans.emptyDesc', locale)}>
                     <div className="mm-travel-empty-actions mx-auto grid max-w-sm grid-cols-1 gap-2 sm:grid-cols-2">
                         <Link href="/saved" className="mm-travel-empty-action mm-travel-empty-action--primary">
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
@@ -201,7 +195,7 @@ export default function MyPlansPage() {
                             {emptyActions.secondary}
                         </Link>
                     </div>
-                </div>
+                </EmptyStateGame>
             ) : (
                 <div className="flex flex-col gap-3 sm:gap-4">
                     {[...plans].sort((a, b) => {
@@ -254,11 +248,11 @@ export default function MyPlansPage() {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2 mt-1.5">
-                                            <span className="text-[11px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                            <span className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-blue-200/75 bg-blue-50/80 dark:bg-blue-900/25 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
                                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                 {dateStr}
                                             </span>
-                                            <span className="text-[11px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                            <span className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-blue-200/75 bg-blue-50/80 dark:bg-blue-900/25 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
                                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                                 {stopCount} {stopCount === 1 ? t('plans.stop', locale) : t('plans.stops', locale)}
                                             </span>
@@ -273,7 +267,7 @@ export default function MyPlansPage() {
                                             <div className="flex items-center gap-1 mt-3 overflow-x-auto scrollbar-hide">
                                                 {plan.stops.slice(0, 5).map((stop: any, idx: number) => (
                                                     <div key={stop.id || idx} className="flex items-center shrink-0">
-                                                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden border-2 border-white dark:border-neutral-800 shadow-sm bg-gray-100 dark:bg-neutral-800">
+                                                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden border-2 border-white dark:border-blue-950 shadow-sm bg-gray-100 dark:bg-blue-950/60">
                                                             {getMuseumImageSrc(stop.museum) ? (
                                                                 <img src={getMuseumImageSrc(stop.museum)!} alt={stop.museum.name || ''} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-2 opacity-20 dark:invert dark:opacity-60'; }} />
                                                             ) : (

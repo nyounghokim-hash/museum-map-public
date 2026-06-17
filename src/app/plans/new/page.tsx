@@ -182,7 +182,7 @@ function AutoRouteContent() {
             <div className="flex flex-col md:flex-row gap-5 md:gap-6">
                 {/* Route Itinerary — mobile: first (order-1), desktop: second (md:order-2) */}
                 <div className="w-full md:w-96 order-1 md:order-2">
-                    <GlassPanel className="mm-route-create2-panel p-5 md:p-6 relative max-h-[50vh] md:max-h-[calc(100vh-8rem)] overflow-y-auto hide-scrollbar" intensity="light">
+                    <GlassPanel className="mm-route-create2-panel rounded-[28px] p-5 md:p-6 relative max-h-[50vh] md:max-h-[calc(100vh-8rem)] overflow-y-auto hide-scrollbar" intensity="light">
                         <h3 className="text-xs font-semibold uppercase tracking-[0.14em] mb-4" style={{ color: 'var(--mm-text-tertiary)' }}>{t('plans.routeItinerary', locale)}</h3>
                         <div className="absolute left-9 md:left-10 top-16 bottom-8 w-0.5 bg-blue-100 dark:bg-blue-950/80 z-0"></div>
 
@@ -248,7 +248,7 @@ function AutoRouteContent() {
 
                 {/* Form — mobile: second (order-2), desktop: first (md:order-1) */}
                 <div className="flex-1 order-2 md:order-1">
-                    <form onSubmit={handleSavePlan} className="mm-route-create2-form glass-panel gradient-border-subtle p-5 md:p-6 rounded-[26px]">
+                    <form onSubmit={handleSavePlan} className="mm-route-create2-form glass-panel gradient-border-subtle p-5 md:p-6 rounded-[28px]">
                         <div className="space-y-5 mb-6">
                             <div>
                                 <label className="text-xs font-semibold uppercase tracking-[0.14em] mb-2 block" style={{ color: 'var(--mm-text-tertiary)' }}>{t('plans.tripTitle', locale)}</label>

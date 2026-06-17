@@ -4,6 +4,31 @@ import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
 import { transformNestedPhotos } from '@/lib/photo-proxy';
 
+async function attachVisitRecordsToPlans(plans: any[], userId: string) {
+    const museumIds = Array.from(new Set(
+        plans.flatMap((plan: any) => (plan.stops || []).map((stop: any) => stop.museumId).filter(Boolean))
+    ));
+    if (museumIds.length === 0) return plans;
+
+    const visits = await prisma.review.findMany({
+        where: { userId, museumId: { in: museumIds }, content: '' },
+        orderBy: { visitedAt: 'desc' },
+        select: { id: true, museumId: true, visitedAt: true },
+    });
+    const visitByMuseumId = new Map<string, { id: string; museumId: string; visitedAt: Date }>();
+    visits.forEach((visit) => {
+        if (!visitByMuseumId.has(visit.museumId)) visitByMuseumId.set(visit.museumId, visit);
+    });
+
+    return plans.map((plan: any) => ({
+        ...plan,
+        stops: (plan.stops || []).map((stop: any) => {
+            const visit = visitByMuseumId.get(stop.museumId);
+            return visit ? { ...stop, visitedAt: visit.visitedAt, reviewId: visit.id } : stop;
+        }),
+    }));
+}
+
 export async function POST(req: NextRequest) {
     try {
         const user = await requireAuth();
@@ -67,7 +92,8 @@ export async function GET(req: NextRequest) {
             include: { stops: { include: { museum: { select: { name: true, nameKo: true, nameEn: true, nameTranslations: true, imageUrl: true, cachedPhotoUrls: true, city: true, cityKo: true, cityTranslations: true, country: true } } } } },
             orderBy: { createdAt: 'desc' }
         });
-        return successResponse(plans.map(transformNestedPhotos));
+        const enriched = await attachVisitRecordsToPlans(plans, user.id);
+        return successResponse(enriched.map(transformNestedPhotos));
     } catch (err: any) {
         if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Auth required', 401);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch plans', 500);

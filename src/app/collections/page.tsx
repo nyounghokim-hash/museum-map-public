@@ -5,10 +5,30 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
-import { t, Locale, formatDate, translateCategory } from '@/lib/i18n';
-import * as gtag from '@/lib/gtag';
+import { t, Locale, translateCategory } from '@/lib/i18n';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
+import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
+
+const INITIAL_PUBLIC_COLLECTIONS = 40;
+const PUBLIC_COLLECTIONS_INCREMENT = 40;
+
+const SHOW_MORE_LABELS: Record<string, string> = {
+    ko: '더 보기',
+    en: 'Show more',
+    ja: 'さらに表示',
+    de: 'Mehr anzeigen',
+    fr: 'Afficher plus',
+    es: 'Ver más',
+    pt: 'Ver mais',
+    'zh-CN': '显示更多',
+    'zh-TW': '顯示更多',
+    da: 'Vis flere',
+    fi: 'Näytä lisää',
+    sv: 'Visa fler',
+    et: 'Näita rohkem',
+};
 
 // Sub-component for translating collection titles
 function TranslatedTitle({ text, locale }: { text: string; locale: string }) {
@@ -22,22 +42,35 @@ export default function CollectionsPage() {
     const [publicCollections, setPublicCollections] = useState<any[]>([]);
     const [loadingMy, setLoadingMy] = useState(true);
     const [loadingPublic, setLoadingPublic] = useState(true);
+    const [visiblePublicCount, setVisiblePublicCount] = useState(INITIAL_PUBLIC_COLLECTIONS);
+    const [loginModalOpen, setLoginModalOpen] = useState(false);
     const { locale } = useApp();
-    const { showConfirm, showAlert } = useModal();
-    const { data: session } = useSession();
+    const { showConfirm } = useModal();
+    const { data: session, status } = useSession();
     const router = useRouter();
+    const isSignedInUser = status === 'authenticated' && !!session?.user && !session.user.name?.startsWith('guest_');
 
     useEffect(() => {
-        fetch('/api/collections')
-            .then(r => r.json())
-            .then(res => { setMyCollections(res.data || []); setLoadingMy(false); })
-            .catch(() => setLoadingMy(false));
-
         fetch('/api/collections?public=true')
             .then(r => r.json())
             .then(res => { setPublicCollections(res.data || []); setLoadingPublic(false); })
             .catch(() => setLoadingPublic(false));
     }, []);
+
+    useEffect(() => {
+        if (status === 'loading') return;
+        if (!isSignedInUser) {
+            setMyCollections([]);
+            setLoadingMy(false);
+            return;
+        }
+
+        setLoadingMy(true);
+        fetch('/api/collections')
+            .then(r => r.json())
+            .then(res => { setMyCollections(res.data || []); setLoadingMy(false); })
+            .catch(() => setLoadingMy(false));
+    }, [status, isSignedInUser]);
 
     const handleDelete = (id: string) => {
         showConfirm(t('modal.deleteCollection', locale), async () => {
@@ -48,6 +81,8 @@ export default function CollectionsPage() {
 
     const collections = tab === 'my' ? myCollections : publicCollections;
     const loading = tab === 'my' ? loadingMy : loadingPublic;
+    const visibleCollections = tab === 'public' ? collections.slice(0, visiblePublicCount) : collections;
+    const hasMorePublicCollections = tab === 'public' && visiblePublicCount < collections.length;
 
     const tabLabel = (key: string) => {
         const labels: Record<string, Record<string, string>> = {
@@ -60,6 +95,14 @@ export default function CollectionsPage() {
     // Swipe to switch tabs
     const touchStartX = useRef(0);
     const touchStartY = useRef(0);
+    const openCollectionTab = (nextTab: 'my' | 'public') => {
+        if (nextTab === 'my' && !isSignedInUser) {
+            setLoginModalOpen(true);
+            return;
+        }
+        setTab(nextTab);
+    };
+
     const handleSwipeStart = (e: React.TouchEvent) => {
         touchStartX.current = e.touches[0].clientX;
         touchStartY.current = e.touches[0].clientY;
@@ -68,8 +111,8 @@ export default function CollectionsPage() {
         const dx = e.changedTouches[0].clientX - touchStartX.current;
         const dy = e.changedTouches[0].clientY - touchStartY.current;
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-            if (dx < 0 && tab === 'public') setTab('my');
-            else if (dx > 0 && tab === 'my') setTab('public');
+            if (dx < 0 && tab === 'public') openCollectionTab('my');
+            else if (dx > 0 && tab === 'my') openCollectionTab('public');
         }
     };
 
@@ -105,7 +148,7 @@ export default function CollectionsPage() {
                 {(['public', 'my'] as const).map((key) => (
                     <button
                         key={key}
-                        onClick={() => setTab(key)}
+                        onClick={() => openCollectionTab(key)}
                         className={`mm-gallery-chip flex-1 justify-center ${tab === key
                             ? 'is-active'
                             : ''
@@ -134,107 +177,112 @@ export default function CollectionsPage() {
                     ))}
                 </div>
             ) : collections.length === 0 ? (
-                <div className="py-20 text-center">
-                    <div className="text-6xl mb-4">
-                        {tab === 'my' ? (
-                            <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-                        ) : (
-                            <svg className="w-16 h-16 mx-auto text-gray-300 dark:text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        )}
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">
-                        {tab === 'my' ? t('collections.empty', locale) : t('collections.publicEmpty', locale)}
-                    </h2>
-                    <p className="text-gray-500 dark:text-gray-400 mb-6">
-                        {tab === 'my' ? t('collections.emptyDesc', locale) : t('collections.publicEmptyDesc', locale)}
-                    </p>
-                </div>
+                <EmptyStateGame
+                    locale={locale}
+                    title={tab === 'my' ? t('collections.empty', locale) : t('collections.publicEmpty', locale)}
+                    description={tab === 'my' ? t('collections.emptyDesc', locale) : t('collections.publicEmptyDesc', locale)}
+                />
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {collections.map((col: any) => (
-                        <Link key={col.id} href={`/collections/${col.id}`}>
-                            <div className="mm-collection-card2 p-4 sm:p-5 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative active:scale-[0.98]">
-                                {tab === 'my' && (
-                                    <button
-                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col.id); }}
-                                        className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    </button>
-                                )}
-                                <div className="min-w-0 pr-8 sm:pr-10">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="min-w-0 truncate text-base sm:text-lg font-bold group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 transition-colors leading-snug">{locale === 'ko' ? col.title : <TranslatedTitle text={col.title} locale={locale} />}</h3>
-                                        <span className="shrink-0 text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                                            {col._count?.items || 0} {t('collections.items', locale)}
-                                        </span>
-                                    </div>
-                                    {tab === 'public' && col.user?.name && (
-                                        <span className="inline-block mt-1.5 text-[10px] font-bold text-gray-500 dark:text-blue-200/60 bg-gray-100 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">
-                                            {(col.user.email === 'nyongho.kim@gmail.com' || col.user.name === 'System Admin') ? 'MM Editor' : col.user.name.startsWith('guest_') ? (locale === 'ko' ? '익명' : 'Anonymous') : col.user.name}
-                                        </span>
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {visibleCollections.map((col: any) => (
+                            <Link key={col.id} href={`/collections/${col.id}`}>
+                                <div className="mm-collection-card2 p-4 sm:p-5 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group relative active:scale-[0.98]">
+                                    {tab === 'my' && (
+                                        <button
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDelete(col.id); }}
+                                            className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
                                     )}
-                                </div>
-                                <div className="flex items-center gap-3 mt-2 flex-wrap">
-                                    {/* Thumbnail previews */}
-                                    {col.items && col.items.length > 0 && (
-                                        <div className="flex -space-x-2">
-                                            {col.items.slice(0, 5).map((item: any, idx: number) => (
-                                                <div key={idx} className="w-7 h-7 rounded-full border-2 border-white dark:border-neutral-900 overflow-hidden bg-gray-100 dark:bg-neutral-800 shrink-0 relative" title={item.museum?.name}>
-                                                    {getMuseumImageSrc(item.museum) ? (
-                                                        <img
-                                                            src={getMuseumImageSrc(item.museum)!}
-                                                            alt=""
-                                                            className="w-full h-full object-cover opacity-0 transition-opacity duration-500"
-                                                            onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
-                                                            onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-2 opacity-20 dark:invert dark:opacity-60'; }}
-                                                        />
-                                                    ) : (
-                                                        <img src="/logo.svg" alt="" className="w-5 h-5 absolute inset-0 m-auto opacity-20 dark:invert dark:opacity-[0.6]" />
-                                                    )}
-                                                </div>
-                                            ))}
-                                            {(col._count?.items || 0) > 5 && (
-                                                <div className="w-7 h-7 rounded-full border-2 border-white dark:border-neutral-900 bg-gray-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
-                                                    <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400">+{(col._count?.items || 0) - 5}</span>
-                                                </div>
+                                    <div className="min-w-0 pr-8 sm:pr-10">
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="min-w-0 truncate text-base sm:text-lg font-bold group-hover:text-blue-600 dark:text-white dark:group-hover:text-blue-400 transition-colors leading-snug">{locale === 'ko' ? col.title : <TranslatedTitle text={col.title} locale={locale} />}</h3>
+                                            {col.isVisitedCollection && (
+                                                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                                    {locale === 'ko' ? '다녀간 컬렉션' : 'Visited'}
+                                                </span>
                                             )}
+                                            <span className="shrink-0 text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+                                                {col._count?.items || 0} {t('collections.items', locale)}
+                                            </span>
                                         </div>
-                                    )}
-                                    {/* Museum type category tags */}
-                                    {col.items && col.items.length > 0 && (() => {
-                                        const types = [...new Set(col.items.map((item: any) => item.museum?.type).filter(Boolean))];
-                                        return (
-                                            <>
-                                                {types.length > 0 && (
-                                                    <>
-                                                        <span className="text-gray-300 dark:text-blue-900/50">•</span>
-                                                        {types.slice(0, 3).map((type: any) => (
-                                                            <span key={type} className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/25 px-2 py-0.5 rounded-full capitalize">
-                                                                {translateCategory(type, locale)}
-                                                            </span>
-                                                        ))}
-                                                    </>
+                                        {tab === 'public' && col.user?.name && (
+                                            <span className="inline-block mt-1.5 text-[10px] font-bold text-gray-500 dark:text-blue-200/60 bg-gray-100 dark:bg-blue-950/40 px-2 py-0.5 rounded-full">
+                                                {(col.user.email === 'nyongho.kim@gmail.com' || col.user.name === 'System Admin') ? 'MM Editor' : col.user.name.startsWith('guest_') ? (locale === 'ko' ? '익명' : 'Anonymous') : col.user.name}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                        {/* Thumbnail previews */}
+                                        {col.items && col.items.length > 0 && (
+                                            <div className="flex -space-x-2">
+                                                {col.items.slice(0, 5).map((item: any, idx: number) => (
+                                                    <div key={idx} className="w-7 h-7 rounded-full border-2 border-white dark:border-neutral-900 overflow-hidden bg-gray-100 dark:bg-neutral-800 shrink-0 relative" title={item.museum?.name}>
+                                                        {getMuseumImageSrc(item.museum) ? (
+                                                            <img
+                                                                src={getMuseumImageSrc(item.museum)!}
+                                                                alt=""
+                                                                loading="lazy"
+                                                                className="w-full h-full object-cover opacity-0 transition-opacity duration-500"
+                                                                onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
+                                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'w-full h-full object-contain p-2 opacity-20 dark:invert dark:opacity-60'; }}
+                                                            />
+                                                        ) : (
+                                                            <img src="/logo.svg" alt="" loading="lazy" className="w-5 h-5 absolute inset-0 m-auto opacity-20 dark:invert dark:opacity-[0.6]" />
+                                                        )}
+                                                    </div>
+                                                ))}
+                                                {(col._count?.items || 0) > 5 && (
+                                                    <div className="w-7 h-7 rounded-full border-2 border-white dark:border-neutral-900 bg-gray-100 dark:bg-neutral-800 flex items-center justify-center shrink-0">
+                                                        <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400">+{(col._count?.items || 0) - 5}</span>
+                                                    </div>
                                                 )}
-                                            </>
-                                        );
-                                    })()}
+                                            </div>
+                                        )}
+                                        {/* Museum type category tags */}
+                                        {col.items && col.items.length > 0 && (() => {
+                                            const types = [...new Set(col.items.map((item: any) => item.museum?.type).filter(Boolean))];
+                                            return (
+                                                <>
+                                                    {types.length > 0 && (
+                                                        <>
+                                                            <span className="text-gray-300 dark:text-blue-900/50">•</span>
+                                                            {types.slice(0, 3).map((type: any) => (
+                                                                <span key={type} className="text-[10px] font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/25 px-2 py-0.5 rounded-full capitalize">
+                                                                    {translateCategory(type, locale)}
+                                                                </span>
+                                                            ))}
+                                                        </>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
+                            </Link>
+                        ))}
+                    </div>
+                    {hasMorePublicCollections && (
+                        <button
+                            type="button"
+                            onClick={() => setVisiblePublicCount(count => count + PUBLIC_COLLECTIONS_INCREMENT)}
+                            className="mm-gallery-chip mx-auto mt-5 flex justify-center px-5"
+                        >
+                            {SHOW_MORE_LABELS[locale] || SHOW_MORE_LABELS.en}
+                        </button>
+                    )}
+                </>
             )}
 
             {tab === 'my' && !loadingMy && (
                 <div
                     onClick={() => {
-                        if (session?.user?.name?.startsWith('guest_')) {
-                            showConfirm(t('auth.loginRequired', locale), () => {
-                                router.push('/login');
-                            });
+                        if (!isSignedInUser) {
+                            setLoginModalOpen(true);
                         } else {
                             router.push('/collections/new');
                         }
@@ -251,6 +299,7 @@ export default function CollectionsPage() {
                     </div>
                 </div>
             )}
+            <LoginRequiredModal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} callbackUrl="/collections" />
         </div>
     );
 }

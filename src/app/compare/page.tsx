@@ -10,6 +10,7 @@ import { useCompare } from '@/hooks/useCompare';
 import { t, translateCategory, Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
 export default function ComparePage() {
     const { locale } = useApp();
@@ -160,19 +161,18 @@ export default function ComparePage() {
 
             {/* Empty State — above cards */}
             {compareCount === 0 && !loading && (
-                <div className="py-8 sm:py-10 text-center">
-                    <svg className="w-14 h-14 mx-auto text-gray-300 dark:text-neutral-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2} aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
-                    </svg>
-                    <h2 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200 mb-1.5">{t('compare.empty', locale)}</h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm mb-5">{t('compare.emptyDesc', locale)}</p>
+                <EmptyStateGame locale={locale} title={t('compare.empty', locale)} description={t('compare.emptyDesc', locale)} compact>
                     <button
                         onClick={() => setSearchOpen(true)}
                         className="gradient-btn px-5 py-2.5 rounded-xl font-bold text-white text-sm active:scale-95 transition-transform focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                         {t('compare.search', locale)}
                     </button>
+                </EmptyStateGame>
+            )}
 
+            {compareCount === 0 && !loading && (
+                <>
                     {/* Saved suggestions — quick add */}
                     {savedSuggestions.length > 0 && (
                         <div className="mt-8 text-left max-w-xl mx-auto">
@@ -199,7 +199,7 @@ export default function ComparePage() {
                             </div>
                         </div>
                     )}
-                </div>
+                </>
             )}
 
             {/* Compare Grid — mobile: horizontal scroll, lg+: flex-wrap */}

@@ -38,6 +38,24 @@ export default function NavHeader() {
     const [activeTrip, setActiveTrip] = useState<any>(null);
 
     useEffect(() => {
+        try {
+            if (sessionStorage.getItem('mm-logout-done')) {
+                sessionStorage.removeItem('mm-logout-done');
+                const msgs: Record<string, string> = {
+                    ko: '로그아웃이 완료되었습니다',
+                    en: 'You have been signed out.',
+                    ja: 'ログアウトしました。',
+                    de: 'Du wurdest abgemeldet.',
+                    fr: 'Vous avez été déconnecté.',
+                    es: 'Has cerrado sesión.',
+                };
+                showAlert(msgs[locale] || msgs.en);
+            }
+        } catch { /* ignore */ }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
         if (typeof window === 'undefined') return;
         const update = () => setIsMapMobileHome(pathname === '/' && window.innerWidth < 768);
         update();
@@ -757,6 +775,7 @@ export default function NavHeader() {
                             localStorage.removeItem('compareMuseums');
                             localStorage.removeItem('activeTrip');
                             window.dispatchEvent(new Event('compareChange'));
+                            try { sessionStorage.setItem('mm-logout-done', '1'); } catch { }
                             const { signOut } = require('next-auth/react');
                             signOut({ callbackUrl: '/' });
                         }}

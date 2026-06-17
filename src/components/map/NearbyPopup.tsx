@@ -16,7 +16,7 @@ const NEARBY_LABELS: Record<string, {
     statusTitle: string;
     statusNote: string;
 }> = {
-    ko: { title: '내 주변 박물관', close: '닫기', locating: '현재 위치를 확인하는 중이에요', deniedTitle: '현재 위치를 사용하려면 권한이 필요해요', deniedBody: '브라우저 설정에서 위치 접근을 허용해 주세요.', unsupported: '이 브라우저에서는 현재 위치를 사용할 수 없어요', empty: '주변에서 표시할 박물관을 찾지 못했어요', statusTitle: '운영 정보', statusNote: '박물관 및 미술관별 입장 마감 시간이 상이할 수 있습니다.' },
+    ko: { title: '내 주변 미술관/박물관', close: '닫기', locating: '현재 위치를 확인하는 중이에요', deniedTitle: '현재 위치를 사용하려면 권한이 필요해요', deniedBody: '브라우저 설정에서 위치 접근을 허용해 주세요.', unsupported: '이 브라우저에서는 현재 위치를 사용할 수 없어요', empty: '주변에서 표시할 미술관/박물관을 찾지 못했어요', statusTitle: '운영 정보', statusNote: '박물관 및 미술관별 입장 마감 시간이 상이할 수 있습니다.' },
     en: { title: 'Nearby Museums', close: 'Close', locating: 'Locating...', deniedTitle: 'Location permission required', deniedBody: 'Allow location access in browser settings', unsupported: 'Geolocation is not supported', empty: 'No museums found nearby', statusTitle: 'Hours', statusNote: 'Last admission times may vary by museum or gallery.' },
     ja: { title: '周辺のミュージアム', close: '閉じる', locating: '現在地を確認しています', deniedTitle: '位置情報の許可が必要です', deniedBody: 'ブラウザ設定で位置情報アクセスを許可してください。', unsupported: 'このブラウザでは位置情報を使用できません', empty: '周辺に表示できるミュージアムが見つかりません', statusTitle: '営業時間', statusNote: '最終入場時間はミュージアムごとに異なる場合があります。' },
     de: { title: 'Museen in der Nähe', close: 'Schließen', locating: 'Standort wird ermittelt...', deniedTitle: 'Standortberechtigung erforderlich', deniedBody: 'Erlauben Sie den Standortzugriff in den Browsereinstellungen.', unsupported: 'Geolokalisierung wird nicht unterstützt', empty: 'Keine Museen in der Nähe gefunden', statusTitle: 'Öffnungszeiten', statusNote: 'Letzter Einlass kann je nach Museum oder Galerie variieren.' },
@@ -51,6 +51,8 @@ interface Props {
     triggerRef?: RefObject<HTMLElement | null>;
     /** Optional saved/manual map location. When present, the popup does not request geolocation. */
     locationOverride?: { lat: number; lng: number } | null;
+    /** Optional category filter inherited from the active map category. */
+    categoryFilter?: string;
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -63,12 +65,13 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
     return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-export default function NearbyPopup({ isOpen, closing = false, onClose, museums, onMuseumClick, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef, locationOverride }: Props) {
+export default function NearbyPopup({ isOpen, closing = false, onClose, museums, onMuseumClick, anchor = 'left', vertical = 'below', mode = 'popover', triggerRef, locationOverride, categoryFilter = 'All' }: Props) {
     const { locale } = useApp();
     type State = 'idle' | 'loading' | 'ready' | 'denied' | 'unsupported';
     const [state, setState] = useState<State>('idle');
     const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
     const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties | null>(null);
+    const [statusDetailsById, setStatusDetailsById] = useState<Record<string, { openingHours?: unknown; visitorInfo?: unknown }>>({});
     const panelRef = useRef<HTMLDivElement>(null);
 
     // Close on outside click (ignores the panel itself and the trigger button)
@@ -144,11 +147,50 @@ export default function NearbyPopup({ isOpen, closing = false, onClose, museums,
     const nearby = useMemo(() => {
         if (!userPos) return [];
         return museums
+            .filter((m: any) => categoryFilter === 'All' || m?.type === categoryFilter)
             .filter((m: any) => typeof m?.latitude === 'number' && typeof m?.longitude === 'number')
             .map((m: any) => ({ ...m, distance: haversineKm(userPos.lat, userPos.lng, m.latitude, m.longitude) }))
             .sort((a: any, b: any) => a.distance - b.distance)
             .slice(0, 8);
-    }, [userPos, museums]);
+    }, [userPos, museums, categoryFilter]);
+
+    const nearbyIds = useMemo(() => nearby.map((museum: any) => museum.id).filter(Boolean).join(','), [nearby]);
+
+    useEffect(() => {
+        if (!isOpen || state !== 'ready' || !nearbyIds) return;
+        const ids = nearbyIds.split(',').filter(id => id && !statusDetailsById[id]);
+        if (ids.length === 0) return;
+
+        let cancelled = false;
+        fetch(`/api/museums?ids=${encodeURIComponent(ids.slice(0, 8).join(','))}`)
+            .then(response => (response.ok ? response.json() : null))
+            .then(json => {
+                if (cancelled || !json) return;
+                const rows = json.data?.data || json.data || [];
+                if (!Array.isArray(rows) || rows.length === 0) return;
+                setStatusDetailsById(prev => {
+                    const next = { ...prev };
+                    rows.forEach((row: any) => {
+                        if (!row?.id) return;
+                        next[row.id] = {
+                            openingHours: row.openingHours,
+                            visitorInfo: row.visitorInfo,
+                        };
+                    });
+                    return next;
+                });
+            })
+            .catch(() => { });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, nearbyIds, state, statusDetailsById]);
+
+    const nearbyWithStatus = useMemo(() => nearby.map((museum: any) => {
+        const details = statusDetailsById[museum.id];
+        return details ? { ...museum, ...details } : museum;
+    }), [nearby, statusDetailsById]);
 
     if (!isOpen) return null;
     // Popover mode: wait for layout-measured position before rendering to avoid
@@ -218,7 +260,7 @@ export default function NearbyPopup({ isOpen, closing = false, onClose, museums,
                         {labels.empty}
                     </div>
                 )}
-                {state === 'ready' && nearby.map((m: any) => {
+                {state === 'ready' && nearbyWithStatus.map((m: any) => {
                     const openStatus = resolveMuseumOpenStatus(m, locale);
                     return (
                         <button

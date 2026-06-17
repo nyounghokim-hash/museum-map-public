@@ -357,7 +357,7 @@ export default async function BlogPostDetail({ params }: { params: Promise<{ id:
     }
 
     return (
-        <article className="w-full max-w-[1080px] mx-auto lg:px-4 lg:py-8 lg:mt-8 pb-56 lg:pb-8 relative">
+        <article className="w-full max-w-[1080px] mx-auto lg:px-4 lg:py-8 lg:mt-8 pb-0 lg:pb-8 relative">
             <script
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -365,7 +365,7 @@ export default async function BlogPostDetail({ params }: { params: Promise<{ id:
 
 
 
-            <div className="bg-white dark:bg-neutral-900 lg:rounded-3xl overflow-hidden lg:border border-gray-100 dark:border-neutral-800 lg:shadow-2xl">
+            <div className="bg-white dark:bg-neutral-900 overflow-hidden lg:bg-transparent dark:lg:bg-transparent lg:overflow-visible">
                 <BlogContentClient post={serializedPost} serverLocale={locale} />
             </div>
         </article>

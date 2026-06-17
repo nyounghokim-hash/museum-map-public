@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useTranslatedTexts } from '@/hooks/useTranslation';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
 type NotificationPrefs = {
     notificationsEnabled: boolean;
@@ -247,29 +248,9 @@ export default function NotificationsPage() {
                 </section>
 
                 {!prefs.notificationsEnabled ? (
-                    <div className="mm-notification-empty2">
-                        <div className="mm-notification-empty-icon">
-                            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M18 8.25 6 20.25M6.75 6.75A6.002 6.002 0 006 9.75v3.159c0 .538-.214 1.055-.595 1.436L4 15.75h9.75M9 18.75a3 3 0 005.4 1.8M12 3a2 2 0 00-2 2v.341" />
-                            </svg>
-                        </div>
-                        <h2>{prefLabels.disabledTitle}</h2>
-                        <p>{prefLabels.disabledDesc}</p>
-                    </div>
+                    <EmptyStateGame locale={locale} title={prefLabels.disabledTitle} description={prefLabels.disabledDesc} compact />
                 ) : notifications.length === 0 ? (
-                    <div className="mm-notification-empty2">
-                        <div className="mm-notification-empty-icon">
-                            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                            </svg>
-                        </div>
-                        <h2>
-                            {t('notif.empty', locale)}
-                        </h2>
-                        <p>
-                            {t('notif.emptyDesc', locale)}
-                        </p>
-                    </div>
+                    <EmptyStateGame locale={locale} title={t('notif.empty', locale)} description={t('notif.emptyDesc', locale)} compact />
                 ) : (
                     <div className="mm-notification-list2">
                         {notifications.map(n => (

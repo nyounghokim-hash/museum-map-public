@@ -55,17 +55,17 @@ export async function GET(req: Request) {
         } else if (entityType === 'museum') {
             const museum = await (prisma as any).museum.findUnique({
                 where: { id: entityId },
-                select: { name: true, nameKo: true, description: true, descriptionKo: true },
+                select: { name: true, nameKo: true, description: true, descriptionKo: true, nameTranslations: true, summaryTranslations: true, cityTranslations: true },
             });
             if (!museum) return NextResponse.json({ translations: {} });
-            const koFields: Record<string, string> = {};
-            const enFields: Record<string, string> = {};
-            if (museum.nameKo) koFields.name = museum.nameKo;
-            else if (museum.name) enFields.name = museum.name;
-            if (museum.descriptionKo) koFields.description = museum.descriptionKo;
-            else if (museum.description) enFields.description = museum.description;
-            if (Object.keys(koFields).length) sourceGroups.push({ sourceLang: 'ko', fields: koFields });
-            if (Object.keys(enFields).length) sourceGroups.push({ sourceLang: 'en', fields: enFields });
+            const embeddedTranslations: Record<string, string> = {};
+            if (museum.nameTranslations?.[locale]) embeddedTranslations.name = museum.nameTranslations[locale];
+            if (museum.summaryTranslations?.[locale]) embeddedTranslations.description = museum.summaryTranslations[locale];
+            if (museum.cityTranslations?.[locale]) embeddedTranslations.city = museum.cityTranslations[locale];
+            if (Object.keys(embeddedTranslations).length > 0) {
+                return NextResponse.json({ translations: { ...embeddedTranslations, ...translations }, cached: true, embedded: true });
+            }
+            return NextResponse.json({ translations, cached: cached.length > 0, partial: true });
         } else if (entityType === 'artwork') {
             const artwork = await (prisma as any).artwork.findUnique({
                 where: { id: entityId },

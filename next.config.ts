@@ -10,9 +10,6 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
-      // Google Places API photos (proxied)
-      { protocol: 'https', hostname: 'places.googleapis.com' },
-      { protocol: 'https', hostname: 'maps.googleapis.com' },
       // Google user profile images
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       // Museum official images (common CDNs)

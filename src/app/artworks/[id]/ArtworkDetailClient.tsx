@@ -53,6 +53,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
     const [isFromBack, setIsFromBack] = useState(false);
+    const [portalReady, setPortalReady] = useState(false);
     const isBackingRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const lightboxRef = useRef<HTMLDivElement>(null);
@@ -60,6 +61,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
 
     // Check if we arrived via back navigation (within 500ms)
     useEffect(() => {
+        setPortalReady(true);
         if (typeof window !== 'undefined') {
             const returnPath = sessionStorage.getItem('artwork-to-museum-return');
             const here = window.location.pathname + window.location.search;
@@ -114,6 +116,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
         return Array.from(new Set(sourceTexts.filter(Boolean)));
     }, [artwork]);
     const translations = useTranslatedTexts(allTexts, locale as Locale);
+    const { translations: cachedArtwork } = useCachedTranslation('artwork', artwork?.id, locale);
 
     useEffect(() => {
         if (initialData) return; // Skip fetch if SSR data provided
@@ -183,11 +186,25 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             sessionStorage.setItem('navigating-forward', String(Date.now()));
             sessionStorage.setItem('artwork-to-museum-return', window.location.pathname + window.location.search);
         }
-        router.push(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork`);
-    }, [router]);
+        window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork`);
+    }, []);
 
     if (loading) {
-        return null; // Keep previous screen visible until data loads, then slide in
+        return (
+            <div className="mm-editorial-page2 mm-artwork-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10">
+                <div className="mm-detail-hero2 w-full h-[420px] sm:h-[520px] bg-gray-100 dark:bg-neutral-800 sm:rounded-b-[32px] relative mt-0">
+                    <div className="skeleton absolute inset-0 rounded-none" />
+                </div>
+                <div className="mm-artwork-detail-body2 px-5 sm:px-0 mt-6 lg:px-8 lg:py-8">
+                    <div className="mm-skel-line w-28 mb-3" />
+                    <div className="mm-skel-line h-8 w-3/4 mb-3" />
+                    <div className="mm-skel-line w-24 mb-8" />
+                    <div className="mm-skel-line w-full mb-3" />
+                    <div className="mm-skel-line w-11/12 mb-3" />
+                    <div className="mm-skel-line w-2/3" />
+                </div>
+            </div>
+        );
     }
 
     if (!artwork) {
@@ -205,8 +222,6 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             </div>
         );
     }
-
-    const { translations: cachedArtwork } = useCachedTranslation('artwork', artwork?.id, locale);
 
     const getDisplayTitle = () => {
         if (locale === 'ko') return artwork.titleKo || artwork.title;
@@ -286,7 +301,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                 </div>
             </div>
 
-            {typeof document !== 'undefined' && createPortal(
+            {portalReady && createPortal(
                 <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back md:hidden">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -296,7 +311,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             )}
 
             {/* Lightbox Overlay */}
-            {lightboxOpen && artwork.image && typeof document !== 'undefined' && createPortal(
+            {portalReady && lightboxOpen && artwork.image && createPortal(
                 <div
                     ref={lightboxRef}
                     className="fixed inset-0 z-[10000] bg-black/90 backdrop-blur-sm animate-backdropIn cursor-zoom-out"

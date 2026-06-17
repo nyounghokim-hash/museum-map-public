@@ -1,10 +1,10 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { CSSProperties, RefObject } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
+import type { ChangeEvent, CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, RefObject, SyntheticEvent } from 'react';
 import { useCompare } from '@/hooks/useCompare';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import { createPortal } from 'react-dom';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { GlassPanel, FilterChip } from '@/components/ui/glass';
 import dynamic from 'next/dynamic';
@@ -21,6 +21,7 @@ import { SparkleIcon, StarIcon, AirplaneIcon } from '@/components/ui/Icons';
 import { ACTIVE_TRIP_CHANGE_EVENT, clearActiveTripForAccount, getActiveTripForAccount, getStoredActiveTrip, setActiveTripForAccount } from '@/lib/accountStorage';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { fetchLocationLabel } from '@/lib/locationLabel';
+import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
 import type { MapBounds } from '@/components/map/MapLibreViewer';
@@ -30,7 +31,7 @@ const NearbyPopup = dynamic(() => import('@/components/map/NearbyPopup'), { ssr:
 const WeatherPopup = dynamic(() => import('@/components/map/WeatherPopup'), { ssr: false });
 const RETURN_TO_MUSEUM_DETAIL_KEY = 'mm-return-to-museum-detail';
 type MapSettingKey = 'location' | 'nearby' | 'weather';
-type MapPrefs = Record<MapSettingKey, boolean>;
+type MapPrefs = Record<MapSettingKey, boolean> & { leftHanded: boolean };
 type MapLocationSource = 'current' | 'manual';
 type MapLocation = { lat: number; lng: number };
 const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
@@ -41,43 +42,217 @@ const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
 const MAP_LOCATION_SOURCE_KEY = 'mm_map_location_source';
 const MAP_MANUAL_LOCATION_KEY = 'mm_map_manual_location';
 const MAP_LOCATION_PICK_MODE_KEY = 'mm_map_location_pick_mode';
+const MAP_LEFT_HANDED_MODE_KEY = 'mm_map_left_handed_mode';
 const MAP_CATEGORY_FILTER_KEY = 'mm_map_category_filter';
-const MUSEUMS_CACHE_KEY = 'museums_cache_v4_opening_hours';
-const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true };
+const MUSEUMS_CACHE_PREFIX = 'museums_cache_v8_map_minimal';
+const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true, leftHanded: false };
+const MAP_ZOOM_MIN = 2;
+const MAP_ZOOM_MAX = 18;
+const MAP_ZOOM_LEVELS = [2, 4.5, 7, 9.5, 12, 15, 18] as const;
+const MAP_ZOOM_LABELS: Record<string, { control: string; zoomIn: string; zoomOut: string }> = {
+  ko: { control: '지도 확대/축소', zoomIn: '지도 확대', zoomOut: '지도 축소' },
+  en: { control: 'Map zoom', zoomIn: 'Zoom in', zoomOut: 'Zoom out' },
+  ja: { control: '地図のズーム', zoomIn: '拡大', zoomOut: '縮小' },
+  de: { control: 'Kartenzoom', zoomIn: 'Vergrößern', zoomOut: 'Verkleinern' },
+  fr: { control: 'Zoom de la carte', zoomIn: 'Zoomer', zoomOut: 'Dézoomer' },
+  es: { control: 'Zoom del mapa', zoomIn: 'Acercar', zoomOut: 'Alejar' },
+  pt: { control: 'Zoom do mapa', zoomIn: 'Aproximar', zoomOut: 'Afastar' },
+  'zh-CN': { control: '地图缩放', zoomIn: '放大', zoomOut: '缩小' },
+  'zh-TW': { control: '地圖縮放', zoomIn: '放大', zoomOut: '縮小' },
+  da: { control: 'Kortzoom', zoomIn: 'Zoom ind', zoomOut: 'Zoom ud' },
+  fi: { control: 'Kartan zoomaus', zoomIn: 'Lähennä', zoomOut: 'Loitonna' },
+  sv: { control: 'Kartzoom', zoomIn: 'Zooma in', zoomOut: 'Zooma ut' },
+  et: { control: 'Kaardi suum', zoomIn: 'Suurenda', zoomOut: 'Vähenda' },
+};
 
-function hasMuseumHoursPayload(museum: any) {
-  return museum && (
-    museum.openingHours !== undefined
-    || museum.visitorInfo !== undefined
-  );
+function clampMapZoom(zoom: number) {
+  return Math.min(MAP_ZOOM_MAX, Math.max(MAP_ZOOM_MIN, zoom));
+}
+
+function getNearestMapZoomLevelIndex(zoom: number) {
+  const clamped = clampMapZoom(zoom);
+  return MAP_ZOOM_LEVELS.reduce((bestIndex, level, index) => (
+    Math.abs(level - clamped) < Math.abs(MAP_ZOOM_LEVELS[bestIndex] - clamped) ? index : bestIndex
+  ), 0);
+}
+
+function snapMapZoom(zoom: number) {
+  return MAP_ZOOM_LEVELS[getNearestMapZoomLevelIndex(zoom)];
+}
+
+function getLocalValue(key: string) {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setLocalValue(key: string, value: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch { }
+}
+
+function getSessionValue(key: string) {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setSessionValue(key: string, value: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch { }
+}
+
+function removeSessionValue(key: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch { }
+}
+
+function scheduleSessionJsonCache(key: string, data: unknown) {
+  if (typeof window === 'undefined') return;
+  const win = window as Window & typeof globalThis & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+  const write = () => {
+    try {
+      win.sessionStorage.setItem(key, JSON.stringify(data));
+    } catch { }
+  };
+  if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+    const idleId = win.requestIdleCallback(write, { timeout: 3000 });
+    return () => win.cancelIdleCallback?.(idleId);
+  }
+  const timer = win.setTimeout(write, 1200);
+  return () => win.clearTimeout(timer);
+}
+
+function parseJsonOffMainThread<T = unknown>(text: string): Promise<T> {
+  if (
+    typeof window === 'undefined'
+    || typeof Worker === 'undefined'
+    || typeof Blob === 'undefined'
+    || typeof URL === 'undefined'
+  ) {
+    return Promise.resolve(JSON.parse(text));
+  }
+
+  return new Promise((resolve, reject) => {
+    const source = `
+      self.onmessage = function(event) {
+        try {
+          self.postMessage({ ok: true, value: JSON.parse(event.data) });
+        } catch (error) {
+          self.postMessage({ ok: false, error: error && error.message ? error.message : String(error) });
+        }
+      };
+    `;
+    const url = URL.createObjectURL(new Blob([source], { type: 'application/javascript' }));
+    const worker = new Worker(url);
+    const cleanup = () => {
+      worker.terminate();
+      URL.revokeObjectURL(url);
+    };
+
+    worker.onmessage = (event: MessageEvent<{ ok: boolean; value?: T; error?: string }>) => {
+      cleanup();
+      if (event.data?.ok) {
+        resolve(event.data.value as T);
+      } else {
+        reject(new Error(event.data?.error || 'JSON parse failed'));
+      }
+    };
+    worker.onerror = (event) => {
+      cleanup();
+      reject(new Error(event.message || 'JSON worker failed'));
+    };
+    worker.postMessage(text);
+  });
+}
+
+function hasSelectLocationQuery() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return new URLSearchParams(window.location.search).get('selectLocation') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function clearSelectLocationQuery() {
+  if (typeof window === 'undefined' || !hasSelectLocationQuery()) return;
+  try {
+    window.history.replaceState({}, '', window.location.pathname || '/');
+  } catch { }
 }
 
 function isUsableMuseumsCache(data: unknown) {
   if (!Array.isArray(data) || data.length === 0) return false;
-  // A small sample is enough to catch old map-only caches without carrying an
-  // O(n) validation cost on every home load.
-  return data.slice(0, 24).some(hasMuseumHoursPayload);
+  return data.slice(0, 24).some(museum => (
+    museum
+    && typeof museum.id === 'string'
+    && Number.isFinite(Number(museum.latitude))
+    && Number.isFinite(Number(museum.longitude))
+  ));
 }
+
+function getMuseumsCacheKey(locale: string) {
+  return `${MUSEUMS_CACHE_PREFIX}_${locale || 'ko'}`;
+}
+
+function isSameStringSet(set: Set<string>, ids: string[]) {
+  if (set.size !== ids.length) return false;
+  return ids.every(id => set.has(id));
+}
+
+function scheduleIdleTask(callback: () => void, timeout = 4000) {
+  if (typeof window === 'undefined') return undefined;
+  const win = window as Window & typeof globalThis & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+  if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+    const idleId = win.requestIdleCallback(callback, { timeout });
+    return () => win.cancelIdleCallback?.(idleId);
+  }
+  const timer = win.setTimeout(callback, timeout);
+  return () => win.clearTimeout(timer);
+}
+
 function readMapPrefs(): MapPrefs {
   if (typeof window === 'undefined') return DEFAULT_MAP_PREFS;
   return {
-    location: localStorage.getItem(MAP_PREF_KEYS.location) !== 'false',
-    nearby: localStorage.getItem(MAP_PREF_KEYS.nearby) !== 'false',
-    weather: localStorage.getItem(MAP_PREF_KEYS.weather) !== 'false',
+    location: getLocalValue(MAP_PREF_KEYS.location) !== 'false',
+    nearby: getLocalValue(MAP_PREF_KEYS.nearby) !== 'false',
+    weather: getLocalValue(MAP_PREF_KEYS.weather) !== 'false',
+    leftHanded: getLocalValue(MAP_LEFT_HANDED_MODE_KEY) === 'true',
   };
 }
 
 function readMapLocationSource(): MapLocationSource {
   if (typeof window === 'undefined') return 'current';
-  return localStorage.getItem(MAP_LOCATION_SOURCE_KEY) === 'manual' ? 'manual' : 'current';
+  return getLocalValue(MAP_LOCATION_SOURCE_KEY) === 'manual' ? 'manual' : 'current';
 }
 
 function readManualMapLocation(): MapLocation | null {
   if (typeof window === 'undefined') return null;
   try {
-    const parsed = JSON.parse(localStorage.getItem(MAP_MANUAL_LOCATION_KEY) || 'null');
-    if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') {
-      return { lat: parsed.lat, lng: parsed.lng };
+    const parsed = JSON.parse(getLocalValue(MAP_MANUAL_LOCATION_KEY) || 'null');
+    const lat = Number(parsed?.lat);
+    const lng = Number(parsed?.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
     }
   } catch { }
   return null;
@@ -90,7 +265,7 @@ function mapLocationAccountKey(email: string, kind: 'source' | 'manual') {
 function readMapLocationSourceForAccount(email?: string | null): MapLocationSource {
   if (typeof window === 'undefined') return 'current';
   if (!email) return 'current';
-  const accountSource = localStorage.getItem(mapLocationAccountKey(email, 'source'));
+  const accountSource = getLocalValue(mapLocationAccountKey(email, 'source'));
   if (accountSource === 'current' || accountSource === 'manual') return accountSource;
   const globalSource = readMapLocationSource();
   if (globalSource === 'current' || globalSource === 'manual') return globalSource;
@@ -100,9 +275,11 @@ function readMapLocationSourceForAccount(email?: string | null): MapLocationSour
 function readManualMapLocationForAccount(email?: string | null): MapLocation | null {
   if (typeof window === 'undefined' || !email) return null;
   try {
-    const parsed = JSON.parse(localStorage.getItem(mapLocationAccountKey(email, 'manual')) || 'null');
-    if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') {
-      return { lat: parsed.lat, lng: parsed.lng };
+    const parsed = JSON.parse(getLocalValue(mapLocationAccountKey(email, 'manual')) || 'null');
+    const lat = Number(parsed?.lat);
+    const lng = Number(parsed?.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { lat, lng };
     }
   } catch { }
   return null;
@@ -118,7 +295,7 @@ const MOBILE_TOOL_LABELS: Record<string, {
   locationError: string;
   close: string;
 }> = {
-  ko: { currentLocation: '내 위치', nearby: '주변', weather: '오늘 날씨', newMuseums: '새로 추가된 곳', category: '카테고리', categories: '카테고리', locationError: '현재 위치를 불러오지 못했어요', close: '닫기' },
+  ko: { currentLocation: '내 위치', nearby: '내 주변 미술관/박물관', weather: '오늘 날씨', newMuseums: '새로 추가된 곳', category: '카테고리', categories: '카테고리', locationError: '현재 위치를 불러오지 못했어요', close: '닫기' },
   en: { currentLocation: 'My location', nearby: 'Nearby', weather: "Today's weather", newMuseums: 'Newly Added', category: 'Category', categories: 'Categories', locationError: 'Unable to get your location', close: 'Close' },
   ja: { currentLocation: '現在地', nearby: '周辺', weather: '今日の天気', newMuseums: '新しく追加', category: 'カテゴリ', categories: 'カテゴリ', locationError: '現在地を取得できませんでした', close: '閉じる' },
   de: { currentLocation: 'Mein Standort', nearby: 'In der Nähe', weather: 'Wetter heute', newMuseums: 'Neu hinzugefügt', category: 'Kategorie', categories: 'Kategorien', locationError: 'Standort konnte nicht abgerufen werden', close: 'Schließen' },
@@ -161,10 +338,10 @@ const MAP_LOCATION_LABELS: Record<string, {
   sv: { pickPrompt: 'Välj plats på kartan', pickCancel: 'Avbryt', pickIntroTitle: 'Välj platsen du vill använda', pickIntroBody: 'Tryck på kartan för att spara platsen för väder och museer i närheten.', pickIntroCancel: 'Senare', pickIntroConfirm: 'Välj plats', manualSaved: 'Kartplats sparad', switchTitle: 'Använd aktuell plats?', switchBody: 'För att använda knappen behöver platsinställningen bytas till aktuell plats.', switchCancel: 'Senare', switchConfirm: 'Använd aktuell plats', pickButton: 'Ange vald plats' },
   et: { pickPrompt: 'Vali asukoht kaardil', pickCancel: 'Tühista', pickIntroTitle: 'Vali soovitud asukoht', pickIntroBody: 'Puuduta kaarti, et salvestada ilma ja lähedal muuseumide lähteasukoht.', pickIntroCancel: 'Hiljem', pickIntroConfirm: 'Vali asukoht', manualSaved: 'Kaardi asukoht salvestatud', switchTitle: 'Kas kasutada praegust asukohta?', switchBody: 'Selle nupu kasutamiseks tuleb asukoha seade muuta praeguseks asukohaks.', switchCancel: 'Hiljem', switchConfirm: 'Kasuta praegust asukohta', pickButton: 'Määra valitud asukoht' },
 };
-const MOBILE_FILTERS = ['All', 'Art Gallery', 'Contemporary Art', 'Modern Art', 'Fine Arts', 'General Museum', 'History Museum', 'Natural History', 'Science Museum', 'Maritime Museum', 'Archaeological Museum', 'Photography Museum', 'Design Museum', 'Cultural Center', 'Unusual Museum'];
+const MOBILE_FILTERS: string[] = [...MUSEUM_CATEGORY_FILTERS];
 function readMapCategoryFilter() {
   if (typeof window === 'undefined') return 'All';
-  const saved = localStorage.getItem(MAP_CATEGORY_FILTER_KEY);
+  const saved = getLocalValue(MAP_CATEGORY_FILTER_KEY);
   return saved && MOBILE_FILTERS.includes(saved) ? saved : 'All';
 }
 
@@ -284,7 +461,7 @@ const mm2 = {
     background: 'transparent',
     color: '#0f172a',
     fontSize: 15,
-    fontWeight: 500,
+    fontWeight: 400,
     lineHeight: 1,
   } satisfies CSSProperties,
   iconPill: {
@@ -344,7 +521,7 @@ const mm2 = {
     position: 'absolute',
     left: 18,
     right: 18,
-    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 64px)',
+    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 61px)',
     zIndex: 120,
     maxHeight: 290,
     overflowY: 'auto',
@@ -676,6 +853,49 @@ function SearchResultButton({ result, locale, onMuseumSelect }: {
   );
 }
 
+function MuseumNewIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 20h16M5.5 18V9.5L12 5l6.5 4.5V18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.5 18v-5h7v5M9.5 10.5h5M10.5 13.5h3" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function NewMuseumListItem({ museum, locale, onSelect }: { museum: any; locale: Locale; onSelect: (museum: any) => void }) {
+  const imageSrc = getMuseumImageSrc(museum);
+  return (
+    <button
+      key={museum.id}
+      type="button"
+      className="mm-map2-new-museum-item"
+      onClick={() => onSelect(museum)}
+    >
+      <div className="mm-map2-new-museum-thumb">
+        {imageSrc ? (
+          <img src={imageSrc} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; const fb = e.currentTarget.parentElement?.querySelector('.sf') as HTMLElement; if (fb) fb.style.display = 'flex'; }} />
+        ) : null}
+        <div className={`sf ${imageSrc ? 'hidden' : 'flex'}`}>
+          <img src="/logo.svg" alt="" />
+        </div>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mm-map2-new-museum-title-row">
+          <span className="mm-map2-new-museum-title">{getLocalizedMuseumName(museum, locale)}</span>
+          <span className="mm-map2-new-museum-new">N</span>
+        </div>
+        <div className="mm-map2-new-museum-meta">{getLocalizedCityName(museum, locale) || museum.city || translateCategory(museum.type || '', locale)}</div>
+      </div>
+      <span className="mm-map2-new-museum-date">
+        {(() => {
+          const d = new Date(museum.createdAt);
+          return Number.isFinite(d.getTime()) ? `${d.getMonth() + 1}/${d.getDate()}` : '';
+        })()}
+      </span>
+    </button>
+  );
+}
+
 export default function MainPage() {
   const { compareIds: compareIdsArr } = useCompare();
   const compareIdsSet = useMemo(() => new Set(compareIdsArr), [compareIdsArr]);
@@ -685,18 +905,25 @@ export default function MainPage() {
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [categoryDropdownClosing, setCategoryDropdownClosing] = useState(false);
   const categoryCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const categoryDropdownOpenRef = useRef(false);
   const nearbyOpenRef = useRef(false);
   const weatherOpenRef = useRef(false);
+  const newMuseumsOpenRef = useRef(false);
+  const chipOpenRef = useRef(false);
+  const mapSideMenuOpenRef = useRef(false);
+  const interactionHoldUntilRef = useRef(0);
   const [mapSideMenuOpen, setMapSideMenuOpen] = useState(false);
   const [countExpanded, setCountExpanded] = useState(false);
   const { locale, darkMode } = useApp();
   const { showAlert, showConfirm } = useModal();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [activeTrip, setActiveTrip] = useState<any>(() => getStoredActiveTrip());
   const [isViewingActiveRoute, setIsViewingActiveRoute] = useState(false);
   const [tripExiting, setTripExiting] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [completedTrip, setCompletedTrip] = useState<any | null>(null);
+  const [visitedCollectionCreating, setVisitedCollectionCreating] = useState(false);
   const [navToolbarReady, setNavToolbarReady] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [showTripActivatedNotif, setShowTripActivatedNotif] = useState(false);
@@ -706,6 +933,14 @@ export default function MainPage() {
   const [consentTerms, setConsentTerms] = useState(false);
   const [consentPrivacy, setConsentPrivacy] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncSearchParams = () => setSearchParams(new URLSearchParams(window.location.search));
+    syncSearchParams();
+    window.addEventListener('popstate', syncSearchParams);
+    return () => window.removeEventListener('popstate', syncSearchParams);
+  }, []);
 
   useEffect(() => {
     const storedTrip = getStoredActiveTrip();
@@ -730,6 +965,43 @@ export default function MainPage() {
     }, 250);
   }, []);
 
+  const markMenuInteraction = useCallback(() => {
+    interactionHoldUntilRef.current = Date.now() + 1200;
+  }, []);
+
+  const isMapInteractionLayerOpen = useCallback(() => (
+    categoryDropdownOpenRef.current
+    || newMuseumsOpenRef.current
+    || nearbyOpenRef.current
+    || weatherOpenRef.current
+    || chipOpenRef.current
+    || mapSideMenuOpenRef.current
+  ), []);
+
+  const scheduleMapWorkAfterInteraction = useCallback((callback: () => void) => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelReadyTask: (() => void) | undefined;
+    const startedAt = Date.now();
+    const run = () => {
+      if (cancelled) return;
+      const waitedTooLong = Date.now() - startedAt > 5000;
+      if (!waitedTooLong && (Date.now() < interactionHoldUntilRef.current || isMapInteractionLayerOpen())) {
+        timer = setTimeout(run, 140);
+        return;
+      }
+      cancelReadyTask = scheduleIdleTask(() => {
+        if (!cancelled) callback();
+      }, 900);
+    };
+    timer = setTimeout(run, 0);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      cancelReadyTask?.();
+    };
+  }, [isMapInteractionLayerOpen]);
+
   // Smooth close category dropdown with exit animation
   const closeCategoryDropdown = useCallback(() => {
     if (!categoryDropdownOpen) return;
@@ -746,8 +1018,10 @@ export default function MainPage() {
   }, [categoryDropdownOpen]);
   const [chipOpen, setChipOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [newMuseumsOpen, setNewMuseumsOpen] = useState(false);
   const [newMuseumsClosing, setNewMuseumsClosing] = useState(false);
+  const newMuseumsCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showLoading, setShowLoading] = useState(false);
   const [returnFromDetail, setReturnFromDetail] = useState(false);
   const [skipTransition, setSkipTransition] = useState(false);
@@ -757,19 +1031,32 @@ export default function MainPage() {
   // Smooth close new museums dropdown with exit animation
   const closeNewMuseums = useCallback(() => {
     if (!newMuseumsOpen) return;
+    if (newMuseumsCloseTimerRef.current) {
+      clearTimeout(newMuseumsCloseTimerRef.current);
+      newMuseumsCloseTimerRef.current = null;
+    }
     setNewMuseumsClosing(true);
-    setTimeout(() => {
+    newMuseumsCloseTimerRef.current = setTimeout(() => {
       setNewMuseumsOpen(false);
       setNewMuseumsClosing(false);
-    }, 220);
+      newMuseumsCloseTimerRef.current = null;
+    }, 140);
   }, [newMuseumsOpen]);
 
   // Helper: close all popups/dropdowns (mutual exclusion)
   const closeAllPopups = useCallback((except?: string) => {
     if (except !== 'newMuseums') {
       if (newMuseumsOpen) {
+        if (newMuseumsCloseTimerRef.current) {
+          clearTimeout(newMuseumsCloseTimerRef.current);
+          newMuseumsCloseTimerRef.current = null;
+        }
         setNewMuseumsClosing(true);
-        setTimeout(() => { setNewMuseumsOpen(false); setNewMuseumsClosing(false); }, 220);
+        newMuseumsCloseTimerRef.current = setTimeout(() => {
+          setNewMuseumsOpen(false);
+          setNewMuseumsClosing(false);
+          newMuseumsCloseTimerRef.current = null;
+        }, 140);
       }
     }
     if (except !== 'category') {
@@ -808,6 +1095,15 @@ export default function MainPage() {
     }
     if (except !== 'sideMenu') setMapSideMenuOpen(false);
   }, [categoryDropdownOpen, newMuseumsOpen]);
+  const openNewMuseums = useCallback(() => {
+    if (newMuseumsCloseTimerRef.current) {
+      clearTimeout(newMuseumsCloseTimerRef.current);
+      newMuseumsCloseTimerRef.current = null;
+    }
+    setNewMuseumsClosing(false);
+    closeAllPopups('newMuseums');
+    setNewMuseumsOpen(true);
+  }, [closeAllPopups]);
   const openCategoryDropdown = useCallback(() => {
     if (categoryCloseTimerRef.current) {
       clearTimeout(categoryCloseTimerRef.current);
@@ -817,6 +1113,22 @@ export default function MainPage() {
     closeAllPopups('category');
     setCategoryDropdownOpen(true);
   }, [closeAllPopups]);
+
+  const settingsNavigationRef = useRef(false);
+  const navigateToSettings = useCallback((event?: ReactMouseEvent<HTMLAnchorElement> | ReactPointerEvent<HTMLAnchorElement>) => {
+    const isTouchStart = event?.type === 'pointerdown' && 'pointerType' in event && event.pointerType === 'touch';
+    if (settingsNavigationRef.current) return;
+    settingsNavigationRef.current = true;
+    try {
+      sessionStorage.setItem('mm_settings_return_to', '/');
+    } catch {}
+    if (isTouchStart && typeof window !== 'undefined') {
+      event.preventDefault();
+      window.requestAnimationFrame(() => {
+        window.setTimeout(() => window.location.assign('/settings'), 0);
+      });
+    }
+  }, []);
   const prevSelectedRef = useRef<any>(null);
   const selectedMuseumRef = useRef<any>(null);
   const isHandlingPopState = useRef(false);
@@ -834,6 +1146,7 @@ export default function MainPage() {
 
     setDetailPanelClosing(true);
     setDetailPanelEntered(false);
+    setHighlightedMuseumId(null);
     selectedMuseumRef.current = null;
 
     if (syncHistory && typeof window !== 'undefined' && window.history.state?.museumPanel) {
@@ -874,25 +1187,40 @@ export default function MainPage() {
     const lat = Number(museum.latitude);
     const lng = Number(museum.longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const targetMuseumId = String(museum.id);
+    const pulseTarget = () => {
+      setHighlightedMuseumId(targetMuseumId);
+      if (typeof window !== 'undefined') {
+        window.setTimeout(() => {
+          setHighlightedMuseumId((current) => current === targetMuseumId ? null : current);
+        }, 3200);
+      }
+    };
 
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1181px)').matches) {
+      pulseTarget();
       setMapFlyTo({
         lat,
         lng,
         zoom: 15,
-        offset: [-Math.min(360, Math.round(window.innerWidth * 0.18)), 0],
+        offset: [-Math.min(240, Math.round(window.innerWidth * 0.14)), 0],
+        key: Date.now(),
       });
       return;
     }
 
     closeMuseumPanel(true);
-    setMapFlyTo({ lat, lng, zoom: 14 });
+    pulseTarget();
+    setMapFlyTo({ lat, lng, zoom: 15, key: Date.now() });
   }, [closeMuseumPanel, selectedMuseum]);
 
   useEffect(() => {
     return () => {
       if (detailPanelCloseTimerRef.current) {
         clearTimeout(detailPanelCloseTimerRef.current);
+      }
+      if (newMuseumsCloseTimerRef.current) {
+        clearTimeout(newMuseumsCloseTimerRef.current);
       }
     };
   }, []);
@@ -946,11 +1274,11 @@ export default function MainPage() {
     setConsentSubmitting(false);
   };
 
-  // New museums — only those created within last 3 days
+  // New museums — only those created within last 7 days
   const newMuseums = useMemo(() => {
-    const CACHE_KEY = 'newMuseums_cache_v2';
+    const CACHE_KEY = 'newMuseums_cache_v3_7d';
     const CACHE_TTL = 60 * 60 * 1000; // 1h cache (check recency more often)
-    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     if (museums.length === 0) return [];
     try {
       const cached = sessionStorage.getItem(CACHE_KEY);
@@ -959,9 +1287,12 @@ export default function MainPage() {
         if (Date.now() - ts < CACHE_TTL && total === museums.length) return data;
       }
     } catch { }
-    const cutoff = Date.now() - THREE_DAYS_MS;
+    const cutoff = Date.now() - SEVEN_DAYS_MS;
     const recent = [...museums]
-      .filter(m => m.createdAt && new Date(m.createdAt).getTime() > cutoff)
+      .filter(m => {
+        const created = m.createdAt ? new Date(m.createdAt).getTime() : NaN;
+        return Number.isFinite(created) && created > cutoff;
+      })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     try { sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: recent, ts: Date.now(), total: museums.length })); } catch { }
     return recent;
@@ -969,17 +1300,26 @@ export default function MainPage() {
 
   // Fetch saved museum IDs for map marker coloring
   const refreshSavedIds = useCallback(async () => {
-    if (status !== 'authenticated') { setSavedMuseumIds(new Set()); return; }
+    if (status !== 'authenticated') {
+      setSavedMuseumIds(prev => (prev.size > 0 ? new Set() : prev));
+      return;
+    }
     try {
       const res = await fetch('/api/me/saves');
       const data = await res.json();
       if (data.data) {
-        setSavedMuseumIds(new Set(data.data.map((s: any) => s.museum?.id || s.museumId)));
+        const ids = data.data.map((s: any) => s.museum?.id || s.museumId).filter(Boolean);
+        setSavedMuseumIds(prev => (isSameStringSet(prev, ids) ? prev : new Set(ids)));
       }
     } catch { }
   }, [status]);
 
-  useEffect(() => { refreshSavedIds(); }, [refreshSavedIds]);
+  useEffect(() => {
+    if (status === 'authenticated') {
+      return scheduleIdleTask(refreshSavedIds, 5000);
+    }
+    refreshSavedIds();
+  }, [refreshSavedIds, status]);
 
   // Prevent body scroll on map page only
   useEffect(() => {
@@ -1011,52 +1351,86 @@ export default function MainPage() {
   }, [selectedMuseum]);
 
   useEffect(() => {
+    let cancelled = false;
     let retries = 0;
     const maxRetries = 5;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelCacheWrite: (() => void) | undefined;
+    let cancelCacheRead: (() => void) | undefined;
+    let cancelDataApply: (() => void) | undefined;
+    const museumsCacheKey = getMuseumsCacheKey(locale);
+    interactionHoldUntilRef.current = Math.max(interactionHoldUntilRef.current, Date.now() + 2200);
 
-    // Instantly load from cache if available (avoids loading screen on page revisits)
-    try {
-      const cached = sessionStorage.getItem(MUSEUMS_CACHE_KEY);
-      if (cached) {
-        const data = JSON.parse(cached);
-        if (isUsableMuseumsCache(data)) {
-          setMuseums(data);
-        } else {
-          sessionStorage.removeItem(MUSEUMS_CACHE_KEY);
-        }
-      }
-    } catch { }
+    const retryFetch = () => {
+      if (cancelled || retries >= maxRetries) return;
+      retries++;
+      timer = setTimeout(fetchMuseums, 2000 * retries);
+    };
 
-    const fetchMuseums = () => {
-      fetch('/api/museums?limit=5000')
-        .then(r => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.json();
-        })
-        .then(res => {
-          const data = res.data?.data || res.data || [];
-          if (Array.isArray(data) && data.length > 0) {
+    // Keep the controls responsive: cache JSON parse can be large on real phones.
+    cancelCacheRead = scheduleMapWorkAfterInteraction(() => {
+      let cached: string | null = null;
+      try {
+        cached = sessionStorage.getItem(museumsCacheKey);
+      } catch { }
+      if (!cached) return;
+      parseJsonOffMainThread<any>(cached)
+        .then(data => {
+          if (cancelled) return;
+          if (isUsableMuseumsCache(data)) {
             setMuseums(data);
-            if (isUsableMuseumsCache(data)) {
-              try { sessionStorage.setItem(MUSEUMS_CACHE_KEY, JSON.stringify(data)); } catch { }
-            }
-          } else if (retries < maxRetries) {
-            retries++;
-            timer = setTimeout(fetchMuseums, 2000 * retries);
+          } else {
+            try { sessionStorage.removeItem(museumsCacheKey); } catch { }
           }
         })
         .catch(() => {
-          if (retries < maxRetries) {
-            retries++;
-            timer = setTimeout(fetchMuseums, 2000 * retries);
-          }
+          try { sessionStorage.removeItem(museumsCacheKey); } catch { }
         });
-    };
+    });
+
+    function fetchMuseums() {
+      fetch(`/api/museums?limit=5000&view=map&locale=${encodeURIComponent(locale)}`)
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.text();
+        })
+        .then(text => {
+          if (cancelled) return;
+          cancelDataApply?.();
+          cancelDataApply = scheduleMapWorkAfterInteraction(() => {
+            parseJsonOffMainThread<any>(text)
+              .then(res => {
+                if (cancelled) return;
+                const data = res?.data?.data || res?.data || [];
+                if (Array.isArray(data) && data.length > 0) {
+                  setMuseums(data);
+                  if (isUsableMuseumsCache(data)) {
+                    cancelCacheWrite?.();
+                    cancelCacheWrite = scheduleSessionJsonCache(museumsCacheKey, data);
+                  }
+                } else {
+                  retryFetch();
+                }
+              })
+              .catch(() => {
+                retryFetch();
+              });
+          });
+        })
+        .catch(() => {
+          retryFetch();
+        });
+    }
 
     fetchMuseums();
-    return () => { if (timer) clearTimeout(timer); };
-  }, []);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      cancelCacheRead?.();
+      cancelDataApply?.();
+      cancelCacheWrite?.();
+    };
+  }, [locale, scheduleMapWorkAfterInteraction]);
 
   // Show loading overlay only after 1s delay (avoids flash for fast loads)
   useEffect(() => {
@@ -1109,6 +1483,25 @@ export default function MainPage() {
     setInitialMuseumId(null);
   }, [initialMuseumId, museums, openMuseumPanel]);
 
+  // 외부 상세 페이지의 '위치 이동하기' — /?flyTo=lat,lng&flyToId=<id>
+  useEffect(() => {
+    const flyToParam = searchParams?.get('flyTo');
+    if (!flyToParam) return;
+    const [latStr, lngStr] = flyToParam.split(',');
+    const lat = Number(latStr);
+    const lng = Number(lngStr);
+    const fid = searchParams?.get('flyToId');
+    window.history.replaceState({}, '', '/');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setMapFlyTo({ lat, lng, zoom: 15, key: Date.now() });
+    if (fid) {
+      setHighlightedMuseumId(fid);
+      window.setTimeout(() => {
+        setHighlightedMuseumId((current) => current === fid ? null : current);
+      }, 3200);
+    }
+  }, [searchParams]);
+
   const handleAiRecommend = async () => {
     if (!aiQuery.trim() || aiLoading) return;
     gtag.event('ai_recommend', { category: 'ai', label: aiQuery, value: 1 });
@@ -1143,6 +1536,9 @@ export default function MainPage() {
             const endDate = new Date(parsed.endDate);
             endDate.setHours(23, 59, 59, 999); // End of day
             if (new Date() > endDate) {
+              setActiveTrip(null);
+              setTripStopsLocal([]);
+              setIsViewingActiveRoute(false);
               clearActiveTripForAccount();
               try { fetch(`/api/plans/${parsed.planId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: false }) }); } catch { }
               return;
@@ -1215,6 +1611,32 @@ export default function MainPage() {
   }, [status, refreshActiveTrip]);
 
   useEffect(() => {
+    if (!activeTrip?.planId || !activeTrip.endDate) return;
+    const endDate = new Date(activeTrip.endDate);
+    endDate.setHours(23, 59, 59, 999);
+    const expireTrip = () => {
+      setActiveTrip(null);
+      setTripStopsLocal([]);
+      setIsViewingActiveRoute(false);
+      clearActiveTripForAccount();
+      fetch(`/api/plans/${activeTrip.planId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: false }),
+      }).catch(() => { });
+    };
+
+    const delay = endDate.getTime() - Date.now();
+    if (delay <= 0) {
+      expireTrip();
+      return;
+    }
+
+    const timer = window.setTimeout(expireTrip, Math.min(delay + 1, 2_147_483_647));
+    return () => window.clearTimeout(timer);
+  }, [activeTrip?.endDate, activeTrip?.planId]);
+
+  useEffect(() => {
     if (searchParams?.get('trip') !== 'active' || !activeTrip || activeTrip.pending) return;
     setSelectedMuseum(null);
     setIsViewingActiveRoute(true);
@@ -1247,43 +1669,61 @@ export default function MainPage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [closeMuseumPanel]);
 
-  // Map museums: filtered by category only (search should NOT hide markers)
-  const mapMuseums = museums.filter(m => activeFilter === 'All' || m.type === activeFilter);
+  // Map markers are filtered by category only. Keep this memoized because the map receives the array by identity.
+  const mapMuseums = useMemo(() => (
+    activeFilter === 'All' ? museums : museums.filter(m => m.type === activeFilter)
+  ), [activeFilter, museums]);
 
-  // Search results: museums only. Map markers are still filtered only by category.
-  const museumSearchResults = mapMuseums.filter(m => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    const values = [
-      m.name,
-      m.nameKo,
-      m.nameEn,
-      m.city,
-      m.cityKo,
-      m.country,
-      m.type,
-      m.summary,
-      m.descriptionKo,
-      getLocalizedMuseumName(m, locale),
-      getLocalizedCityName(m, locale),
-    ];
-    return values.some(value => String(value || '').toLowerCase().includes(q));
-  });
-  const searchResults = [
-    ...museumSearchResults.slice(0, 8).map(museum => ({ kind: 'museum' as const, museum })),
-  ].slice(0, 8);
+  const categoryCounts = useMemo(() => museums.reduce<Record<string, number>>((acc, museum) => {
+    const type = museum.type || 'General Museum';
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, { All: museums.length }), [museums]);
+
+  const getCategoryCount = useCallback((filter: string) => (
+    filter === 'All' ? museums.length : (categoryCounts[filter] || 0)
+  ), [categoryCounts, museums.length]);
+
+  // Search covers all museums while markers remain category-filtered.
+  const searchResults = useMemo(() => {
+    const q = deferredSearchQuery.toLowerCase().trim();
+    if (!q) return [];
+
+    const results: { kind: 'museum'; museum: any }[] = [];
+    for (const museum of museums) {
+      const searchableText = [
+        museum.name,
+        museum.nameKo,
+        museum.nameEn,
+        museum.city,
+        museum.cityKo,
+        museum.country,
+        museum.type,
+        getLocalizedMuseumName(museum, locale),
+        getLocalizedCityName(museum, locale),
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!searchableText.includes(q)) continue;
+      results.push({ kind: 'museum', museum });
+      if (results.length >= 8) break;
+    }
+    return results;
+  }, [deferredSearchQuery, museums, locale]);
 
   // Alias for category counts and total display
   const filteredMuseums = mapMuseums;
   const mobileListMuseums = mapMuseums.slice(0, 120);
   const mobileToolLabels = MOBILE_TOOL_LABELS[locale] || MOBILE_TOOL_LABELS.en;
   const mapLocationLabels = MAP_LOCATION_LABELS[locale] || MAP_LOCATION_LABELS.en;
+  const mapZoomLabels = MAP_ZOOM_LABELS[locale] || MAP_ZOOM_LABELS.en;
   const accountLocationEmail = status === 'authenticated' && session?.user?.email && !session?.user?.name?.startsWith('guest_')
     ? session.user.email
     : null;
 
   const isDarkMode = darkMode;
-  const [mapFlyTo, setMapFlyTo] = useState<{ lat: number; lng: number; zoom?: number; offset?: [number, number] } | null>(null);
+  const [mapFlyTo, setMapFlyTo] = useState<{ lat: number; lng: number; zoom?: number; offset?: [number, number]; key?: number } | null>(null);
+  const [mapZoom, setMapZoom] = useState(3);
+  const [mapZoomCommand, setMapZoomCommand] = useState<{ zoom: number; key: number } | null>(null);
+  const [highlightedMuseumId, setHighlightedMuseumId] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<MapLocation | null>(null);
   const [manualLocation, setManualLocation] = useState<MapLocation | null>(null);
   const [locationSource, setLocationSource] = useState<MapLocationSource>('current');
@@ -1313,9 +1753,7 @@ export default function MainPage() {
   const setCategoryFilter = useCallback((filter: string) => {
     const nextFilter = MOBILE_FILTERS.includes(filter) ? filter : 'All';
     setActiveFilter(nextFilter);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(MAP_CATEGORY_FILTER_KEY, nextFilter);
-    }
+    setLocalValue(MAP_CATEGORY_FILTER_KEY, nextFilter);
   }, []);
   const closeNearbyPopup = useCallback(() => {
     if (!nearbyOpenRef.current && !nearbyOpen) return;
@@ -1339,6 +1777,10 @@ export default function MainPage() {
   }, [weatherOpen]);
   useEffect(() => { nearbyOpenRef.current = nearbyOpen; }, [nearbyOpen]);
   useEffect(() => { weatherOpenRef.current = weatherOpen; }, [weatherOpen]);
+  useEffect(() => { categoryDropdownOpenRef.current = categoryDropdownOpen; }, [categoryDropdownOpen]);
+  useEffect(() => { newMuseumsOpenRef.current = newMuseumsOpen; }, [newMuseumsOpen]);
+  useEffect(() => { chipOpenRef.current = chipOpen; }, [chipOpen]);
+  useEffect(() => { mapSideMenuOpenRef.current = mapSideMenuOpen; }, [mapSideMenuOpen]);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const mq = window.matchMedia('(min-width: 768px)');
@@ -1377,14 +1819,14 @@ export default function MainPage() {
       }
     };
     syncLocationSource();
-    const shouldPickFromUrl = searchParams?.get('selectLocation') === '1';
-    const shouldPickFromSession = sessionStorage.getItem(MAP_LOCATION_PICK_MODE_KEY) === '1';
+    const shouldPickFromUrl = hasSelectLocationQuery();
+    const shouldPickFromSession = getSessionValue(MAP_LOCATION_PICK_MODE_KEY) === '1';
     if ((shouldPickFromUrl || shouldPickFromSession) && !locationPickMode && !locationPickIntroOpen) {
       if (accountLocationEmail) {
-        localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'source'), 'manual');
+        setLocalValue(mapLocationAccountKey(accountLocationEmail, 'source'), 'manual');
       }
-      localStorage.setItem(MAP_LOCATION_SOURCE_KEY, 'manual');
-      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
+      setLocalValue(MAP_LOCATION_SOURCE_KEY, 'manual');
+      removeSessionValue(MAP_LOCATION_PICK_MODE_KEY);
       window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source: 'manual' } }));
       setLocationSource('manual');
       setLocationPickIntroOpen(true);
@@ -1396,47 +1838,64 @@ export default function MainPage() {
       window.removeEventListener('storage', syncLocationSource);
       window.removeEventListener('mm-map-location-source-change', syncLocationSource as EventListener);
     };
-  }, [accountLocationEmail, closeAllPopups, locationPickIntroOpen, locationPickMode, searchParams]);
+  }, [accountLocationEmail, closeAllPopups, locationPickIntroOpen, locationPickMode]);
 
   const persistLocationSource = useCallback((source: MapLocationSource) => {
     if (typeof window === 'undefined') return;
     if (accountLocationEmail) {
-      localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'source'), source);
+      setLocalValue(mapLocationAccountKey(accountLocationEmail, 'source'), source);
     }
-    localStorage.setItem(MAP_LOCATION_SOURCE_KEY, source);
+    setLocalValue(MAP_LOCATION_SOURCE_KEY, source);
     window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source } }));
     setLocationSource(source);
   }, [accountLocationEmail]);
 
-  const requestCurrentLocation = useCallback((moveMap = true) => {
+  const requestCurrentLocation = useCallback((moveMap = true, silent = false) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      showAlert(mobileToolLabels.locationError);
+      if (!silent) showAlert(mobileToolLabels.locationError);
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const nextLocation = { lng: pos.coords.longitude, lat: pos.coords.latitude };
-        setUserLocation(nextLocation);
-        if (moveMap) setMapFlyTo({ ...nextLocation, zoom: 13 });
-      },
-      () => { showAlert(mobileToolLabels.locationError); },
-      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60_000 }
-    );
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = Number(pos.coords.latitude);
+          const lng = Number(pos.coords.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            if (!silent) showAlert(mobileToolLabels.locationError);
+            return;
+          }
+          const nextLocation = { lng, lat };
+          setUserLocation(nextLocation);
+          if (moveMap) setMapFlyTo({ ...nextLocation, zoom: 15, key: Date.now() });
+        },
+        () => { if (!silent) showAlert(mobileToolLabels.locationError); },
+        { enableHighAccuracy: true, timeout: 9000, maximumAge: 60_000 }
+      );
+    } catch {
+      if (!silent) showAlert(mobileToolLabels.locationError);
+    }
   }, [mobileToolLabels.locationError, showAlert]);
 
   useEffect(() => {
     if (locationSource !== 'current') return;
     setCurrentWeather(null);
-    requestCurrentLocation(false);
+    requestCurrentLocation(false, true);
   }, [locationSource, requestCurrentLocation]);
 
   const handleCurrentLocationPress = useCallback(() => {
-    if (locationSource === 'manual') {
-      setLocationSwitchOpen(true);
-      return;
+    persistLocationSource('current');
+    setLocationPickMode(false);
+    setLocationPickIntroOpen(false);
+    setLocationSwitchOpen(false);
+    if (typeof window !== 'undefined') {
+      removeSessionValue(MAP_LOCATION_PICK_MODE_KEY);
+      clearSelectLocationQuery();
+    }
+    if (userLocation) {
+      setMapFlyTo({ ...userLocation, zoom: 15, key: Date.now() });
     }
     requestCurrentLocation();
-  }, [locationSource, requestCurrentLocation]);
+  }, [persistLocationSource, requestCurrentLocation, userLocation]);
 
   const confirmUseCurrentLocation = useCallback(() => {
     persistLocationSource('current');
@@ -1444,10 +1903,8 @@ export default function MainPage() {
     setLocationPickMode(false);
     setLocationPickIntroOpen(false);
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
-      if (window.location.search.includes('selectLocation=1')) {
-        window.history.replaceState({}, '', '/');
-      }
+      removeSessionValue(MAP_LOCATION_PICK_MODE_KEY);
+      clearSelectLocationQuery();
     }
     setLocationSwitchOpen(false);
     requestCurrentLocation();
@@ -1457,10 +1914,8 @@ export default function MainPage() {
     setLocationPickMode(false);
     setLocationPickIntroOpen(false);
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
-      if (window.location.search.includes('selectLocation=1')) {
-        window.history.replaceState({}, '', '/');
-      }
+      removeSessionValue(MAP_LOCATION_PICK_MODE_KEY);
+      clearSelectLocationQuery();
     }
   }, []);
 
@@ -1475,17 +1930,15 @@ export default function MainPage() {
     persistLocationSource('manual');
     setLocationPickMode(true);
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem(MAP_LOCATION_PICK_MODE_KEY, '1');
+      setSessionValue(MAP_LOCATION_PICK_MODE_KEY, '1');
     }
   }, [cancelLocationPickMode, closeAllPopups, locationPickMode, persistLocationSource]);
 
   const dismissLocationPickIntro = useCallback(() => {
     setLocationPickIntroOpen(false);
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
-      if (window.location.search.includes('selectLocation=1')) {
-        window.history.replaceState({}, '', '/');
-      }
+      removeSessionValue(MAP_LOCATION_PICK_MODE_KEY);
+      clearSelectLocationQuery();
     }
   }, []);
 
@@ -1496,34 +1949,37 @@ export default function MainPage() {
     persistLocationSource('manual');
     setLocationPickMode(true);
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem(MAP_LOCATION_PICK_MODE_KEY, '1');
-      if (window.location.search.includes('selectLocation=1')) {
-        window.history.replaceState({}, '', '/');
-      }
+      setSessionValue(MAP_LOCATION_PICK_MODE_KEY, '1');
+      clearSelectLocationQuery();
     }
   }, [closeAllPopups, persistLocationSource]);
 
   const handleManualLocationSelect = useCallback((location: MapLocation) => {
     if (typeof window === 'undefined') return;
-    const next = { ...location, updatedAt: new Date().toISOString() };
+    const lat = Number(location.lat);
+    const lng = Number(location.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      showAlert(mobileToolLabels.locationError);
+      return;
+    }
+    const validLocation = { lat, lng };
+    const next = { ...validLocation, updatedAt: new Date().toISOString() };
     if (accountLocationEmail) {
-      localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'manual'), JSON.stringify(next));
-      localStorage.setItem(mapLocationAccountKey(accountLocationEmail, 'source'), 'manual');
+      setLocalValue(mapLocationAccountKey(accountLocationEmail, 'manual'), JSON.stringify(next));
+      setLocalValue(mapLocationAccountKey(accountLocationEmail, 'source'), 'manual');
     }
-    localStorage.setItem(MAP_MANUAL_LOCATION_KEY, JSON.stringify(next));
-    localStorage.setItem(MAP_LOCATION_SOURCE_KEY, 'manual');
-    sessionStorage.removeItem(MAP_LOCATION_PICK_MODE_KEY);
-    window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source: 'manual', location } }));
-    if (window.location.search.includes('selectLocation=1')) {
-      window.history.replaceState({}, '', '/');
-    }
+    setLocalValue(MAP_MANUAL_LOCATION_KEY, JSON.stringify(next));
+    setLocalValue(MAP_LOCATION_SOURCE_KEY, 'manual');
+    removeSessionValue(MAP_LOCATION_PICK_MODE_KEY);
+    window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source: 'manual', location: validLocation } }));
+    clearSelectLocationQuery();
     setLocationSource('manual');
-    setManualLocation(location);
-    setUserLocation(location);
-    setMapFlyTo({ ...location, zoom: 13 });
+    setManualLocation(validLocation);
+    setUserLocation(validLocation);
+    setMapFlyTo({ ...validLocation, zoom: 13, key: Date.now() });
     setLocationPickMode(false);
     showAlert(mapLocationLabels.manualSaved);
-  }, [accountLocationEmail, mapLocationLabels.manualSaved, showAlert]);
+  }, [accountLocationEmail, mapLocationLabels.manualSaved, mobileToolLabels.locationError, showAlert]);
 
   useEffect(() => {
     if (!selectedMuseum || typeof window === 'undefined') {
@@ -1542,6 +1998,84 @@ export default function MainPage() {
   const activeNearbyRef = nearbyPopupTriggerRef || (isLgViewport ? nearbyBtnRefPC : nearbyBtnRefMobile);
   const activeWeatherRef = weatherPopupTriggerRef || (isLgViewport ? weatherBtnRefPC : weatherBtnRefMobile);
   const effectiveLocation = locationSource === 'manual' && manualLocation ? manualLocation : userLocation;
+  const mapZoomLevelIndex = getNearestMapZoomLevelIndex(mapZoom);
+  const [mapZoomSliderIndex, setMapZoomSliderIndex] = useState(mapZoomLevelIndex);
+  const mapZoomSliderActiveRef = useRef(false);
+  const mapZoomCommandActiveRef = useRef(false);
+  const zoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const zoomCommandReleaseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestMapZoom = useCallback((zoom: number, immediate = false) => {
+    const nextZoomIndex = getNearestMapZoomLevelIndex(zoom);
+    const nextZoom = MAP_ZOOM_LEVELS[nextZoomIndex] ?? snapMapZoom(zoom);
+    setMapZoomSliderIndex(nextZoomIndex);
+    setMapZoom(nextZoom);
+    if (zoomDebounceRef.current) {
+      clearTimeout(zoomDebounceRef.current);
+      zoomDebounceRef.current = null;
+    }
+    const sendZoom = () => {
+      mapZoomCommandActiveRef.current = true;
+      if (zoomCommandReleaseRef.current) clearTimeout(zoomCommandReleaseRef.current);
+      setMapZoomCommand({ zoom: nextZoom, key: Date.now() });
+      zoomCommandReleaseRef.current = setTimeout(() => {
+        mapZoomCommandActiveRef.current = false;
+      }, 320);
+    };
+    if (immediate) {
+      sendZoom();
+      return;
+    }
+    zoomDebounceRef.current = setTimeout(sendZoom, 90);
+  }, []);
+  useEffect(() => {
+    if (!mapZoomSliderActiveRef.current && !mapZoomCommandActiveRef.current) setMapZoomSliderIndex(mapZoomLevelIndex);
+  }, [mapZoomLevelIndex]);
+  useEffect(() => () => {
+    if (zoomDebounceRef.current) clearTimeout(zoomDebounceRef.current);
+    if (zoomCommandReleaseRef.current) clearTimeout(zoomCommandReleaseRef.current);
+  }, []);
+  const handleMapZoomIn = useCallback(() => {
+    requestMapZoom(MAP_ZOOM_LEVELS[Math.min(MAP_ZOOM_LEVELS.length - 1, mapZoomSliderIndex + 1)], true);
+  }, [mapZoomSliderIndex, requestMapZoom]);
+  const handleMapZoomOut = useCallback(() => {
+    requestMapZoom(MAP_ZOOM_LEVELS[Math.max(0, mapZoomSliderIndex - 1)], true);
+  }, [mapZoomSliderIndex, requestMapZoom]);
+  const handleMapZoomSliderChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    mapZoomSliderActiveRef.current = true;
+    const nextIndex = Number(event.target.value);
+    setMapZoomSliderIndex(nextIndex);
+    requestMapZoom(MAP_ZOOM_LEVELS[nextIndex] ?? MAP_ZOOM_LEVELS[0]);
+  }, [requestMapZoom]);
+  const handleMapZoomSliderCommit = useCallback((event: SyntheticEvent<HTMLInputElement>) => {
+    mapZoomSliderActiveRef.current = false;
+    const nextIndex = Number(event.currentTarget.value);
+    setMapZoomSliderIndex(nextIndex);
+    requestMapZoom(MAP_ZOOM_LEVELS[nextIndex] ?? MAP_ZOOM_LEVELS[0], true);
+  }, [requestMapZoom]);
+  const handleMapZoomSliderStart = useCallback(() => {
+    mapZoomSliderActiveRef.current = true;
+  }, []);
+  const renderMapZoomControl = useCallback((variant: 'mobile' | 'pc') => (
+    <div className={`mm-map2-zoom-control mm-map2-zoom-control-${variant}`} aria-label={mapZoomLabels.control}>
+      <button type="button" onClick={handleMapZoomIn} aria-label={mapZoomLabels.zoomIn}>+</button>
+      <input
+        type="range"
+        min={0}
+        max={MAP_ZOOM_LEVELS.length - 1}
+        step={1}
+        value={mapZoomSliderIndex}
+        onMouseDown={handleMapZoomSliderStart}
+        onTouchStart={handleMapZoomSliderStart}
+        onChange={handleMapZoomSliderChange}
+        onMouseUp={handleMapZoomSliderCommit}
+        onTouchEnd={handleMapZoomSliderCommit}
+        onKeyUp={handleMapZoomSliderCommit}
+        onBlur={handleMapZoomSliderCommit}
+        aria-label={mapZoomLabels.control}
+      />
+      <button type="button" onClick={handleMapZoomOut} aria-label={mapZoomLabels.zoomOut}>−</button>
+    </div>
+  ), [handleMapZoomIn, handleMapZoomOut, handleMapZoomSliderChange, handleMapZoomSliderCommit, handleMapZoomSliderStart, mapZoomSliderIndex, mapZoomLabels]);
 
   const fetchCurrentWeather = useCallback(async () => {
     const fetchByLocation = async (location: MapLocation) => {
@@ -1572,19 +2106,23 @@ export default function MainPage() {
     }
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     setWeatherLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          await fetchByLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        } catch {
-          // Keep the chip usable even if the real-time feed fails.
-        } finally {
-          setWeatherLoading(false);
-        }
-      },
-      () => setWeatherLoading(false),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 180_000 }
-    );
+    try {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            await fetchByLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          } catch {
+            // Keep the chip usable even if the real-time feed fails.
+          } finally {
+            setWeatherLoading(false);
+          }
+        },
+        () => setWeatherLoading(false),
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 180_000 }
+      );
+    } catch {
+      setWeatherLoading(false);
+    }
   }, [locationSource, manualLocation, locale]);
 
   const openNearbyPopup = useCallback((triggerRef?: RefObject<HTMLButtonElement | null>) => {
@@ -1619,30 +2157,77 @@ export default function MainPage() {
     const scrollY = window.scrollY;
     const previous = {
       htmlOverflow: html.style.overflow,
+      htmlBackgroundColor: html.style.backgroundColor,
+      htmlColorScheme: html.style.colorScheme,
       bodyOverflow: body.style.overflow,
       bodyPosition: body.style.position,
       bodyTop: body.style.top,
       bodyLeft: body.style.left,
       bodyRight: body.style.right,
       bodyWidth: body.style.width,
+      bodyBackgroundColor: body.style.backgroundColor,
+      themeColors: Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')).map((meta) => ({
+        element: meta,
+        content: meta.getAttribute('content'),
+        media: meta.getAttribute('media'),
+      })),
+      statusBarStyle: document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') || '',
     };
+    const isDarkTheme = html.classList.contains('dark') || html.dataset.theme === 'dark';
+    const lockedThemeColor = isDarkTheme ? '#020617' : '#ffffff';
+    let themeColorMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
+    let createdThemeColorMeta: HTMLMetaElement | null = null;
+    if (themeColorMetas.length === 0) {
+      createdThemeColorMeta = document.createElement('meta');
+      createdThemeColorMeta.setAttribute('name', 'theme-color');
+      document.head.appendChild(createdThemeColorMeta);
+      themeColorMetas = [createdThemeColorMeta];
+    }
+    let statusBarMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (!statusBarMeta) {
+      statusBarMeta = document.createElement('meta');
+      statusBarMeta.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
+      document.head.appendChild(statusBarMeta);
+    }
 
     html.style.overflow = 'hidden';
+    html.style.backgroundColor = lockedThemeColor;
+    html.style.colorScheme = isDarkTheme ? 'dark' : 'light';
     body.style.overflow = 'hidden';
     body.style.position = 'fixed';
     body.style.top = `-${scrollY}px`;
     body.style.left = '0';
     body.style.right = '0';
     body.style.width = '100%';
+    body.style.backgroundColor = lockedThemeColor;
+    themeColorMetas.forEach((meta) => {
+      meta.removeAttribute('media');
+      meta.setAttribute('content', lockedThemeColor);
+    });
+    statusBarMeta.setAttribute('content', isDarkTheme ? 'black-translucent' : 'default');
 
     return () => {
       html.style.overflow = previous.htmlOverflow;
+      html.style.backgroundColor = previous.htmlBackgroundColor;
+      html.style.colorScheme = previous.htmlColorScheme;
       body.style.overflow = previous.bodyOverflow;
       body.style.position = previous.bodyPosition;
       body.style.top = previous.bodyTop;
       body.style.left = previous.bodyLeft;
       body.style.right = previous.bodyRight;
       body.style.width = previous.bodyWidth;
+      body.style.backgroundColor = previous.bodyBackgroundColor;
+      if (createdThemeColorMeta) {
+        createdThemeColorMeta.remove();
+      }
+      previous.themeColors.forEach(({ element, content, media }) => {
+        if (!element.isConnected) document.head.appendChild(element);
+        if (content === null) element.removeAttribute('content');
+        else element.setAttribute('content', content);
+        if (media === null) element.removeAttribute('media');
+        else element.setAttribute('media', media);
+      });
+      if (previous.statusBarStyle) statusBarMeta.setAttribute('content', previous.statusBarStyle);
       window.scrollTo(0, scrollY);
     };
   }, [isLgViewport, isPanelOpen, searchFocused, searchQuery]);
@@ -1687,6 +2272,86 @@ export default function MainPage() {
   const tripDragIndex = tripDrag.dragIndex;
   const tripOverIndex = tripDrag.overIndex;
   const tripIsDragging = tripDrag.isDragging;
+
+  const syncActiveTripStops = useCallback((stops: any[]) => {
+    setTripStopsLocal(stops);
+    setActiveTrip((prev: any) => {
+      if (!prev) return prev;
+      const nextTrip = { ...prev, stops };
+      setActiveTripForAccount(nextTrip);
+      return nextTrip;
+    });
+  }, []);
+
+  const handleToggleTripStopVisited = useCallback(async (stop: any) => {
+    if (!activeTrip || activeTrip.pending || !stop?.museumId) return;
+    const wasVisited = !!stop.visitedAt;
+    const nextVisitedAt = wasVisited ? null : new Date().toISOString();
+    const optimisticStops = (tripStopsLocal.length > 0 ? tripStopsLocal : activeTrip.stops || []).map((s: any) =>
+      (s.id && stop.id && s.id === stop.id) || s.museumId === stop.museumId
+        ? { ...s, visitedAt: nextVisitedAt, reviewId: wasVisited ? null : s.reviewId }
+        : s
+    );
+    syncActiveTripStops(optimisticStops);
+
+    try {
+      const res = await fetch('/api/visited', {
+        method: wasVisited ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planStopId: stop.id, museumId: stop.museumId, reviewId: stop.reviewId }),
+      });
+      if (!res.ok) throw new Error('visited update failed');
+      const json = await res.json();
+      const visit = json.data;
+      const syncedStops = optimisticStops.map((s: any) =>
+        (s.id && stop.id && s.id === stop.id) || s.museumId === stop.museumId
+          ? { ...s, visitedAt: wasVisited ? null : (visit?.visitedAt || nextVisitedAt), reviewId: wasVisited ? null : visit?.id }
+          : s
+      );
+      syncActiveTripStops(syncedStops);
+    } catch {
+      syncActiveTripStops(tripStopsLocal.length > 0 ? tripStopsLocal : activeTrip.stops || []);
+      showAlert(locale === 'ko' ? '다녀감 표시를 저장하지 못했어요.' : 'Could not save visit status.');
+    }
+  }, [activeTrip, locale, showAlert, syncActiveTripStops, tripStopsLocal]);
+
+  const createVisitedCollection = useCallback(async () => {
+    if (!completedTrip || visitedCollectionCreating) return;
+    const stops = (completedTrip.stops || []).filter((stop: any) => stop.museumId);
+    if (stops.length === 0) return;
+    setVisitedCollectionCreating(true);
+    try {
+      const date = new Date(completedTrip.completedAt || Date.now());
+      const title = locale === 'ko'
+        ? `다녀간 컬렉션 · ${completedTrip.title || '내 여행'}`
+        : `Visited Collection · ${completedTrip.title || 'My Trip'}`;
+      const description = locale === 'ko'
+        ? `${date.getMonth() + 1}/${date.getDate()}에 완료한 여행에서 만든 컬렉션`
+        : `Created from a completed trip on ${date.getMonth() + 1}/${date.getDate()}`;
+      const res = await fetch('/api/collections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          isPublic: false,
+          items: stops.map((stop: any, index: number) => ({
+            museumId: stop.museumId,
+            reviewId: stop.reviewId || null,
+            order: stop.order ?? index,
+          })),
+        }),
+      });
+      if (!res.ok) throw new Error('collection create failed');
+      const json = await res.json();
+      setCompletedTrip(null);
+      router.push(json.data?.id ? `/collections/${json.data.id}` : '/collections');
+    } catch {
+      showAlert(locale === 'ko' ? '다녀간 컬렉션을 만들지 못했어요.' : 'Could not create visited collection.');
+    } finally {
+      setVisitedCollectionCreating(false);
+    }
+  }, [completedTrip, locale, router, showAlert, visitedCollectionCreating]);
 
   // Dynamic map padding for mobile active-trip view so route isn't hidden by the top drawer
   const [tripViewportH, setTripViewportH] = useState(0);
@@ -1748,9 +2413,22 @@ export default function MainPage() {
       try { await fetch('/api/plans/active-trip', { method: 'DELETE' }); } catch { }
     };
     const isPendingTrip = !!activeTrip.pending;
+    const visitedCount = tripStops.filter((stop: any) => !!stop.visitedAt).length;
+    const totalStopCount = tripStops.length;
+    const visitedProgressLabel = locale === 'ko'
+      ? `${visitedCount} / ${totalStopCount} 다녀감`
+      : `${visitedCount} / ${totalStopCount} visited`;
     const dDayNum = activeTrip.startDate ? Math.ceil((new Date(activeTrip.startDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000) : null;
     const dDayText = dDayNum !== null ? (dDayNum > 0 ? `D-${dDayNum}` : dDayNum === 0 ? 'D-DAY' : '') : '';
     const tripDateRange = activeTrip.startDate ? (() => { const s = new Date(activeTrip.startDate); const e = activeTrip.endDate ? new Date(activeTrip.endDate) : null; const fmt = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`; return e ? `${fmt(s)} ~ ${fmt(e)}` : fmt(s); })() : '';
+    const formatVisitedDate = (value?: string | Date | null) => {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return locale === 'ko'
+        ? `${date.getMonth() + 1}/${date.getDate()} 다녀감`
+        : `Visited ${date.getMonth() + 1}/${date.getDate()}`;
+    };
     return (
       <div className="mm-active-trip-view2" style={{ animation: tripExiting ? 'slideToRight 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards' : 'slideFromRight 0.4s cubic-bezier(0.32, 0.72, 0, 1)' }}>
         {/* Desktop: side-by-side */}
@@ -1785,6 +2463,17 @@ export default function MainPage() {
                   </div>
                   <h1 className="text-4xl font-extrabold dark:text-white mb-2">{activeTrip.title}</h1>
                   {tripDateRange && <p className="text-sm text-gray-400 dark:text-gray-500 font-medium mb-4">📅 {tripDateRange}</p>}
+                  {!isPendingTrip && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-blue-600 dark:text-blue-300 mb-1.5">
+                        <span>{locale === 'ko' ? '방문 진행률' : 'Visit progress'}</span>
+                        <span>{visitedProgressLabel}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-950/60 overflow-hidden">
+                        <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: totalStopCount ? `${(visitedCount / totalStopCount) * 100}%` : '0%' }} />
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1794,6 +2483,7 @@ export default function MainPage() {
                 {tripStops.map((stop: any, i: number) => {
                   const isBeingDragged = tripDragIndex === i;
                   const isDropTarget = tripOverIndex === i && tripDragIndex !== i;
+                  const isVisited = !!stop.visitedAt;
                   return (
                     <div key={stop.museumId + '-' + i}
                       data-drag-index={i}
@@ -1807,14 +2497,31 @@ export default function MainPage() {
                       onPointerCancel={tripDrag.cancelPress}
                       onPointerLeave={tripDrag.cancelPress}
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isBeingDragged ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-sm'}`}>{i + 1}</div>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isVisited ? 'bg-emerald-500 text-white shadow-sm' : isBeingDragged ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-sm'}`}>
+                        {isVisited ? (
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" /></svg>
+                        ) : i + 1}
+                      </div>
                       <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleMuseumClick(stop.museumId)}>
                         <h3 className="font-bold text-base truncate dark:text-white">{(() => { const m = museums.find(x => x.id === stop.museumId); return m ? getLocalizedMuseumName(m, locale) : stop.name; })()}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           {fmtDur(getVisitDuration(stop.type), locale)}
+                          {isVisited && formatVisitedDate(stop.visitedAt) ? (
+                            <span className="ml-1 text-emerald-600 dark:text-emerald-300">· {formatVisitedDate(stop.visitedAt)}</span>
+                          ) : null}
                         </p>
                       </div>
+                      {!isPendingTrip && (
+                        <button
+                          type="button"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => { event.stopPropagation(); handleToggleTripStopVisited(stop); }}
+                          className={`shrink-0 rounded-full px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${isVisited ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/70'}`}
+                        >
+                          {isVisited ? (locale === 'ko' ? '다녀감' : 'Visited') : (locale === 'ko' ? '다녀감 표시' : 'Mark')}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1850,6 +2557,7 @@ export default function MainPage() {
                 {tripStops.map((stop: any, i: number) => {
                   const isBeingDragged = tripDragIndex === i;
                   const isDropTarget = tripOverIndex === i && tripDragIndex !== i;
+                  const isVisited = !!stop.visitedAt;
                   return (
                     <div key={stop.museumId + '-' + i}
                       data-drag-index={i}
@@ -1863,14 +2571,31 @@ export default function MainPage() {
                       onPointerCancel={tripDrag.cancelPress}
                       onPointerLeave={tripDrag.cancelPress}
                     >
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>{i + 1}</div>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isVisited ? 'bg-emerald-500 text-white' : isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>
+                        {isVisited ? (
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" /></svg>
+                        ) : i + 1}
+                      </div>
                       <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleMuseumClick(stop.museumId)}>
                         <h3 className="font-bold text-sm truncate dark:text-white">{(() => { const m = museums.find(x => x.id === stop.museumId); return m ? getLocalizedMuseumName(m, locale) : stop.name; })()}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                           {fmtDur(getVisitDuration(stop.type), locale)}
+                          {isVisited && formatVisitedDate(stop.visitedAt) ? (
+                            <span className="ml-1 text-emerald-600 dark:text-emerald-300">· {formatVisitedDate(stop.visitedAt)}</span>
+                          ) : null}
                         </p>
                       </div>
+                      {!isPendingTrip && (
+                        <button
+                          type="button"
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => { event.stopPropagation(); handleToggleTripStopVisited(stop); }}
+                          className={`shrink-0 self-center rounded-full px-2.5 py-1.5 text-[10px] font-bold transition active:scale-95 ${isVisited ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/70'}`}
+                        >
+                          {isVisited ? (locale === 'ko' ? '완료' : 'Done') : (locale === 'ko' ? '다녀감' : 'Mark')}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -1883,7 +2608,7 @@ export default function MainPage() {
             {/* Drawer handle — at bottom */}
             <button onClick={() => setTripSheetOpen(prev => !prev)} className="flex flex-col items-center w-full pt-2 pb-3 shrink-0">
               <span className="text-xs font-bold mb-1.5 text-blue-600 dark:text-blue-400">
-                {isPendingTrip && dDayText ? `${dDayText} • ` : ''}{activeTrip.title} • {tripStops.length} {t('plans.stops', locale)}{tripDateRange ? ` • 📅 ${tripDateRange}` : ''}
+                {isPendingTrip && dDayText ? `${dDayText} • ` : ''}{activeTrip.title} • {tripStops.length} {t('plans.stops', locale)}{!isPendingTrip ? ` • ${visitedProgressLabel}` : ''}{tripDateRange ? ` • 📅 ${tripDateRange}` : ''}
               </span>
               <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-neutral-600" />
             </button>
@@ -1985,7 +2710,7 @@ export default function MainPage() {
           >
             {consentSubmitting ? '...' : cl.submit}
           </button>
-          <button onClick={() => { import('next-auth/react').then(m => m.signOut({ callbackUrl: '/login' })); }} className="mt-3 w-full py-2.5 text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button onClick={() => { try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } import('next-auth/react').then(m => m.signOut({ callbackUrl: '/login' })); }} className="mt-3 w-full py-2.5 text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             {cl.cancel}
           </button>
         </div>
@@ -2032,7 +2757,7 @@ export default function MainPage() {
       {/* Mobile Map Discovery 2.0 */}
       {!isViewingActiveRoute && (
         <>
-          <div className={`mm-map2-top md:hidden ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
+          <div className={`mm-map2-top md:hidden ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
             <div className="mm-map2-search-row" style={mm2.searchRow}>
               <div className={`mm-map2-search ${searchFocused ? 'is-focused' : ''}`} style={{ ...mm2.search, ...(searchFocused ? { borderColor: 'rgba(37,99,235,.34)', boxShadow: '0 16px 36px rgba(37,99,235,.16), inset 0 1px 0 rgba(255,255,255,.9)' } : null) }}>
                 <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2053,25 +2778,88 @@ export default function MainPage() {
                   </button>
                 )}
               </div>
-              <button
-                type="button"
+              <a
+                href="/settings"
                 className="mm-map2-icon-pill"
                 style={mm2.iconPill}
-                onClick={() => {
-                  closeAllPopups();
-                  try {
-                    sessionStorage.setItem('mm_settings_return_to', '/');
-                  } catch {}
-                  router.push('/settings');
-                }}
+                onPointerDown={navigateToSettings}
+                onClick={navigateToSettings}
                 aria-label={locale === 'ko' ? '설정' : 'Settings'}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-              </button>
+              </a>
             </div>
+
+            {newMuseums.length > 0 && (
+              <div className={`mm-map2-new-museums-mobile ${activeTrip ? 'has-trip' : ''}`}>
+                <button
+                  type="button"
+                  className={`mm-map2-new-museums-chip ${newMuseumsOpen ? 'is-active' : ''}`}
+                  onPointerDown={markMenuInteraction}
+                  onClick={(event) => {
+                    markMenuInteraction();
+                    if (newMuseumsOpen) closeNewMuseums();
+                    else openNewMuseums();
+                  }}
+                  aria-label={mobileToolLabels.newMuseums}
+                  aria-expanded={newMuseumsOpen}
+                >
+                  <span className="mm-map2-new-museums-icon">
+                    <MuseumNewIcon />
+                    <span>N</span>
+                  </span>
+                </button>
+                {activeTrip && (
+                  <button
+                    type="button"
+                    onClick={() => setIsViewingActiveRoute(true)}
+                    className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
+                    style={mm2.toolPill}
+                    aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
+                  >
+                    {activeTrip.pending ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
+                      </svg>
+                    )}
+                    <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
+                  </button>
+                )}
+                {(newMuseumsOpen || newMuseumsClosing) && (
+                  <div className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} role="dialog" aria-label={mobileToolLabels.newMuseums}>
+                    <div className="mm-map2-new-museums-head">
+                      <h3><MuseumNewIcon />{mobileToolLabels.newMuseums}</h3>
+                      <button type="button" className="mm-map2-new-museums-close" onClick={closeNewMuseums} aria-label={mobileToolLabels.close}>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="mm-map2-new-museums-list">
+                      {newMuseums.map((m: any) => (
+                        <NewMuseumListItem
+                          key={m.id}
+                          museum={m}
+                          locale={locale}
+                          onSelect={(museum) => {
+                            setNewMuseumsOpen(false);
+                            openMuseumPanel(museum);
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {searchQuery.trim().length > 0 && searchResults.length > 0 && (
               <div className="mm-map2-floating-list" style={mm2.floatingList}>
@@ -2089,7 +2877,7 @@ export default function MainPage() {
               </div>
             )}
 
-            {activeTrip && (
+            {activeTrip && newMuseums.length === 0 && (
               <div className="mm-map2-trip-anchor">
                 <button
                   type="button"
@@ -2119,7 +2907,9 @@ export default function MainPage() {
                   <button
                     ref={weatherBtnRefMobile}
 	                    type="button"
-	                    onClick={() => {
+	                    onPointerDown={markMenuInteraction}
+	                    onClick={(event) => {
+	                      markMenuInteraction();
 	                      if (weatherOpen) closeWeatherPopup();
 	                      else openWeatherPopup(weatherBtnRefMobile);
 	                    }}
@@ -2135,7 +2925,12 @@ export default function MainPage() {
                 <button
                   type="button"
                   onMouseDown={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => {
+                    markMenuInteraction();
+                    event.stopPropagation();
+                  }}
                   onClick={(event) => {
+                    markMenuInteraction();
                     event.stopPropagation();
                     if (categoryDropdownOpen) closeCategoryDropdown();
                     else openCategoryDropdown();
@@ -2154,7 +2949,12 @@ export default function MainPage() {
                   <button
                     ref={nearbyBtnRefMobile}
                     type="button"
-	                    onClick={() => { if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefMobile); }}
+	                    onPointerDown={markMenuInteraction}
+	                    onClick={(event) => {
+	                      markMenuInteraction();
+	                      if (nearbyOpen) closeNearbyPopup();
+	                      else openNearbyPopup(nearbyBtnRefMobile);
+	                    }}
                     className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${nearbyOpen ? 'is-active' : ''}`}
                     style={{ ...mm2.toolPill, ...(nearbyOpen ? mm2.activePill : null) }}
                     aria-label={mobileToolLabels.nearby}
@@ -2168,25 +2968,28 @@ export default function MainPage() {
                 )}
 
                 {mapPrefs.location && (
-                  <button
-                    type="button"
-                    onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
-                    className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${locationPickMode ? 'is-active' : ''}`}
-                    style={{ ...mm2.toolPill, ...(locationPickMode ? mm2.activePill : null) }}
-                    aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
-                  >
-                    {locationSource === 'manual' ? (
-                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                      </svg>
-                    )}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
+                      className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${locationPickMode ? 'is-active' : ''}`}
+                      style={{ ...mm2.toolPill, ...(locationPickMode ? mm2.activePill : null) }}
+                      aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
+                    >
+                      {locationSource === 'manual' ? (
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                        </svg>
+                      )}
+                    </button>
+                    {renderMapZoomControl('mobile')}
+                  </>
                 )}
               </div>
             </div>
@@ -2239,22 +3042,13 @@ export default function MainPage() {
                       Admin
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMapSideMenuOpen(false);
-                      try {
-                        sessionStorage.setItem('mm_settings_return_to', '/');
-                      } catch {}
-                      router.push('/settings');
-                    }}
-                  >
+                  <a href="/settings" onPointerDown={navigateToSettings} onClick={navigateToSettings}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     {locale === 'ko' ? '설정' : 'Settings'}
-                  </button>
+                  </a>
                 </div>
                 <div className="mm-map2-side-actions">
                   <button
@@ -2298,7 +3092,9 @@ export default function MainPage() {
                           gtag.event('filter_museums', { category: 'filter', label: f, value: 1 });
                         }}
                       >
-                        {translateCategory(f, locale)}
+                        <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
+                        <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
+                        <span className="mm-map2-category-count">{getCategoryCount(f).toLocaleString()}</span>
                       </button>
                     ))}
                   </div>
@@ -2309,7 +3105,7 @@ export default function MainPage() {
 
           {(categoryDropdownOpen || categoryDropdownClosing) && !isPanelOpen && (
             <div
-              className={`mm-map2-category-menu mm-map-popover-motion md:hidden ${categoryDropdownClosing ? 'is-closing' : ''}`}
+              className={`mm-map2-category-menu mm-map-popover-motion md:hidden ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${categoryDropdownClosing ? 'is-closing' : ''}`}
               style={mm2.categoryMenu}
               role="dialog"
               aria-label={mobileToolLabels.categories}
@@ -2350,7 +3146,9 @@ export default function MainPage() {
                       gtag.event('filter_museums', { category: 'filter', label: f, value: 1 });
                     }}
                   >
-                    {translateCategory(f, locale)}
+                    <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
+                    <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
+                    <span className="mm-map2-category-count">{getCategoryCount(f).toLocaleString()}</span>
                   </button>
                 ))}
               </div>
@@ -2376,6 +3174,11 @@ export default function MainPage() {
             darkMode={isDarkMode}
             locale={locale}
             flyTo={mapFlyTo}
+            zoomCommand={mapZoomCommand}
+            onZoomChange={(zoom) => {
+              if (!mapZoomSliderActiveRef.current && !mapZoomCommandActiveRef.current) setMapZoom(clampMapZoom(zoom));
+            }}
+            highlightMuseumId={highlightedMuseumId}
             userLocation={effectiveLocation}
             savedIds={savedMuseumIds}
             compareIds={compareIdsSet}
@@ -2391,20 +3194,14 @@ export default function MainPage() {
           </div>
         )}
 
-        {/* Loading overlay — shown while museums are being fetched */}
+        {/* Non-blocking map-data status. Controls and menus must remain usable. */}
         {museums.length === 0 && !isViewingActiveRoute && showLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none transition-opacity duration-700">
-            <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-[2px]" />
-            <div className="relative flex flex-col items-center gap-6 animate-fadeInUp">
-              <LoadingAnimation size={50} inline />
-              <div className="text-center">
-                <p className="text-white text-base font-bold tracking-wide drop-shadow-lg">
-                  {({ ko: '박물관과 미술관을 불러오는 중이에요', en: 'Loading museums...', ja: '美術館を読み込んでいます', zh: '正在加载博物馆...', de: 'Museen werden geladen...', fr: 'Chargement des musées...', es: 'Cargando museos...', pt: 'Carregando museus...', sv: 'Laddar museer...', fi: 'Ladataan museoita...', da: 'Indlæser museer...', et: 'Muuseumide laadimine...' } as Record<string, string>)[locale] || 'Loading museums...'}
-                </p>
-                <p className="text-white/60 text-xs mt-1 font-medium drop-shadow">
-                  {({ ko: '잠시만 기다려주세요', en: 'Please wait a moment', ja: '少々お待ちください', zh: '请稍等', de: 'Bitte warten', fr: 'Veuillez patienter', es: 'Espere un momento', pt: 'Aguarde um momento', sv: 'Vänta ett ögonblick', fi: 'Odota hetki', da: 'Vent venligst', et: 'Palun oodake' } as Record<string, string>)[locale] || 'Please wait a moment'}
-                </p>
-              </div>
+          <div className="pointer-events-none absolute left-1/2 top-[calc(max(12px,env(safe-area-inset-top,0px))+146px)] z-10 -translate-x-1/2 transition-opacity duration-300 md:top-24" role="status" aria-live="polite">
+            <div className="flex items-center gap-2 rounded-full border border-white/80 bg-white/92 px-3 py-2 text-[11px] font-bold text-slate-600 shadow-lg shadow-slate-900/10 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/86 dark:text-slate-200">
+              <LoadingAnimation size={28} inline />
+              <span>
+                {({ ko: '장소 불러오는 중', en: 'Loading places', ja: '読込中', zh: '加载中', de: 'Wird geladen', fr: 'Chargement', es: 'Cargando', pt: 'Carregando', sv: 'Laddar', fi: 'Ladataan', da: 'Indlæser', et: 'Laadimine' } as Record<string, string>)[locale] || 'Loading places'}
+              </span>
             </div>
           </div>
         )}
@@ -2517,7 +3314,7 @@ export default function MainPage() {
               </div>
             </div>
 
-            {activeTrip && !isPanelOpen && (
+            {activeTrip && !isPanelOpen && newMuseums.length === 0 && (
               <div className="mm-map2-pc-trip-anchor pointer-events-auto">
                 <button
                   type="button"
@@ -2544,69 +3341,69 @@ export default function MainPage() {
             {/* New Museums + Category Dropdown row */}
             <div className="mm-map2-pc-tools flex items-center gap-2 pointer-events-auto w-full">
               {/* New Museums Button */}
-              {false && newMuseums.length > 0 && (
-                <div className="relative">
+              {newMuseums.length > 0 && (
+                <div className="relative flex items-center gap-4">
                   <button
-                    onClick={() => { if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
-                    className={`flex items-center gap-2 px-4 py-2.5 bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
+                    onPointerDown={markMenuInteraction}
+                    onClick={(event) => {
+                      markMenuInteraction();
+                      if (newMuseumsOpen) closeNewMuseums();
+                      else openNewMuseums();
+                    }}
+                    className={`mm-map2-pc-control flex items-center gap-2 px-4 py-2.5 bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
                       ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                       : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
                       }`}
+                    aria-label={mobileToolLabels.newMuseums}
+                    aria-expanded={newMuseumsOpen}
                   >
-                    <SparkleIcon className="w-4 h-4 text-blue-500" />
+                    <span className="mm-map2-new-museums-icon">
+                      <MuseumNewIcon className="w-4 h-4" />
+                      <span>N</span>
+                    </span>
                     <span className="text-sm font-bold text-gray-800 dark:text-white">
-                      {({ ko: '새로 추가된 곳', en: 'Newly Added', ja: '新しく追加', de: 'Neu hinzugefügt', fr: 'Nouveautés', es: 'Recién añadidos', pt: 'Recém-adicionados', 'zh-CN': '新增地点', 'zh-TW': '新增地點', da: 'Nyligt tilføjet', fi: 'Juuri lisätyt', sv: 'Nyligen tillagda', et: 'Äsja lisatud' } as Record<string, string>)[locale] || 'Newly Added'}
+                      {mobileToolLabels.newMuseums}
                     </span>
                     <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-300 ${newMuseumsOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
+                  {activeTrip && !isPanelOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setIsViewingActiveRoute(true)}
+                      className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
+                      style={mm2.toolPill}
+                      aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
+                    >
+                      {activeTrip.pending ? (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
+                        </svg>
+                      )}
+                      <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
+                    </button>
+                  )}
 
                   {/* Expandable List */}
                   {(newMuseumsOpen || newMuseumsClosing) && (
-                    <div className={`absolute top-full left-0 right-0 mt-1 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-100/50 dark:border-neutral-800/50 max-h-72 overflow-y-auto z-50 min-w-[280px] sm:min-w-[360px] ${newMuseumsClosing ? 'animate-fadeOutDown' : 'animate-fadeInUp'}`}>
-                      {newMuseums.map((m: any, i: number) => {
-                        const imageSrc = getMuseumImageSrc(m);
-                        return (
-                        <button
+                    <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`}>
+                      {newMuseums.map((m: any) => (
+                        <NewMuseumListItem
                           key={m.id}
-                          className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-gray-50 dark:border-neutral-800/50 last:border-0 flex items-center gap-3 rounded-xl"
-                          onClick={() => {
+                          museum={m}
+                          locale={locale}
+                          onSelect={(museum) => {
                             setNewMuseumsOpen(false);
-                            openMuseumPanel(m);
+                            openMuseumPanel(museum);
                           }}
-                        >
-                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 dark:bg-neutral-800 flex-shrink-0 relative">
-                            {imageSrc ? (
-                              <img src={imageSrc} alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; const fb = e.currentTarget.parentElement?.querySelector('.sf') as HTMLElement; if (fb) fb.style.display = 'flex'; }} />
-                            ) : null}
-                            <div className={`sf w-full h-full items-center justify-center ${imageSrc ? 'hidden' : 'flex'}`}>
-                              <img src="/logo.svg" alt="" className="w-5 h-5 opacity-20 dark:invert dark:opacity-60" />
-                            </div>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-bold text-gray-800 dark:text-white truncate">{getLocalizedMuseumName(m, locale)}</span>
-                              {(Date.now() - new Date(m.createdAt).getTime()) < 3 * 24 * 60 * 60 * 1000 && <span className="bg-blue-500 text-white text-[7px] font-bold px-1.5 py-0.5 rounded-full leading-none shrink-0">NEW</span>}
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] text-gray-400">{getLocalizedCityName(m, locale) || m.city}</span>
-                              {m.googleRating && (
-                                <span className="text-[10px] text-yellow-500 flex items-center gap-0.5">
-                                  <StarIcon className="w-3 h-3" /> {m.googleRating}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-[10px] text-gray-300 dark:text-neutral-600 shrink-0">
-                            {(() => {
-                              const d = new Date(m.createdAt);
-                              return `${d.getMonth() + 1}/${d.getDate()}`;
-                            })()}
-                          </span>
-                        </button>
-                        );
-                      })}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -2616,7 +3413,12 @@ export default function MainPage() {
               <div className="mm-map2-pc-category-anchor relative ml-auto">
                 <button
                   onMouseDown={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => {
+                    markMenuInteraction();
+                    event.stopPropagation();
+                  }}
                   onClick={(event) => {
+                    markMenuInteraction();
                     event.stopPropagation();
                     if (categoryDropdownOpen) closeCategoryDropdown();
                     else openCategoryDropdown();
@@ -2682,7 +3484,9 @@ export default function MainPage() {
                             gtag.event('filter_museums', { category: 'filter', label: f, value: 1 });
                           }}
                         >
-                          {translateCategory(f, locale)}
+                          <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
+                          <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
+                          <span className="mm-map2-category-count">{getCategoryCount(f).toLocaleString()}</span>
                         </button>
                       ))}
                     </div>
@@ -2692,31 +3496,39 @@ export default function MainPage() {
 
               {/* My Location — Mobile */}
               {mapPrefs.location && (
-                <button
-                  onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
-                  className={`mm-map2-pc-control mm-map2-pc-location-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 shrink-0 ${locationPickMode ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
-                  aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
-                >
-                  {locationSource === 'manual' ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                    </svg>
-                  )}
-                </button>
+                <>
+                  <button
+                    onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
+                    className={`mm-map2-pc-control mm-map2-pc-location-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 shrink-0 ${locationPickMode ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
+                    aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
+                  >
+                    {locationSource === 'manual' ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                      </svg>
+                    )}
+                  </button>
+                  {renderMapZoomControl('pc')}
+                </>
               )}
 
               {/* Nearby Museums (PC filter overlay) */}
               {mapPrefs.nearby && <div className="mm-map2-pc-nearby-anchor relative shrink-0">
                 <button
                   ref={nearbyBtnRefPC}
-                  onClick={() => { if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefPC); }}
-                  aria-label={locale === 'ko' ? '내 주변' : 'Nearby museums'}
+                  onPointerDown={markMenuInteraction}
+                  onClick={(event) => {
+                    markMenuInteraction();
+                    if (nearbyOpen) closeNearbyPopup();
+                    else openNearbyPopup(nearbyBtnRefPC);
+                  }}
+                  aria-label={locale === 'ko' ? '내 주변 미술관/박물관' : 'Nearby museums'}
                   aria-expanded={nearbyOpen}
                   className={`mm-map2-pc-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${nearbyOpen ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
                 >
@@ -2731,7 +3543,12 @@ export default function MainPage() {
               {mapPrefs.weather && <div className="mm-map2-pc-weather-anchor relative shrink-0">
                 <button
                   ref={weatherBtnRefPC}
-	                  onClick={() => { if (weatherOpen) closeWeatherPopup(); else openWeatherPopup(weatherBtnRefPC); }}
+	                  onPointerDown={markMenuInteraction}
+	                  onClick={(event) => {
+	                    markMenuInteraction();
+	                    if (weatherOpen) closeWeatherPopup();
+	                    else openWeatherPopup(weatherBtnRefPC);
+	                  }}
                   aria-label={locale === 'ko' ? '오늘 날씨' : "Today's weather"}
                   aria-expanded={weatherOpen}
                   className={`mm-map2-pc-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 ${weatherOpen ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
@@ -2884,6 +3701,46 @@ export default function MainPage() {
             </button>
           </div>
         )}
+
+        {completedTrip && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center px-5" role="dialog" aria-modal="true">
+            <button type="button" className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCompletedTrip(null)} aria-label={locale === 'ko' ? '닫기' : 'Close'} />
+            <div className="relative w-full max-w-sm rounded-3xl border border-blue-100/80 bg-white p-6 text-center shadow-[0_28px_70px_rgba(15,23,42,0.22)] dark:border-blue-400/20 dark:bg-[#071426]">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-white shadow-[0_16px_32px_rgba(37,99,235,0.28)]">
+                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-black text-slate-950 dark:text-white">
+                {locale === 'ko' ? '여행을 모두 다녀왔어요' : 'Trip completed'}
+              </h3>
+              <p className="mt-2 text-sm font-medium text-slate-500 dark:text-blue-100/70">
+                {locale === 'ko'
+                  ? `${completedTrip.title || '내 여행'}의 ${completedTrip.stops?.length || 0}곳을 모두 방문 처리했어요.`
+                  : `All ${completedTrip.stops?.length || 0} stops in ${completedTrip.title || 'your trip'} are marked visited.`}
+              </p>
+              <div className="mt-5 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={createVisitedCollection}
+                  disabled={visitedCollectionCreating}
+                  className="h-12 rounded-2xl bg-blue-600 px-4 text-sm font-bold text-white shadow-[0_14px_30px_rgba(37,99,235,0.24)] transition active:scale-95 disabled:opacity-60"
+                >
+                  {visitedCollectionCreating
+                    ? (locale === 'ko' ? '만드는 중...' : 'Creating...')
+                    : (locale === 'ko' ? '다녀간 컬렉션 만들기' : 'Create visited collection')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompletedTrip(null)}
+                  className="h-11 rounded-2xl border border-slate-200 text-sm font-bold text-slate-500 transition active:scale-95 dark:border-blue-400/15 dark:text-blue-100/70"
+                >
+                  {locale === 'ko' ? '나중에' : 'Later'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {selectedMuseum && (
@@ -2899,9 +3756,9 @@ export default function MainPage() {
             transform: detailPanelClosing || !detailPanelEntered ? 'translateX(100%)' : 'translateX(0)',
             transition: skipTransition ? 'none' : isLgViewport ? 'transform 420ms cubic-bezier(0.16, 1, 0.3, 1)' : 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)',
             ...(isLgViewport ? {
-              backgroundColor: isDarkMode ? 'rgba(7, 20, 38, 0.72)' : 'rgba(255, 255, 255, 0.78)',
-              backdropFilter: 'blur(18px) saturate(150%)',
-              WebkitBackdropFilter: 'blur(18px) saturate(150%)',
+              backgroundColor: 'transparent',
+              backdropFilter: 'none',
+              WebkitBackdropFilter: 'none',
             } : {}),
           }}
         >
@@ -2939,6 +3796,7 @@ export default function MainPage() {
         anchor="before"
         triggerRef={activeNearbyRef}
         locationOverride={locationSource === 'manual' ? manualLocation : null}
+        categoryFilter={activeFilter}
       />
       <WeatherPopup
         isOpen={weatherOpen || weatherClosing}

@@ -4,6 +4,29 @@ import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
 import { transformNestedPhotos } from '@/lib/photo-proxy';
 
+async function attachVisitRecordsToPlan(plan: any, userId: string) {
+    const museumIds = (plan.stops || []).map((stop: any) => stop.museumId).filter(Boolean);
+    if (museumIds.length === 0) return plan;
+
+    const visits = await prisma.review.findMany({
+        where: { userId, museumId: { in: museumIds }, content: '' },
+        orderBy: { visitedAt: 'desc' },
+        select: { id: true, museumId: true, visitedAt: true },
+    });
+    const visitByMuseumId = new Map<string, { id: string; museumId: string; visitedAt: Date }>();
+    visits.forEach((visit) => {
+        if (!visitByMuseumId.has(visit.museumId)) visitByMuseumId.set(visit.museumId, visit);
+    });
+
+    return {
+        ...plan,
+        stops: (plan.stops || []).map((stop: any) => {
+            const visit = visitByMuseumId.get(stop.museumId);
+            return visit ? { ...stop, visitedAt: visit.visitedAt, reviewId: visit.id } : stop;
+        }),
+    };
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         const user = await requireAuth();
@@ -18,7 +41,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             }
         });
         if (!plan || plan.userId !== user.id) return errorResponse('NOT_FOUND', 'Plan not found', 404);
-        return successResponse(transformNestedPhotos(plan));
+        const enriched = await attachVisitRecordsToPlan(plan, user.id);
+        return successResponse(transformNestedPhotos(enriched));
     } catch (err: any) {
         if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Auth required', 401);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to get plan', 500);

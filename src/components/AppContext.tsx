@@ -60,9 +60,26 @@ function getEffectiveDarkMode(mode: ThemeMode) {
 function applyEffectiveTheme(isDark: boolean) {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
+    const themeColor = isDark ? '#020617' : '#f8fbff';
     root.classList.toggle('dark', isDark);
     root.dataset.theme = isDark ? 'dark' : 'light';
     root.style.colorScheme = isDark ? 'dark' : 'light';
+
+    const themeColorMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
+    const primaryThemeColorMeta = themeColorMetas[0] || document.createElement('meta');
+    primaryThemeColorMeta.setAttribute('name', 'theme-color');
+    primaryThemeColorMeta.setAttribute('content', themeColor);
+    primaryThemeColorMeta.removeAttribute('media');
+    if (!primaryThemeColorMeta.parentNode) document.head.appendChild(primaryThemeColorMeta);
+    themeColorMetas.slice(1).forEach((meta) => meta.remove());
+
+    let statusBarMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (!statusBarMeta) {
+        statusBarMeta = document.createElement('meta');
+        statusBarMeta.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
+        document.head.appendChild(statusBarMeta);
+    }
+    statusBarMeta.setAttribute('content', isDark ? 'black-translucent' : 'default');
 }
 
 export function useApp() {

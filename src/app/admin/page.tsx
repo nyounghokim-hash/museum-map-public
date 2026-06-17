@@ -782,6 +782,11 @@ export default function AdminPage() {
                                                 🚨 정보수정
                                             </span>
                                         )}
+                                        {f.type === 'cheer' && (
+                                            <span className="text-[9px] font-black bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-200 px-2 py-0.5 rounded-full uppercase">
+                                                응원 메시지
+                                            </span>
+                                        )}
                                     </div>
                                     <span className="text-[10px] font-bold text-gray-300 dark:text-neutral-600">
                                         {new Date(f.createdAt).toLocaleDateString('ko-KR')}

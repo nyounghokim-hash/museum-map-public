@@ -59,9 +59,11 @@ const COUNTRY_TIMEZONES: Record<string, string> = {
 const WEEKDAY_KEYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const WEEKDAY_KO_FULL = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-const CLOCK_TOKEN_PATTERN = String.raw`(?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?::\d{2})|(?:\s*시\s*(?:\d{1,2}\s*분?)?))?\s*(?:AM|PM|오전|오후)?`;
-const CLOCK_RANGE_PATTERN = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–]\\s*(${CLOCK_TOKEN_PATTERN})`, 'i');
-const CLOCK_RANGE_PATTERN_GLOBAL = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–]\\s*(${CLOCK_TOKEN_PATTERN})`, 'gi');
+const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
+const WEEKDAY_JA_FULL = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+const CLOCK_TOKEN_PATTERN = String.raw`(?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?::\d{2})|(?:\s*[시時]\s*(?:\d{1,2}\s*(?:분|分)?)?))?\s*(?:AM|PM|오전|오후)?`;
+const CLOCK_RANGE_PATTERN = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–〜～]\\s*(${CLOCK_TOKEN_PATTERN})`, 'i');
+const CLOCK_RANGE_PATTERN_GLOBAL = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–〜～]\\s*(${CLOCK_TOKEN_PATTERN})`, 'gi');
 
 const STATUS_LABELS: Record<MuseumOpenStatusKind, Record<string, string>> = {
     open: {
@@ -279,7 +281,7 @@ function parseLocalParts(timeZone: string, now: Date = new Date()) {
 function parseClockMinutes(raw: string) {
     const source = raw.trim();
     const meridiem = /PM|오후/i.test(source) ? 'pm' : /AM|오전/i.test(source) ? 'am' : null;
-    const match = source.match(/(\d{1,2})(?::(\d{2})|(?:\s*시\s*(\d{1,2})?\s*분?)?)?/);
+    const match = source.match(/(\d{1,2})(?::(\d{2})|(?:\s*[시時]\s*(\d{1,2})?\s*(?:분|分)?)?)?/);
     if (!match) return null;
     let hour = Number(match[1]);
     const minute = Number(match[2] || match[3] || 0);
@@ -325,10 +327,12 @@ function koDayPartIncludesToday(part: string, dayIndex: number) {
 function getTodayHoursSegment(hoursValue: string, dayName: string, dayIndex: number) {
     const koShort = WEEKDAY_KO[dayIndex < 0 ? 1 : dayIndex];
     const koFull = WEEKDAY_KO_FULL[dayIndex < 0 ? 1 : dayIndex];
-    const dayNames = [dayName, koFull, koShort];
+    const jaShort = WEEKDAY_JA[dayIndex < 0 ? 1 : dayIndex];
+    const jaFull = WEEKDAY_JA_FULL[dayIndex < 0 ? 1 : dayIndex];
+    const dayNames = [dayName, koFull, koShort, jaFull, jaShort];
     const parts = hoursValue
         .replace(/\r?\n/g, ' / ')
-        .split(/\s*(?:\/|,|;|。|\.)(?=\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|[일월화수목금토]|월요일|화요일|수요일|목요일|금요일|토요일|일요일))/i)
+        .split(/\s*(?:\/|,|;|。|\.)(?=\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|[일월화수목금토日月火水木金土]|월요일|화요일|수요일|목요일|금요일|토요일|일요일|日曜日|月曜日|火曜日|水曜日|木曜日|金曜日|土曜日))/i)
         .map(part => part.trim())
         .filter(Boolean);
 
@@ -339,7 +343,7 @@ function getTodayHoursSegment(hoursValue: string, dayName: string, dayIndex: num
     });
     if (explicit) return explicit;
 
-    const compactClosed = new RegExp(`(^|[\\s,·/~-])${koShort}(요일)?\\s*(정기\\s*)?휴관`, 'i');
+    const compactClosed = new RegExp(`(^|[\\s,·/~-〜～])(${koShort}(요일)?|${jaShort}(曜日)?)\\s*(정기\\s*)?(휴관|휴무|休館|定休日|閉館)`, 'i');
     if (compactClosed.test(hoursValue)) return `${koFull}: 휴관`;
     const closedClauses = hoursValue.match(/[일월화수목금토](?:요일)?(?:\s*[·,\/~-]\s*[일월화수목금토](?:요일)?)*\s*(?:정기\s*)?휴관/g) || [];
     if (closedClauses.some(clause => new RegExp(`${koShort}(요일)?`).test(clause))) return `${koFull}: 휴관`;
@@ -355,20 +359,21 @@ export function resolveOpenStatusFromHours(hoursValue: string | undefined, count
     const local = parseLocalParts(timeZone, now);
     const dayIndex = WEEKDAY_KEYS.indexOf(local.weekday as any);
     const koDay = WEEKDAY_KO[dayIndex < 0 ? 1 : dayIndex];
+    const jaDay = WEEKDAY_JA[dayIndex < 0 ? 1 : dayIndex];
     const dayName = local.weekday;
     const todaySegment = getTodayHoursSegment(hoursValue, dayName, dayIndex);
     const normalized = todaySegment.replace(/\s+/g, ' ');
     const hasExplicitTodaySegment = todaySegment !== hoursValue
-        || new RegExp(`(^|\\b|\\s)(${dayName}|${koDay}(요일)?)\\s*[:：]?`, 'i').test(normalized)
+        || new RegExp(`(^|\\b|\\s)(${dayName}|${koDay}(요일)?|${jaDay}(曜日)?)\\s*[:：]?`, 'i').test(normalized)
         || koDayPartIncludesToday(normalized, dayIndex);
-    const closedRegex = new RegExp(`(${dayName}|${koDay}(요일)?)\\s*[:：]?\\s*(Closed|휴관|정기\\s*휴관|closed)`, 'i');
-    const genericClosedOnly = /^(closed|휴관|정기\s*휴관|休館|闭馆)$/i.test(normalized);
+    const closedRegex = new RegExp(`(${dayName}|${koDay}(요일)?|${jaDay}(曜日)?)\\s*[:：]?\\s*(Closed|휴관|휴무|정기\\s*휴관|休館|定休日|閉館|closed)`, 'i');
+    const genericClosedOnly = /^(closed|휴관|휴무|정기\s*휴관|休館|定休日|閉館|闭馆)$/i.test(normalized);
     const todayClosedClauses = normalized.match(/[일월화수목금토](?:요일)?(?:\s*[·,\/~-]\s*[일월화수목금토](?:요일)?)*\s*(?:정기\s*)?휴관/g) || [];
     const todayClosedByClause = todayClosedClauses.some(clause => koDayPartIncludesToday(clause, dayIndex));
     const hasClockRange = CLOCK_RANGE_PATTERN.test(normalized);
     if (closedRegex.test(normalized)
         || todayClosedByClause
-        || (hasExplicitTodaySegment && !hasClockRange && /closed|휴관|休館|闭馆/i.test(normalized))
+        || (hasExplicitTodaySegment && !hasClockRange && /closed|휴관|휴무|休館|定休日|閉館|闭馆/i.test(normalized))
         || genericClosedOnly) {
         const kind: MuseumOpenStatusKind = hasExplicitTodaySegment || todayClosedByClause || closedRegex.test(normalized)
             ? 'todayClosed'

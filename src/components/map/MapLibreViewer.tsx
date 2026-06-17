@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { type Museum } from '@/generated_v2/client';
@@ -9,8 +9,8 @@ import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 
 // Category → SVG icon path (each visually distinct)
 const CATEGORY_ICONS: Record<string, string> = {
-  // Contemporary Art — abstract star burst / geometric
-  'Contemporary Art': 'M12 2l2.4 7.2H22l-6 4.8 2.4 7.2L12 16.4 5.6 21.2 8 14 2 9.2h7.6L12 2z',
+  // Contemporary Art — abstract sparkle
+  'Contemporary Art': 'M11 2h2l.7 5.3 4.3-3.2 1.4 1.4-3.1 4.3 5.2.7v2l-5.2.7 3.1 4.3-1.4 1.4-4.3-3.2L13 22h-2l-.7-5.3-4.3 3.2-1.4-1.4 3.1-4.3-5.2-.7v-2l5.2-.7-3.1-4.3 1.4-1.4 4.3 3.2L11 2z',
   // Modern Art — palette with brush
   'Modern Art': 'M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c.55 0 1-.45 1-1v-.68c0-.5-.42-.91-.91-1.03C9.73 18.65 8 16.5 8 14c0-3.31 2.69-6 6-6 2.97 0 5.43 2.16 5.9 5h.1c.55 0 1-.45 1-1 0-5.51-4.49-10-10-10zm-5 10c0 .83.67 1.5 1.5 1.5S10 12.83 10 12s-.67-1.5-1.5-1.5S7 11.17 7 12zm3-4c0 .83.67 1.5 1.5 1.5S13 8.83 13 8s-.67-1.5-1.5-1.5S10 7.17 10 8zm5 0c0 .83.67 1.5 1.5 1.5S18 8.83 18 8s-.67-1.5-1.5-1.5S15 7.17 15 8z',
   // Fine Arts — paintbrush
@@ -18,7 +18,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   // Art Gallery — framed picture
   'Art Gallery': 'M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z',
   // General Museum — classical building with columns
-  'General Museum': 'M1 11v10h6v-5h2v5h6V11L8 6l-7 5zm12 8h-2v-5H5v5H3v-7l5-3.5 5 3.5v7zm4-12h2v2h-2zm0 4h2v2h-2zm0 4h2v2h-2zm0 4h2v2h-2zm-4-16v2H7V3h10c1.1 0 2 .9 2 2v16h-2V5h-4z',
+  'General Museum': 'M12 3L3 8v2h18V8l-9-5zM5 11v7H3v2h18v-2h-2v-7h-2v7h-3v-7h-4v7H7v-7H5z',
   // Cultural Center — theater/stage
   'Cultural Center': 'M2 16.5C2 19.54 4.46 22 7.5 22s5.5-2.46 5.5-5.5V2H2v14.5zm2-12.5h7v3H4V4zm7 12.5c0 1.93-1.57 3.5-3.5 3.5S4 18.43 4 16.5V9h7v7.5zm3-12.5h7v14.5c0 1.93-1.57 3.5-3.5 3.5S14 18.43 14 16.5V4zm2 3V4h3v3h-3z',
   // History Museum — pen/quill
@@ -27,23 +27,133 @@ const CATEGORY_ICONS: Record<string, string> = {
   'Natural History': 'M17.12 2.12c-5.69 5.69-3.73 11.32-1.21 14.59L4.93 21.17l1.42 1.42 4.47-10.99c3.26 2.52 8.89 4.49 14.59-1.21L17.12 2.12zM7.27 10.73l1.41-1.42 2.84 2.84-1.42 1.41-2.83-2.83z',
   // Science Museum — microscope
   'Science Museum': 'M13 11.33L18 18H6l5-6.67V6.83c-.86-.46-1.5-1.38-1.5-2.46 0-1.54 1.26-2.83 2.83-2.83h.09c1.56.05 2.79 1.33 2.79 2.9 0 1.05-.6 1.95-1.5 2.4v4.49zM3 20v2h18v-2H3z',
-  // Maritime Museum — whale
-  'Maritime Museum': 'M12 3C7.03 3 2 6.58 2 12c0 3.31 2.69 6 6 6h2.5l2.5-3 2.5 3H18c3.31 0 6-2.69 6-6 0-5.42-5.03-9-12-9zm-4 11c-.83 0-1.5-.67-1.5-1.5S7.17 11 8 11s1.5.67 1.5 1.5S8.83 14 8 14zm8 0c-.83 0-1.5-.67-1.5-1.5S15.17 11 16 11s1.5.67 1.5 1.5S16.83 14 16 14z',
+  // Maritime Museum — anchor
+  'Maritime Museum': 'M12 2a2 2 0 012 2c0 .74-.4 1.38-1 1.73V8h4V6h2v6h-2v-2h-4v7.1c1.94-.44 3.5-1.78 4.18-3.56l1.86.7C17.96 17.12 15.22 19 12 19s-5.96-1.88-7.04-4.76l1.86-.7A5.52 5.52 0 0011 17.1V10H7v2H5V6h2v2h4V5.73A2 2 0 1112 2zm0 1.5a.5.5 0 100 1 .5.5 0 000-1z',
   // Archaeological Museum — magnifying glass
   'Archaeological Museum': 'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
   // Photography Museum — camera
   'Photography Museum': 'M12 10.8a2.4 2.4 0 100 4.8 2.4 2.4 0 000-4.8zm6-3.6h-1.75l-1.58-1.68A1.2 1.2 0 0013.8 5h-3.6a1.2 1.2 0 00-.87.52L7.75 7.2H6C4.34 7.2 3 8.54 3 10.2v7.2c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3v-7.2c0-1.66-1.34-3-3-3zM12 17.4a4.2 4.2 0 110-8.4 4.2 4.2 0 010 8.4z',
   // Design Museum — computer/monitor
   'Design Museum': 'M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7l-2 3v1h8v-1l-2-3h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 12H3V4h18v10z',
+  // Architecture Museum — classical plan/building
+  'Architecture Museum': 'M12 2.5L3 7.5v2h18v-2l-9-5zM5 11h3v7H5v-7zm5 0h4v7h-4v-7zm6 0h3v7h-3v-7zM4 19h16v2H4v-2z',
+  // Unusual Museum — curiosity/spark
+  'Unusual Museum': 'M12 2l1.15 4.15L17 7.3l-3.85 1.15L12 12l-1.15-3.55L7 7.3l3.85-1.15L12 2zm6.5 8l.8 2.7L22 13.5l-2.7.8-.8 2.7-.8-2.7-2.7-.8 2.7-.8.8-2.7zM6 12l1 3.2 3.2 1L7 17.2 6 20.4 5 17.2l-3.2-1 3.2-1L6 12z',
 };
 
 const DEFAULT_ICON = 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z';
 
-function createSvgImage(pathD: string, color: string, size: number = 32): HTMLImageElement {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><path d="${pathD}"/></svg>`;
-  const img = new Image(size, size);
-  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  return img;
+const CATEGORY_ICON_ALIASES: Record<string, string> = {
+  Museum: 'General Museum',
+  Museums: 'General Museum',
+  'Art Museum': 'Fine Arts',
+  'Art Gallery': 'Art Gallery',
+  Gallery: 'Art Gallery',
+  Art: 'Fine Arts',
+  'Arts': 'Fine Arts',
+  'Fine Art': 'Fine Arts',
+  'Fine Arts': 'Fine Arts',
+  'Contemporary': 'Contemporary Art',
+  'Contemporary Art': 'Contemporary Art',
+  'Modern': 'Modern Art',
+  'Modern Art': 'Modern Art',
+  'Specialty Museum': 'General Museum',
+  'Unusual Museum': 'Unusual Museum',
+  'Creative Complex': 'Cultural Center',
+  'Art Space': 'Art Gallery',
+  'Media Art': 'Contemporary Art',
+  'Digital Art': 'Contemporary Art',
+  'Architecture Museum': 'Architecture Museum',
+  Architecture: 'Architecture Museum',
+  'Art Pavilion': 'Contemporary Art',
+  'History': 'History Museum',
+  'War Museum': 'History Museum',
+  'Military Museum': 'History Museum',
+  'Children Museum': 'Science Museum',
+  'Children\'s Museum': 'Science Museum',
+  'Natural History': 'Natural History',
+  'Natural History Museum': 'Natural History',
+  'Science': 'Science Museum',
+  'Maritime': 'Maritime Museum',
+  'Maritime Museum': 'Maritime Museum',
+  'Archaeology': 'Archaeological Museum',
+  'Archaeology Museum': 'Archaeological Museum',
+  'Archaeological Museum': 'Archaeological Museum',
+  'Photography': 'Photography Museum',
+  'Photography Museum': 'Photography Museum',
+  'Design': 'Design Museum',
+  'Design Museum': 'Design Museum',
+  'Culture': 'Cultural Center',
+  'Cultural Center': 'Cultural Center',
+  미술관: 'Fine Arts',
+  박물관: 'General Museum',
+  현대미술: 'Contemporary Art',
+  근대미술: 'Modern Art',
+  순수미술: 'Fine Arts',
+  아트갤러리: 'Art Gallery',
+  '종합 박물관': 'General Museum',
+  문화센터: 'Cultural Center',
+  역사: 'History Museum',
+  자연사: 'Natural History',
+  과학: 'Science Museum',
+  해양: 'Maritime Museum',
+  고고학: 'Archaeological Museum',
+  사진: 'Photography Museum',
+  디자인: 'Design Museum',
+  건축: 'Architecture Museum',
+  건축박물관: 'Architecture Museum',
+  '특이 박물관': 'Unusual Museum',
+};
+
+// match expression labels must be unique — duplicates invalidate the whole expression
+const CATEGORY_ICON_MATCH_PAIRS: string[] = (() => {
+  const pairs = new Map<string, string>();
+  for (const category of Object.keys(CATEGORY_ICONS)) pairs.set(category, `icon-${category}`);
+  for (const [alias, category] of Object.entries(CATEGORY_ICON_ALIASES)) {
+    if (!pairs.has(alias)) pairs.set(alias, `icon-${category}`);
+  }
+  return Array.from(pairs.entries()).flat();
+})();
+
+function createCategoryIconImageData(pathD: string, color: string, size: number = 48): { width: number; height: number; data: Uint8Array } {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, size, size);
+  ctx.save();
+  ctx.scale(size / 24, size / 24);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 0.9;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  try {
+    const path = new Path2D(pathD);
+    ctx.fill(path);
+    ctx.stroke(path);
+  } catch {
+    ctx.beginPath();
+    ctx.arc(12, 9, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+  const imageData = ctx.getImageData(0, 0, size, size);
+  return { width: size, height: size, data: new Uint8Array(imageData.data) };
+}
+
+async function registerCategoryIconImages(map: maplibregl.Map, color: string) {
+  const entries = [...Object.entries(CATEGORY_ICONS), ['_default', DEFAULT_ICON] as const];
+  for (const [key, pathD] of entries) {
+    const imageId = `icon-${key}`;
+    try {
+      if (map.hasImage(imageId)) map.removeImage(imageId);
+      map.addImage(imageId, createCategoryIconImageData(pathD, color), { pixelRatio: 1 });
+    } catch (error) {
+      console.warn(`[map] marker icon skipped: ${imageId}`, error);
+    }
+  }
 }
 
 /** Canvas-rendered gradient circle for cluster markers */
@@ -118,14 +228,87 @@ function createGlowCircle(size: number, darkMode: boolean, variant: 'blue' | 'or
   return ctx.getImageData(0, 0, r, r);
 }
 
-function museumsToGeoJSON(museums: Museum[], savedIds?: Set<string>, compareIds?: Set<string>): GeoJSON.FeatureCollection {
+type MuseumFeatureBaseProperties = {
+  id: string;
+  displayName: string;
+  type: string | null;
+  displayCity: string;
+  country: string;
+  googleRating: number;
+  imageSrc: string;
+};
+
+const museumFeatureBaseCache = new WeakMap<object, Map<string, MuseumFeatureBaseProperties>>();
+const museumListKeyCache = new WeakMap<Museum[], string>();
+
+function getMuseumListKey(museums: Museum[]) {
+  const cached = museumListKeyCache.get(museums);
+  if (cached) return cached;
+  const key = `${museums.length}:${museums.map(museum => museum.id).join('|')}`;
+  museumListKeyCache.set(museums, key);
+  return key;
+}
+
+function getIdSetKey(ids?: Set<string>) {
+  if (!ids || ids.size === 0) return '';
+  return Array.from(ids).sort().join('|');
+}
+
+function getMuseumSourceSignature(museums: Museum[], savedIds: Set<string> | undefined, locale: string) {
+  return `${locale || 'ko'}::${getMuseumListKey(museums || [])}::saved=${getIdSetKey(savedIds)}`;
+}
+
+function getMuseumFeatureBaseProperties(museum: Museum, locale: string): MuseumFeatureBaseProperties {
+  const cacheKey = locale || 'ko';
+  let cachedByLocale = museumFeatureBaseCache.get(museum as object);
+  const cached = cachedByLocale?.get(cacheKey);
+  if (cached) return cached;
+
+  const typedMuseum = museum as any;
+  const nameTranslations = typedMuseum.nameTranslations || {};
+  const cityTranslations = typedMuseum.cityTranslations || {};
+  const properties = {
+    id: museum.id,
+    displayName: cacheKey === 'ko'
+      ? (typedMuseum.nameKo || museum.name)
+      : cacheKey === 'en'
+        ? (typedMuseum.nameEn || museum.name)
+        : (nameTranslations[cacheKey] || typedMuseum.nameEn || museum.name),
+    type: museum.type,
+    displayCity: cacheKey === 'ko'
+      ? (typedMuseum.cityKo || museum.city || '')
+      : cacheKey === 'en'
+        ? (museum.city || '')
+        : (cityTranslations[cacheKey] || museum.city || ''),
+    country: museum.country || '',
+    googleRating: typedMuseum.googleRating || 0,
+    imageSrc: getMuseumImageSrc(typedMuseum) || '',
+  };
+
+  if (!cachedByLocale) {
+    cachedByLocale = new Map();
+    museumFeatureBaseCache.set(museum as object, cachedByLocale);
+  }
+  cachedByLocale.set(cacheKey, properties);
+  return properties;
+}
+
+function museumsToGeoJSON(museums: Museum[], savedIds?: Set<string>, locale: string = 'ko'): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  for (const museum of museums || []) {
+    if (!Number.isFinite(museum.longitude) || !Number.isFinite(museum.latitude)) continue;
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [museum.longitude, museum.latitude] },
+      properties: {
+        ...getMuseumFeatureBaseProperties(museum, locale),
+        saved: savedIds?.has(museum.id) ? 1 : 0,
+      },
+    });
+  }
   return {
     type: 'FeatureCollection',
-    features: (museums || []).map(m => ({
-      type: 'Feature' as const,
-      geometry: { type: 'Point' as const, coordinates: [m.longitude, m.latitude] },
-      properties: { id: m.id, name: m.name, nameKo: (m as any).nameKo || '', nameEn: (m as any).nameEn || '', nameTranslations: JSON.stringify((m as any).nameTranslations || {}), type: m.type, city: m.city || '', cityKo: (m as any).cityKo || '', cityTranslations: JSON.stringify((m as any).cityTranslations || {}), country: m.country || '', saved: savedIds?.has(m.id) ? 1 : 0, inCompare: compareIds?.has(m.id) ? 1 : 0, googleRating: (m as any).googleRating || 0, imageSrc: getMuseumImageSrc(m as any) || '' }
-    }))
+    features,
   };
 }
 
@@ -239,13 +422,22 @@ const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.js
 const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const LIGHT_COLOR = '#2563EB'; // Museum Map 2.0 primary blue
 const DARK_COLOR = '#60A5FA';  // Museum Map 2.0 dark-mode blue
-const SAVED_COLOR = '#2563EB';
-const SAVED_DARK_COLOR = '#60A5FA';
-
 export type MapBounds = { minLng: number; minLat: number; maxLng: number; maxLat: number };
 
 const MUSEUM_LAYER_IDS = ['unclustered-icon', 'unclustered-bg'];
 const MUSEUM_TAP_RADIUS = 15;
+
+// map.resize() internally calls stop(), killing in-flight camera animations —
+// only resize when the canvas no longer matches the container size.
+function resizeIfNeeded(map: maplibregl.Map) {
+  const container = map.getContainer();
+  const canvas = map.getCanvas();
+  const dpr = window.devicePixelRatio || 1;
+  if (Math.abs(container.clientWidth - canvas.width / dpr) < 1 &&
+    Math.abs(container.clientHeight - canvas.height / dpr) < 1) return;
+  map.resize();
+  map.triggerRepaint();
+}
 
 function getFirstExistingLayer(map: maplibregl.Map, layerIds: string[]) {
   return layerIds.find(layerId => !!map.getLayer(layerId));
@@ -331,9 +523,11 @@ export default function MapLibreViewer({
   darkMode = false,
   locale = 'ko',
   flyTo,
+  zoomCommand,
+  onZoomChange,
+  highlightMuseumId,
   userLocation,
   savedIds,
-  compareIds,
   selectionMode = false,
   onMapPointSelect,
 }: {
@@ -342,7 +536,10 @@ export default function MapLibreViewer({
   onBoundsChange?: (bounds: MapBounds) => void,
   darkMode?: boolean,
   locale?: string,
-  flyTo?: { lat: number; lng: number; zoom?: number; offset?: [number, number] } | null,
+  flyTo?: { lat: number; lng: number; zoom?: number; offset?: [number, number]; key?: number } | null,
+  zoomCommand?: { zoom: number; key?: number } | null,
+  onZoomChange?: (zoom: number) => void,
+  highlightMuseumId?: string | null,
   userLocation?: UserLocation | null,
   savedIds?: Set<string>,
   compareIds?: Set<string>,
@@ -355,10 +552,13 @@ export default function MapLibreViewer({
   const mapLoaded = useRef(false);
   const onMuseumClickRef = useRef(onMuseumClick);
   const pendingData = useRef<Museum[] | null>(null);
+  const museumsRef = useRef(museums);
   const darkModeRef = useRef(darkMode);
+  const highlightMuseumIdRef = useRef(highlightMuseumId);
   const onBoundsChangeRef = useRef(onBoundsChange);
+  const onZoomChangeRef = useRef(onZoomChange);
   const savedIdsRef = useRef(savedIds);
-  const compareIdsRef = useRef(compareIds);
+  const lastMuseumSourceSignatureRef = useRef('');
   const userLocationRef = useRef(userLocation);
   const onMapPointSelectRef = useRef(onMapPointSelect);
   const activePopupRef = useRef<{ remove: () => void } | null>(null);
@@ -366,26 +566,62 @@ export default function MapLibreViewer({
   const clusterTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const mapTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const clusterTouchHandlerAttachedRef = useRef(false);
+  const scheduleMapResize = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      if (!mapRef.current) return;
+      resizeIfNeeded(mapRef.current);
+    });
+  }, []);
+  const emitMapPointSelect = (lngLat?: { lat?: number; lng?: number }) => {
+    const lat = Number(lngLat?.lat);
+    const lng = Number(lngLat?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    onMapPointSelectRef.current?.({ lat, lng });
+  };
+
+  const syncMuseumSourceData = useCallback(() => {
+    if (!mapRef.current || !mapLoaded.current) return;
+    const source = mapRef.current.getSource('museums') as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    const nextMuseums = museumsRef.current || [];
+    const signature = getMuseumSourceSignature(nextMuseums, savedIdsRef.current, localeRef.current);
+    if (signature === lastMuseumSourceSignatureRef.current) return;
+
+    if (activePopupRef.current) {
+      activePopupRef.current.remove();
+      activePopupRef.current = null;
+    }
+    source.setData(museumsToGeoJSON(nextMuseums, savedIdsRef.current, localeRef.current));
+    lastMuseumSourceSignatureRef.current = signature;
+    scheduleMapResize();
+    mapRef.current.triggerRepaint();
+  }, [scheduleMapResize]);
+
+  useEffect(() => { highlightMuseumIdRef.current = highlightMuseumId; }, [highlightMuseumId]);
   useEffect(() => { onMapPointSelectRef.current = onMapPointSelect; }, [onMapPointSelect]);
   useEffect(() => { userLocationRef.current = userLocation; }, [userLocation]);
-  useEffect(() => { savedIdsRef.current = savedIds; }, [savedIds]);
   useEffect(() => {
-    compareIdsRef.current = compareIds;
-    if (mapRef.current && mapLoaded.current) {
-      const src = mapRef.current.getSource('museums') as maplibregl.GeoJSONSource | undefined;
-      if (src) src.setData(museumsToGeoJSON(museums, savedIdsRef.current, compareIdsRef.current));
-    }
-  }, [compareIds, museums]);
+    savedIdsRef.current = savedIds;
+    syncMuseumSourceData();
+  }, [savedIds, syncMuseumSourceData]);
+  useEffect(() => {
+    museumsRef.current = museums;
+    if (!mapLoaded.current) pendingData.current = museums;
+    syncMuseumSourceData();
+  }, [museums, syncMuseumSourceData]);
 
   useEffect(() => { onMuseumClickRef.current = onMuseumClick; }, [onMuseumClick]);
   useEffect(() => { onBoundsChangeRef.current = onBoundsChange; }, [onBoundsChange]);
+  useEffect(() => { onZoomChangeRef.current = onZoomChange; }, [onZoomChange]);
   useEffect(() => {
     localeRef.current = locale;
     // Update map labels when locale changes
     if (mapRef.current && mapLoaded.current) {
       applyMapLocale(mapRef.current, locale);
+      syncMuseumSourceData();
     }
-  }, [locale]);
+  }, [locale, syncMuseumSourceData]);
 
   const mountClusterPopup = (
     map: maplibregl.Map,
@@ -436,14 +672,6 @@ export default function MapLibreViewer({
     };
   };
 
-  const scheduleMapResize = () => {
-    window.requestAnimationFrame(() => {
-      if (!mapRef.current) return;
-      mapRef.current.resize();
-      mapRef.current.triggerRepaint();
-    });
-  };
-
   // Initialize map ONCE
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
@@ -457,6 +685,7 @@ export default function MapLibreViewer({
       zoom: 3,
       pitch: 0,
       minZoom: 2,
+      fadeDuration: 80,
     });
 
     let resizeFrame = 0;
@@ -464,8 +693,7 @@ export default function MapLibreViewer({
       if (resizeFrame) return;
       resizeFrame = window.requestAnimationFrame(() => {
         resizeFrame = 0;
-        map.resize();
-        map.triggerRepaint();
+        resizeIfNeeded(map);
       });
     };
     const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resizeMap) : null;
@@ -505,9 +733,11 @@ export default function MapLibreViewer({
           maxLat: b.getNorth(),
         });
       }
+      onZoomChangeRef.current?.(map.getZoom());
     });
+    map.on('zoom', () => onZoomChangeRef.current?.(map.getZoom()));
 
-    map.on('load', () => {
+    map.on('load', async () => {
       mapLoaded.current = true;
       resizeMap();
 
@@ -534,32 +764,19 @@ export default function MapLibreViewer({
       // Apply locale to map labels
       applyMapLocale(map, localeRef.current);
 
-      // Register all category icon images (blue + orange for saved)
-      const categories = Object.keys(CATEGORY_ICONS);
-      const savedColor = '#ffffff'; // white icons on orange filled background
-
-      for (const cat of categories) {
-        const img = createSvgImage(CATEGORY_ICONS[cat], color);
-        img.onload = () => { if (!map.hasImage(`icon-${cat}`)) map.addImage(`icon-${cat}`, img); };
-        // Orange version for saved museums
-        const savedImg = createSvgImage(CATEGORY_ICONS[cat], savedColor);
-        savedImg.onload = () => { if (!map.hasImage(`saved-icon-${cat}`)) map.addImage(`saved-icon-${cat}`, savedImg); };
-      }
-      // Default icon (blue + orange)
-      const defImg = createSvgImage(DEFAULT_ICON, color);
-      defImg.onload = () => { if (!map.hasImage('icon-_default')) map.addImage('icon-_default', defImg); };
-      const savedDefImg = createSvgImage(DEFAULT_ICON, savedColor);
-      savedDefImg.onload = () => { if (!map.hasImage('saved-icon-_default')) map.addImage('saved-icon-_default', savedDefImg); };
+      // Register category marker SVGs before adding symbol layers.
+      await registerCategoryIconImages(map, color);
 
       const data = pendingData.current || museums;
+      const sourceData = museumsToGeoJSON(data, savedIdsRef.current, localeRef.current);
       map.addSource('museums', {
         type: 'geojson',
-        data: museumsToGeoJSON(data, savedIdsRef.current, compareIdsRef.current),
+        data: sourceData,
         cluster: true,
         clusterMaxZoom: 14,
         clusterRadius: 50,
-        clusterProperties: { hasSaved: ['+', ['get', 'saved']] }
       });
+      lastMuseumSourceSignatureRef.current = getMuseumSourceSignature(data, savedIdsRef.current, localeRef.current);
 
       // Register gradient circle images for clusters (3 sizes × 2 variants)
       const clusterSizes = [{ name: 'sm', px: 40 }, { name: 'md', px: 60 }, { name: 'lg', px: 80 }];
@@ -582,29 +799,21 @@ export default function MapLibreViewer({
         source: 'museums',
         filter: ['has', 'point_count'],
         layout: {
-          'icon-image': [
-            'case', ['>', ['get', 'hasSaved'], 0],
-            ['step', ['get', 'point_count'], 'glow-orange-sm', 10, 'glow-orange-md', 50, 'glow-orange-lg'],
-            ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'],
-          ] as any,
+          'icon-image': ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'] as any,
           'icon-allow-overlap': true,
           'icon-size': 1.08,
         },
         paint: { 'icon-opacity': 0.64 },
       });
 
-      // Cluster gradient circles — blue (default) or orange (contains saved museums)
+      // Cluster gradient circles
       map.addLayer({
         id: 'clusters',
         type: 'symbol',
         source: 'museums',
         filter: ['has', 'point_count'],
         layout: {
-          'icon-image': [
-            'case', ['>', ['get', 'hasSaved'], 0],
-            ['step', ['get', 'point_count'], 'cluster-orange-sm', 10, 'cluster-orange-md', 50, 'cluster-orange-lg'],
-            ['step', ['get', 'point_count'], 'cluster-blue-sm', 10, 'cluster-blue-md', 50, 'cluster-blue-lg'],
-          ] as any,
+          'icon-image': ['step', ['get', 'point_count'], 'cluster-blue-sm', 10, 'cluster-blue-md', 50, 'cluster-blue-lg'] as any,
           'icon-allow-overlap': true,
         },
       });
@@ -633,18 +842,33 @@ export default function MapLibreViewer({
         paint: {
           'circle-color': [
             'case',
-            ['==', ['get', 'saved'], 1], darkMode ? SAVED_DARK_COLOR : SAVED_COLOR,
+            ['==', ['get', 'saved'], 1], darkMode ? '#172554' : '#eff6ff',
             darkMode ? '#172554' : '#eff6ff',
           ] as any,
-          'circle-radius': 18,
+          'circle-radius': 16.5,
           'circle-stroke-width': 2,
           'circle-stroke-color': [
             'case',
-            ['==', ['get', 'saved'], 1], darkMode ? '#fdba74' : '#ea580c',
+            ['==', ['get', 'saved'], 1], color,
             color,
           ] as any,
           'circle-opacity': 0.9,
         }
+      });
+
+      map.addLayer({
+        id: 'target-pulse',
+        type: 'circle',
+        source: 'museums',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'id'], highlightMuseumIdRef.current || '__none__']],
+        paint: {
+          'circle-color': darkMode ? 'rgba(96, 165, 250, 0.18)' : 'rgba(37, 99, 235, 0.14)',
+          'circle-radius': 22,
+          'circle-opacity': 0,
+          'circle-stroke-width': 3,
+          'circle-stroke-color': darkMode ? '#93c5fd' : '#2563eb',
+          'circle-stroke-opacity': 0,
+        },
       });
 
       // Category icon layer
@@ -654,13 +878,8 @@ export default function MapLibreViewer({
         source: 'museums',
         filter: ['!', ['has', 'point_count']],
         layout: {
-          'icon-image': [
-            'case',
-            ['==', ['get', 'saved'], 1],
-            ['match', ['get', 'type'], ...categories.flatMap(cat => [cat, `saved-icon-${cat}`]), 'saved-icon-_default'],
-            ['match', ['get', 'type'], ...categories.flatMap(cat => [cat, `icon-${cat}`]), 'icon-_default']
-          ] as any,
-          'icon-size': 0.6,
+          'icon-image': ['match', ['to-string', ['get', 'type']], ...CATEGORY_ICON_MATCH_PAIRS, 'icon-_default'] as any,
+          'icon-size': 0.38,
           'icon-allow-overlap': true,
           'icon-anchor': 'center',
         },
@@ -773,11 +992,11 @@ export default function MapLibreViewer({
                 </div>
                 <div className="mm-cluster-popup2-copy">
                   <div className="mm-cluster-popup2-title-row">
-                    <strong>{(() => { const loc = localeRef.current; if (loc === 'ko') return p?.nameKo || p?.name; if (loc === 'en') return p?.nameEn || p?.name; try { const t = JSON.parse(p?.nameTranslations || '{}'); return t[loc] || p?.nameEn || p?.name; } catch { return p?.nameEn || p?.name; } })()}</strong>
+                    <strong>{p?.displayName || ''}</strong>
                     {p?.googleRating > 0 && <span>★ {Number(p.googleRating).toFixed(1)}</span>}
                   </div>
                   <small>
-                    {(() => { const loc = localeRef.current; if (loc === 'ko') return p?.cityKo || p?.city; if (loc === 'en') return p?.city; try { const t = JSON.parse(p?.cityTranslations || '{}'); return t[loc] || p?.city; } catch { return p?.city; } })()}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
+                    {p?.displayCity || ''}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
                     {p?.type ? ` · ${translateCategory(p.type, localeRef.current as Locale)}` : ''}
                   </small>
                 </div>
@@ -827,7 +1046,7 @@ export default function MapLibreViewer({
         if (onMapPointSelectRef.current) {
           e.preventDefault?.();
           e.originalEvent?.preventDefault?.();
-          onMapPointSelectRef.current({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+          emitMapPointSelect(e.lngLat);
         }
       });
       if (!clusterTouchHandlerAttachedRef.current) {
@@ -868,7 +1087,7 @@ export default function MapLibreViewer({
           if (onMapPointSelectRef.current && e.lngLat) {
             e.preventDefault?.();
             e.originalEvent?.preventDefault?.();
-            onMapPointSelectRef.current({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+            emitMapPointSelect(e.lngLat);
           }
         });
       }
@@ -913,7 +1132,7 @@ export default function MapLibreViewer({
 
     map.setStyle(newStyle);
 
-    map.once('style.load', () => {
+    map.once('style.load', async () => {
       // Remove ocean/sea water name labels
       const waterLabelIds = ['watername_ocean', 'watername_sea'];
       for (const id of waterLabelIds) {
@@ -925,24 +1144,20 @@ export default function MapLibreViewer({
 
       // Apply locale to map labels
       applyMapLocale(map, localeRef.current);
-      // Re-register icons with new color
-      const categories = Object.keys(CATEGORY_ICONS);
-      for (const cat of categories) {
-        const img = createSvgImage(CATEGORY_ICONS[cat], color);
-        img.onload = () => { if (!map.hasImage(`icon-${cat}`)) map.addImage(`icon-${cat}`, img); };
-      }
-      const defImg = createSvgImage(DEFAULT_ICON, color);
-      defImg.onload = () => { if (!map.hasImage('icon-_default')) map.addImage('icon-_default', defImg); };
+      // Re-register category marker SVGs before adding symbol layers.
+      await registerCategoryIconImages(map, color);
 
       // Re-add source & layers
+      const data = pendingData.current || museums;
+      const sourceData = museumsToGeoJSON(data, savedIdsRef.current, localeRef.current);
       map.addSource('museums', {
         type: 'geojson',
-        data: museumsToGeoJSON(pendingData.current || museums, savedIdsRef.current, compareIdsRef.current),
+        data: sourceData,
         cluster: true,
         clusterMaxZoom: 14,
         clusterRadius: 50,
-        clusterProperties: { hasSaved: ['+', ['get', 'saved']] },
       });
+      lastMuseumSourceSignatureRef.current = getMuseumSourceSignature(data, savedIdsRef.current, localeRef.current);
 
       // Register gradient circle images for clusters (3 sizes × 2 variants)
       const clusterSizes = [{ name: 'sm', px: 40 }, { name: 'md', px: 60 }, { name: 'lg', px: 80 }];
@@ -961,11 +1176,7 @@ export default function MapLibreViewer({
       map.addLayer({
         id: 'cluster-glow', type: 'symbol', source: 'museums', filter: ['has', 'point_count'],
         layout: {
-          'icon-image': [
-            'case', ['>', ['get', 'hasSaved'], 0],
-            ['step', ['get', 'point_count'], 'glow-orange-sm', 10, 'glow-orange-md', 50, 'glow-orange-lg'],
-            ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'],
-          ] as any,
+          'icon-image': ['step', ['get', 'point_count'], 'glow-blue-sm', 10, 'glow-blue-md', 50, 'glow-blue-lg'] as any,
           'icon-allow-overlap': true, 'icon-size': 1.08,
         },
         paint: { 'icon-opacity': 0.64 },
@@ -974,11 +1185,7 @@ export default function MapLibreViewer({
       map.addLayer({
         id: 'clusters', type: 'symbol', source: 'museums', filter: ['has', 'point_count'],
         layout: {
-          'icon-image': [
-            'case', ['>', ['get', 'hasSaved'], 0],
-            ['step', ['get', 'point_count'], 'cluster-orange-sm', 10, 'cluster-orange-md', 50, 'cluster-orange-lg'],
-            ['step', ['get', 'point_count'], 'cluster-blue-sm', 10, 'cluster-blue-md', 50, 'cluster-blue-lg'],
-          ] as any,
+          'icon-image': ['step', ['get', 'point_count'], 'cluster-blue-sm', 10, 'cluster-blue-md', 50, 'cluster-blue-lg'] as any,
           'icon-allow-overlap': true,
         },
       });
@@ -993,24 +1200,38 @@ export default function MapLibreViewer({
         paint: {
           'circle-color': [
             'case',
-            ['==', ['get', 'saved'], 1], darkMode ? '#431407' : '#fff7ed',
+            ['==', ['get', 'saved'], 1], darkMode ? '#172554' : '#eff6ff',
             darkMode ? '#172554' : '#eff6ff',
           ] as any,
-          'circle-radius': 18,
+          'circle-radius': 16.5,
           'circle-stroke-width': 2,
           'circle-stroke-color': [
             'case',
-            ['==', ['get', 'saved'], 1], darkMode ? SAVED_DARK_COLOR : SAVED_COLOR,
+            ['==', ['get', 'saved'], 1], color,
             color,
           ] as any,
           'circle-opacity': 0.9,
         },
       });
       map.addLayer({
+        id: 'target-pulse',
+        type: 'circle',
+        source: 'museums',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'id'], highlightMuseumIdRef.current || '__none__']],
+        paint: {
+          'circle-color': darkMode ? 'rgba(96, 165, 250, 0.18)' : 'rgba(37, 99, 235, 0.14)',
+          'circle-radius': 22,
+          'circle-opacity': 0,
+          'circle-stroke-width': 3,
+          'circle-stroke-color': darkMode ? '#93c5fd' : '#2563eb',
+          'circle-stroke-opacity': 0,
+        },
+      });
+      map.addLayer({
         id: 'unclustered-icon', type: 'symbol', source: 'museums', filter: ['!', ['has', 'point_count']],
         layout: {
-          'icon-image': ['match', ['get', 'type'], ...categories.flatMap(cat => [cat, `icon-${cat}`]), 'icon-_default'] as any,
-          'icon-size': 0.6, 'icon-allow-overlap': true, 'icon-anchor': 'center',
+          'icon-image': ['match', ['to-string', ['get', 'type']], ...CATEGORY_ICON_MATCH_PAIRS, 'icon-_default'] as any,
+          'icon-size': 0.38, 'icon-allow-overlap': true, 'icon-anchor': 'center',
         },
       });
 
@@ -1113,11 +1334,11 @@ export default function MapLibreViewer({
                 </div>
                 <div className="mm-cluster-popup2-copy">
                   <div className="mm-cluster-popup2-title-row">
-                    <strong>{(() => { const loc = localeRef.current; if (loc === 'ko') return p?.nameKo || p?.name; if (loc === 'en') return p?.nameEn || p?.name; try { const t = JSON.parse(p?.nameTranslations || '{}'); return t[loc] || p?.nameEn || p?.name; } catch { return p?.nameEn || p?.name; } })()}</strong>
+                    <strong>{p?.displayName || ''}</strong>
                     {p?.googleRating > 0 && <span>★ {Number(p.googleRating).toFixed(1)}</span>}
                   </div>
                   <small>
-                    {(() => { const loc = localeRef.current; if (loc === 'ko') return p?.cityKo || p?.city; if (loc === 'en') return p?.city; try { const t = JSON.parse(p?.cityTranslations || '{}'); return t[loc] || p?.city; } catch { return p?.city; } })()}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
+                    {p?.displayCity || ''}{p?.country ? `, ${(() => { try { return new Intl.DisplayNames([localeRef.current], { type: 'region' }).of(p.country); } catch { return p.country; } })()}` : ''}
                     {p?.type ? ` · ${translateCategory(p.type, localeRef.current as Locale)}` : ''}
                   </small>
                 </div>
@@ -1167,7 +1388,7 @@ export default function MapLibreViewer({
         if (onMapPointSelectRef.current) {
           e.preventDefault?.();
           e.originalEvent?.preventDefault?.();
-          onMapPointSelectRef.current({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+          emitMapPointSelect(e.lngLat);
         }
       });
       for (const layer of ['unclustered-bg', 'unclustered-icon']) {
@@ -1181,22 +1402,6 @@ export default function MapLibreViewer({
     });
   }, [darkMode, museums]);
 
-  // Update data when museums change
-  useEffect(() => {
-    if (!mapRef.current || !mapLoaded.current) {
-      pendingData.current = museums;
-      return;
-    }
-    const source = mapRef.current.getSource('museums') as maplibregl.GeoJSONSource | undefined;
-    if (source) {
-      // Close cluster popup when data changes (category/chip/search/new museums)
-      if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
-      source.setData(museumsToGeoJSON(museums, savedIdsRef.current, compareIdsRef.current));
-      scheduleMapResize();
-      mapRef.current.triggerRepaint();
-    }
-  }, [museums, savedIds]);
-
   // Update current user location marker when geolocation succeeds.
   useEffect(() => {
     if (!mapRef.current || !mapLoaded.current) return;
@@ -1208,16 +1413,102 @@ export default function MapLibreViewer({
     }
   }, [userLocation]);
 
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded.current) return;
+    const map = mapRef.current;
+    const targetId = highlightMuseumId || '__none__';
+    let frame = 0;
+
+    const applyTarget = () => {
+      if (!map.getLayer('target-pulse')) return false;
+      try {
+        map.setFilter('target-pulse', ['all', ['!', ['has', 'point_count']], ['==', ['get', 'id'], targetId]]);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    if (!applyTarget() || !highlightMuseumId) return;
+
+    const startedAt = performance.now();
+    const TOTAL_MS = 5000;
+    const CYCLE_MS = 1000;
+    const animate = (now: number) => {
+      if (!map.getLayer('target-pulse')) return;
+      const elapsed = now - startedAt;
+      try {
+        if (elapsed >= TOTAL_MS) {
+          map.setPaintProperty('target-pulse', 'circle-opacity', 0);
+          map.setPaintProperty('target-pulse', 'circle-stroke-opacity', 0);
+          return;
+        }
+        // Gradient outline: brightens then shrinks each cycle (blur gives the gradient falloff)
+        const phase = (elapsed % CYCLE_MS) / CYCLE_MS;
+        map.setPaintProperty('target-pulse', 'circle-blur', 0.6);
+        map.setPaintProperty('target-pulse', 'circle-radius', 38 - phase * 20);
+        map.setPaintProperty('target-pulse', 'circle-opacity', 0.3 * (1 - phase));
+        map.setPaintProperty('target-pulse', 'circle-stroke-opacity', 0.95 * (1 - phase * 0.85));
+      } catch {
+        return;
+      }
+      frame = requestAnimationFrame(animate);
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(frame);
+      if (!map.getLayer('target-pulse')) return;
+      try {
+        map.setPaintProperty('target-pulse', 'circle-opacity', 0);
+        map.setPaintProperty('target-pulse', 'circle-stroke-opacity', 0);
+      } catch { }
+    };
+  }, [highlightMuseumId]);
+
   // FlyTo when prop changes
   useEffect(() => {
     if (!flyTo || !mapRef.current) return;
-    mapRef.current.flyTo({
-      center: [flyTo.lng, flyTo.lat],
-      zoom: flyTo.zoom ?? mapRef.current.getZoom(),
-      offset: flyTo.offset,
-      duration: 1500
-    });
+    const lat = Number(flyTo.lat);
+    const lng = Number(flyTo.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const map = mapRef.current;
+    // Camera moves don't require style/tiles to be loaded — never gate on map.loaded(),
+    // which stays false during tile loads and the 'load' event only fires once.
+    try {
+      resizeIfNeeded(map);
+      map.stop();
+      map.easeTo({
+        center: [lng, lat],
+        zoom: flyTo.zoom ?? map.getZoom(),
+        // explicit `offset: undefined` overrides maplibre's [0,0] default and crashes easeTo
+        ...(flyTo.offset ? { offset: flyTo.offset } : {}),
+        duration: 1500,
+        essential: true,
+      });
+    } catch (error) {
+      console.warn('[map] flyTo skipped', error);
+    }
   }, [flyTo]);
+
+  // External zoom control from the 2.0 map toolbar.
+  useEffect(() => {
+    if (!zoomCommand || !mapRef.current) return;
+    const nextZoom = Number(zoomCommand.zoom);
+    if (!Number.isFinite(nextZoom)) return;
+    const map = mapRef.current;
+    try {
+      map.stop();
+      map.easeTo({
+        zoom: Math.max(2, Math.min(18, nextZoom)),
+        duration: 140,
+        easing: (t) => 1 - Math.pow(1 - t, 3),
+        essential: true,
+      });
+    } catch (error) {
+      console.warn('[map] zoom skipped', error);
+    }
+  }, [zoomCommand]);
 
   return (
     <div

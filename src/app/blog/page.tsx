@@ -1,7 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, type CSSProperties } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -11,6 +9,7 @@ import { getMuseumImageSrc, isRenderableUrl } from '@/lib/getMuseumImage';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import * as gtag from '@/lib/gtag';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
 function sanitizeAI(text: string): string {
     if (!text) return text;
@@ -206,29 +205,24 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
     // DB-cached translations for non-ko/en
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
     const sourceTitle = post.titleEn || post.title || '';
-    const sourceContent = ((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '');
     const liveTitle = useTranslatedText(sourceTitle, locale);
-    const liveContent = useTranslatedText(sourceContent.substring(0, 2000), locale);
 
     let displayTitle: string;
-    let displayContent: string;
 
     if (locale === 'ko') {
         displayTitle = getDisplayStoryTitle(sanitizeAI(post.title), post.museums);
-        displayContent = sanitizeAI((post.content || '').replace(/<[^>]*>/g, '')).substring(0, 200);
     } else if (locale === 'en') {
         displayTitle = getDisplayStoryTitle(sanitizeAI(post.titleEn || post.title), post.museums);
-        displayContent = sanitizeAI(((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '')).substring(0, 200);
     } else if (cached.title) {
         displayTitle = getDisplayStoryTitle(sanitizeAI(cached.title), post.museums);
-        displayContent = sanitizeAI(safeTranslatedStoryText(cached.content || liveContent || sourceContent, locale, '').substring(0, 200));
     } else {
         displayTitle = getDisplayStoryTitle(sanitizeAI(safeTranslatedStoryText(liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
-        displayContent = sanitizeAI(safeTranslatedStoryText(liveContent || sourceContent, locale, '').substring(0, 200));
     }
     const chain = getStoryImageChain(post);
     return (
-        <button
+        <a
+            href={`/blog/${post.id}`}
+            onPointerDown={(event) => { if (event.pointerType === 'touch') onNavigate(post.id); }}
             onClick={() => onNavigate(post.id)}
             className="mm-list-row2 group w-full text-left"
         >
@@ -239,6 +233,8 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                         data-fallbacks={JSON.stringify(chain.slice(1))}
                         alt={post.title}
                         className="opacity-0 transition-all duration-500 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
                         onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
                         onError={(e) => {
                             const el = e.currentTarget;
@@ -278,16 +274,14 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                 </h2>
                 <StoryMuseumMeta post={post} locale={locale} className="text-xs leading-relaxed" />
             </div>
-        </button>
+        </a>
     );
 }
 
 function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
     const sourceTitle = post.titleEn || post.title || '';
-    const sourceContent = ((post.contentEn || post.content) || '').replace(/<[^>]*>/g, '');
     const liveTitle = useTranslatedText(sourceTitle, locale);
-    const liveContent = useTranslatedText(sourceContent.substring(0, 1200), locale);
     const displayTitle = getDisplayStoryTitle(sanitizeAI(locale === 'ko'
         ? post.title
         : locale === 'en'
@@ -296,7 +290,7 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
     const chain = getStoryImageChain(post);
 
     return (
-        <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
+        <a href={`/blog/${post.id}`} onPointerDown={(event) => { if (event.pointerType === 'touch') onNavigate(post.id); }} onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
             <div className="relative h-24 sm:h-28 overflow-hidden bg-slate-100 dark:bg-neutral-800">
                 <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
@@ -305,6 +299,8 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
                         data-fallbacks={JSON.stringify(chain.slice(1))}
                         alt={post.title}
                         className="w-full h-full object-cover opacity-0 transition-all duration-700 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
                         onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
                         onError={(e) => {
                             const el = e.currentTarget;
@@ -346,7 +342,7 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
                 <h3 className="mm-story-two-line-title text-[16px] sm:text-[17px] font-black leading-tight line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" style={{ color: 'var(--mm-text-primary)', wordBreak: 'break-word' }}>{displayTitle}</h3>
                 <StoryMuseumMeta post={post} locale={locale} className="mt-1 text-xs leading-relaxed" />
             </div>
-        </button>
+        </a>
     );
 }
 
@@ -363,7 +359,7 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
     const museumLine = getStoryMuseumLine(post, locale);
 
     return (
-        <button type="button" onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
+        <a href={`/blog/${post.id}`} onPointerDown={(event) => { if (event.pointerType === 'touch') onNavigate(post.id); }} onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
             <div className="mm-story-mini-thumb relative">
                 <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
@@ -372,6 +368,8 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
                         data-fallbacks={JSON.stringify(chain.slice(1))}
                         alt={post.title}
                         className="opacity-0 transition-all duration-500 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
                         onLoad={(e) => { (e.target as HTMLImageElement).classList.remove('opacity-0'); (e.target as HTMLImageElement).classList.add('opacity-100'); }}
                         onError={(e) => {
                             const el = e.currentTarget;
@@ -401,7 +399,7 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
                 <h3 className="mm-story-two-line-title">{displayTitle}</h3>
                 <StoryMuseumMeta post={post} locale={locale} className="mt-1.5 text-[11px] leading-snug" />
             </div>
-        </button>
+        </a>
     );
 }
 
@@ -494,10 +492,11 @@ const SORT_LABELS: Record<SortMode, Record<string, string>> = {
     distance: { ko: '거리순', en: 'Nearest', ja: '距離順', zh: '距离', fr: 'Distance', de: 'Entfernung', es: 'Distancia' },
 };
 const STORY_RETURN_TO_KEY = 'mm-story-return-to';
+const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
+const BLOG_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export default function BlogListPage() {
     const { locale } = useApp();
-    const router = useRouter();
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [navigating, setNavigating] = useState(false);
@@ -511,8 +510,11 @@ export default function BlogListPage() {
     const PAGE_KEY = 'blog_page';
     const CAT_KEY = 'blog_category';
     const SORT_KEY = 'blog_sort';
+    const navigatingStoryRef = useRef<string | null>(null);
 
     const handleNavigate = (id: string) => {
+        if (navigatingStoryRef.current === id) return;
+        navigatingStoryRef.current = id;
         gtag.event('view_blog_post', { category: 'blog', label: id, value: 1 });
         try {
             sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
@@ -522,42 +524,54 @@ export default function BlogListPage() {
             sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
         } catch { }
         setNavigating(true);
-        router.push(`/blog/${id}`);
     };
 
     useEffect(() => {
-        fetch('/api/blog')
+        const restoreListState = () => {
+            try {
+                const savedPage = sessionStorage.getItem(PAGE_KEY);
+                const savedScroll = sessionStorage.getItem(SCROLL_KEY);
+                if (savedPage) {
+                    setPage(parseInt(savedPage, 10));
+                    sessionStorage.removeItem(PAGE_KEY);
+                }
+                if (savedScroll) {
+                    requestAnimationFrame(() => {
+                        setTimeout(() => window.scrollTo(0, parseInt(savedScroll, 10)), 50);
+                    });
+                    sessionStorage.removeItem(SCROLL_KEY);
+                }
+                const savedCat = sessionStorage.getItem(CAT_KEY);
+                if (savedCat) { setActiveCategory(savedCat); sessionStorage.removeItem(CAT_KEY); }
+                const savedSort = sessionStorage.getItem(SORT_KEY);
+                if (savedSort) { setSortMode(savedSort as SortMode); sessionStorage.removeItem(SORT_KEY); }
+            } catch { }
+        };
+
+        try {
+            const cached = JSON.parse(sessionStorage.getItem(BLOG_LIST_CACHE_KEY) || 'null');
+            if (cached && Date.now() - cached.ts < BLOG_LIST_CACHE_TTL_MS && Array.isArray(cached.posts)) {
+                setPosts(cached.posts);
+                setLoading(false);
+                restoreListState();
+                return;
+            }
+        } catch { }
+
+        fetch('/api/blog?view=list', { cache: 'force-cache' })
             .then(res => res.json())
             .then(data => {
                 if (data.data) {
                     const published = data.data.filter((p: any) => p.status === 'PUBLISHED');
                     setPosts(published);
+                    try {
+                        sessionStorage.setItem(BLOG_LIST_CACHE_KEY, JSON.stringify({ ts: Date.now(), posts: published }));
+                    } catch { }
                 }
                 setLoading(false);
-                // Restore page + scroll position
-                try {
-                    const savedPage = sessionStorage.getItem(PAGE_KEY);
-                    const savedScroll = sessionStorage.getItem(SCROLL_KEY);
-                    if (savedPage) {
-                        setPage(parseInt(savedPage, 10));
-                        sessionStorage.removeItem(PAGE_KEY);
-                    }
-                    if (savedScroll) {
-                        requestAnimationFrame(() => {
-                            setTimeout(() => window.scrollTo(0, parseInt(savedScroll, 10)), 50);
-                        });
-                        sessionStorage.removeItem(SCROLL_KEY);
-                    }
-                } catch { }
+                restoreListState();
             })
             .catch(() => setLoading(false));
-        // Restore category + sort
-        try {
-            const savedCat = sessionStorage.getItem(CAT_KEY);
-            if (savedCat) { setActiveCategory(savedCat); sessionStorage.removeItem(CAT_KEY); }
-            const savedSort = sessionStorage.getItem(SORT_KEY);
-            if (savedSort) { setSortMode(savedSort as SortMode); sessionStorage.removeItem(SORT_KEY); }
-        } catch {}
     }, []);
 
     // Get user location for distance sort
@@ -662,7 +676,7 @@ export default function BlogListPage() {
                         return (
                             <button
                                 key={cat.key}
-                                onClick={() => handleCategoryChange(cat.key)}
+                                onClick={(e) => { e.currentTarget.blur(); handleCategoryChange(cat.key); }}
                                 className={`mm-gallery-chip mm-story-category-chip ${isActive ? 'is-active' : ''}`}
                                 style={storyCategoryFilterStyle(cat.key, isActive)}
                             >
@@ -676,23 +690,11 @@ export default function BlogListPage() {
             </div>
 
             {posts.length === 0 ? (
-                <div className="py-20 sm:py-32 flex flex-col items-center justify-center">
-                    <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gray-50 dark:bg-neutral-800/50 rounded-full flex items-center justify-center mb-8">
-                        <img src="/logo.svg" alt="Museum Map" className="mm-empty-logo dark:invert" />
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 text-center">
-                        {t('blog.empty', locale)}
-                    </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base max-w-md text-center mb-10 leading-relaxed">
-                        {t('blog.emptyDesc', locale)}
-                    </p>
-                    <Link
-                        href="/"
-                        className="px-8 py-3 rounded-full gradient-btn text-white font-bold text-sm shadow-lg active:scale-95 transition-all"
-                    >
-                        {t('global.goHome', locale)}
-                    </Link>
-                </div>
+                <EmptyStateGame
+                    locale={locale}
+                    title={t('blog.empty', locale)}
+                    description={t('blog.emptyDesc', locale)}
+                />
             ) : (
                 <>
                     {curatedPosts.length > 0 && (

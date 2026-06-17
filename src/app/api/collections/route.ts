@@ -8,6 +8,14 @@ function generateSlug(title: string) {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.random().toString(36).substring(2, 6);
 }
 
+function markVisitedCollections(collections: any[]) {
+    return collections.map((collection) => {
+        const items = collection.items || [];
+        const isVisitedCollection = items.length > 0 && items.every((item: any) => !!item.reviewId);
+        return { ...collection, isVisitedCollection };
+    });
+}
+
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -21,14 +29,14 @@ export async function GET(req: NextRequest) {
                     _count: { select: { items: true } },
                     user: { select: { name: true, email: true } },
                     items: {
-                        select: { museum: { select: { imageUrl: true, cachedPhotoUrls: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, type: true, googleRating: true } } },
+                        select: { reviewId: true, museum: { select: { imageUrl: true, cachedPhotoUrls: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, type: true, googleRating: true } } },
                         take: 5,
                         orderBy: { order: 'asc' },
                     },
                 },
                 orderBy: { createdAt: 'desc' },
             });
-            return successResponse(collections.map(transformNestedPhotos));
+            return successResponse(markVisitedCollections(collections).map(transformNestedPhotos));
         }
 
         const user = await requireAuth();
@@ -37,14 +45,14 @@ export async function GET(req: NextRequest) {
             include: {
                 _count: { select: { items: true } },
                 items: {
-                    select: { museum: { select: { imageUrl: true, cachedPhotoUrls: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, type: true, googleRating: true } } },
+                    select: { reviewId: true, museum: { select: { imageUrl: true, cachedPhotoUrls: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, type: true, googleRating: true } } },
                     take: 5,
                     orderBy: { order: 'asc' },
                 },
             },
             orderBy: { createdAt: 'desc' },
         });
-        return successResponse(collections.map(transformNestedPhotos));
+        return successResponse(markVisitedCollections(collections).map(transformNestedPhotos));
     } catch (err: any) {
         if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Auth required', 401);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch collections', 500);

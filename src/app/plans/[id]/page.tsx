@@ -119,6 +119,8 @@ export default function PlanDetailPage() {
                     longitude: s.museum.longitude,
                 order: i,
                 museumId: s.museum.id,
+                visitedAt: s.visitedAt || null,
+                reviewId: s.reviewId || null,
             }));
     }, [stops]);
 
@@ -237,7 +239,7 @@ export default function PlanDetailPage() {
             setShowPendingModal(true);
             setTimeout(() => {
                 setShowPendingModal(false);
-                router.push('/');
+                window.location.assign('/');
             }, 3000);
         } else if (isAdmin && isFuture) {
             // Admin: schedule activation after 10 seconds
@@ -246,17 +248,17 @@ export default function PlanDetailPage() {
             setShowPendingModal(true);
             setTimeout(() => {
                 setShowPendingModal(false);
-                router.push('/');
+                window.location.assign('/');
             }, 3000);
         } else {
             // Start immediately with confetti
             setShowConfetti(true);
             setTimeout(() => {
                 setShowConfetti(false);
-                router.push('/');
+                window.location.assign('/');
             }, 3000);
         }
-    }, [plan, routeStops, id, router, showAlert, locale, isAdmin]);
+    }, [plan, routeStops, id, showAlert, locale, isAdmin]);
 
     const handleEndTrip = useCallback(() => {
         showConfirm(t('plans.confirmEndTrip', locale), () => {
@@ -268,9 +270,9 @@ export default function PlanDetailPage() {
 
     const handleStopClick = useCallback((stop: any) => {
         if (stop.museumId) {
-            router.push(`/museums/${stop.museumId}`);
+            window.location.assign(`/museums/${stop.museumId}`);
         }
-    }, [router]);
+    }, []);
 
     if (loading) return null;
     if (error) return (
@@ -330,11 +332,11 @@ export default function PlanDetailPage() {
                     </div>
                 </div>
             )}
-            <div className={`hidden sm:flex sm:flex-row h-[calc(100vh-3.5rem)] ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+            <div className={`mm-plan-detail2 hidden sm:flex sm:flex-row h-[calc(100vh-3.5rem)] ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
                 {/* Sidebar: Route List */}
                 <div className="flex flex-col w-96 border-r shrink-0" style={{ background: 'var(--glass-bg-heavy)', borderColor: 'var(--glass-border)', backdropFilter: 'blur(24px) saturate(180%)' }}>
                     <div className="p-6 pb-0 flex flex-col shrink-0">
-                        <Link href="/plans" className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-full mb-4 transition-colors shadow-sm active:scale-95 shrink-0" title={t('plans.title', locale)}>
+                        <Link href="/plans" className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-blue-950/70 dark:hover:bg-blue-900/60 text-gray-700 dark:text-gray-300 rounded-full mb-4 transition-colors shadow-sm active:scale-95 shrink-0" title={t('plans.title', locale)}>
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                             </svg>
@@ -345,7 +347,7 @@ export default function PlanDetailPage() {
                     {/* Scrollable stop list */}
                     <div className="flex-1 overflow-y-auto px-6 pb-4">
                         <div className="space-y-3 relative">
-                            <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-neutral-700 z-0"></div>
+                            <div className="absolute left-[27px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-blue-900/50 z-0"></div>
                             {stops.map((stop: any, i: number) => {
                                 const arrival = stop.expectedArrival ? new Date(stop.expectedArrival) : new Date(now.getTime() + i * 2 * 60 * 60 * 1000);
                                 const timeStr = arrival.toLocaleTimeString(locale === 'zh-CN' ? 'zh-Hans' : locale === 'zh-TW' ? 'zh-Hant' : locale, { hour: '2-digit', minute: '2-digit' });
@@ -415,7 +417,7 @@ export default function PlanDetailPage() {
                             const weekDays = locale === 'ko' ? ['일', '월', '화', '수', '목', '금', '토'] : ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
                             return (
-                                <div className="mt-6 pt-4 border-t border-gray-100 dark:border-neutral-800">
+                                <div className="mt-6 pt-4 border-t border-gray-100 dark:border-blue-900/40">
                                     <label className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.15em] mb-2 block">{locale === 'ko' ? '여행기간 설정' : 'Set Travel Period'}</label>
                                     {sd && (
                                         <div className="flex items-center gap-2 mb-2 text-xs font-bold">
@@ -433,11 +435,11 @@ export default function PlanDetailPage() {
                                         </div>
                                     )}
                                     <div className="flex items-center justify-between mb-2">
-                                        <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 transition">
+                                        <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-blue-900/40 text-gray-400 transition">
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                                         </button>
                                         <span className="text-xs font-bold dark:text-white">{monthLabel}</span>
-                                        <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-400 transition">
+                                        <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-blue-900/40 text-gray-400 transition">
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                                         </button>
                                     </div>
@@ -462,7 +464,7 @@ export default function PlanDetailPage() {
                                                     className={`relative h-8 text-xs font-medium transition-all rounded-lg
                                                         ${isStart || isEnd ? 'bg-blue-600 text-white font-bold shadow-sm' : ''}
                                                         ${inRange ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' : ''}
-                                                        ${!isStart && !isEnd && !inRange ? 'hover:bg-gray-100 dark:hover:bg-neutral-800 text-gray-700 dark:text-gray-300' : ''}
+                                                        ${!isStart && !isEnd && !inRange ? 'hover:bg-gray-100 dark:hover:bg-blue-900/40 text-gray-700 dark:text-gray-300' : ''}
                                                         ${isToday && !isStart && !isEnd ? 'ring-1 ring-blue-300 dark:ring-blue-700' : ''}
                                                     `}
                                                 >
@@ -479,7 +481,7 @@ export default function PlanDetailPage() {
                     {/* Sticky bottom buttons */}
                     <div className="p-4 border-t space-y-2 shrink-0" style={{ background: 'var(--glass-bg-heavy)', borderColor: 'var(--glass-border)' }}>
                         <button onClick={handleSave} disabled={!isDirty || !plan?.startDate || !plan?.endDate}
-                            className={`w-full py-3 rounded-xl font-bold transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 ${isDirty && plan?.startDate && plan?.endDate ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
+                            className={`w-full py-3 rounded-xl font-bold transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 ${isDirty && plan?.startDate && plan?.endDate ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md' : 'bg-gray-100 dark:bg-blue-950/50 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'}`}
                         >{t('plans.saveButton', locale)}</button>
                         {activeTripId === plan?.id ? (
                             <button onClick={handleEndTrip} className="w-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 py-3 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">{t('plans.endTrip', locale)}</button>
@@ -494,7 +496,7 @@ export default function PlanDetailPage() {
                     {routeStops.length > 0 ? (
                         <RouteMapViewer stops={routeStops} onStopClick={handleStopClick} darkMode={darkMode} padding={{ top: 80, bottom: 80, left: 80, right: 80 }} />
                     ) : (
-                        <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
+                        <div className="w-full h-full bg-zinc-200 dark:bg-[#06101f] flex items-center justify-center">
                             <span className="text-zinc-500 font-medium bg-white/50 dark:bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">{t('plans.noRouteData', locale)}</span>
                         </div>
                     )}
@@ -502,13 +504,13 @@ export default function PlanDetailPage() {
             </div>
 
             {/* Mobile/Tablet: Map fullscreen + top drawer */}
-            <div className={`sm:hidden relative h-[calc(100vh-3.5rem)] ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+            <div className={`mm-plan-detail2 sm:hidden relative h-[calc(100vh-3.5rem)] ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
                 {/* Full-screen map */}
                 <div className="absolute inset-0">
                     {routeStops.length > 0 ? (
                         <RouteMapViewer stops={routeStops} onStopClick={handleStopClick} darkMode={darkMode} padding={mobileMapPadding} />
                     ) : (
-                        <div className="w-full h-full bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center">
+                        <div className="w-full h-full bg-zinc-200 dark:bg-[#06101f] flex items-center justify-center">
                             <span className="text-zinc-500 font-medium bg-white/50 dark:bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">{t('plans.noRouteData', locale)}</span>
                         </div>
                     )}
@@ -524,7 +526,7 @@ export default function PlanDetailPage() {
                                 {stops.length} {t('plans.stops', locale)} {dateStr && `· ${dateStr}`}
                             </p>
                         </div>
-                        <button onClick={() => setSidebarOpen(prev => !prev)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
+                        <button onClick={() => setSidebarOpen(prev => !prev)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-blue-900/40 transition-colors">
                             <svg className={`w-4 h-4 transition-transform duration-300 ${sidebarOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                             </svg>
@@ -534,7 +536,7 @@ export default function PlanDetailPage() {
                     {/* Action buttons — always visible */}
                     <div className="px-4 pb-3 flex gap-2 shrink-0">
                         <button onClick={handleSave} disabled={!isDirty || !plan?.startDate || !plan?.endDate}
-                            className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98] ${isDirty && plan?.startDate && plan?.endDate ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-neutral-800 text-gray-400 dark:text-gray-500 opacity-50'}`}
+                            className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98] ${isDirty && plan?.startDate && plan?.endDate ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-blue-950/50 text-gray-400 dark:text-gray-500 opacity-50'}`}
                         >{t('plans.saveButton', locale)}</button>
                         {activeTripId === plan?.id ? (
                             <button onClick={handleEndTrip} className="flex-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98]">{t('plans.endTrip', locale)}</button>
@@ -546,7 +548,7 @@ export default function PlanDetailPage() {
                     {/* Expandable stop list */}
                     <div className={`px-4 pb-6 overflow-y-auto flex-1 min-h-0 transition-opacity duration-300 ${sidebarOpen ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
                         <div className="space-y-2.5 relative">
-                            <div className="absolute left-[23px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-neutral-700 z-0"></div>
+                            <div className="absolute left-[23px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-blue-900/50 z-0"></div>
                             {stops.map((stop: any, i: number) => {
                                 const isBeingDragged = dragIndex === i;
                                 const isDropTarget = overIndex === i && dragIndex !== i;

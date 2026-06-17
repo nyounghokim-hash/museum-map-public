@@ -10,6 +10,7 @@ import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { useTranslatedText } from '@/hooks/useTranslation';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
 const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string; listTitle: string; countUnit: string; searchPlaceholder: string }> = {
     ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점', searchPlaceholder: '작품, 작가, 미술관 검색' },
@@ -243,7 +244,7 @@ export default function ArtworksPage() {
             sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
             sessionStorage.setItem('artwork-list-return', window.location.pathname + window.location.search);
         } catch { }
-        router.push(`/artworks/${artworkId}`);
+        window.location.assign(`/artworks/${artworkId}`);
     };
 
     const openMuseumFromArtwork = async (museum: any) => {
@@ -415,17 +416,11 @@ export default function ArtworksPage() {
             )}
 
             {artworks.length === 0 ? (
-                <div className="py-20 sm:py-32 flex flex-col items-center justify-center">
-                    <div className="w-24 h-24 sm:w-32 sm:h-32 bg-gray-50 dark:bg-neutral-800/50 rounded-full flex items-center justify-center mb-8">
-                        <img src="/logo.svg" alt="Museum Map" className="mm-empty-logo dark:invert" />
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white mb-4 text-center">
-                        {labels.empty}
-                    </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm sm:text-base max-w-md text-center mb-10 leading-relaxed">
-                        지도를 둘러보며 마음에 드는 작품을 찾아보세요.
-                    </p>
-                </div>
+                <EmptyStateGame
+                    locale={locale}
+                    title={labels.empty}
+                    description={locale === 'ko' ? '지도를 둘러보며 마음에 드는 작품을 찾아보세요.' : labels.subtitle}
+                />
             ) : (
                 <>
                     <div className="mm-section-heading">

@@ -13,9 +13,12 @@ const TYPE_KEYWORDS: Record<string, string[]> = {
     'Science Museum': ['과학관', '과학', 'science', '아이', 'children', 'kids', 'family', '가족'],
     'Natural History': ['자연사', 'natural history', 'dinosaur', '공룡', '자연'],
     'History Museum': ['역사관', '역사', 'history', 'war', '전쟁'],
-    'Design Museum': ['디자인', 'design', 'fashion', '패션', '건축', 'architecture'],
+    'Architecture Museum': ['건축박물관', '건축', 'architecture museum', 'architecture', 'architectural'],
+    'Design Museum': ['디자인', 'design', 'fashion', '패션'],
     'Photography Museum': ['사진', 'photo', 'photography', '포토'],
     'Archaeological Museum': ['고고학', 'archaeological', 'ancient', '고대', '유물', '유적'],
+    'Maritime Museum': ['해양', '해사', '선박', '배', '항구', 'maritime', 'naval', 'ship', 'harbor', 'harbour'],
+    'Unusual Museum': ['특이', '이색', '독특한', 'unusual', 'weird', 'odd', 'quirky'],
     'General Museum': ['박물관', 'museum', '국립박물관'],
     'Cultural Center': ['문화센터', '문화', 'cultural', 'culture'],
 };
@@ -258,7 +261,7 @@ export async function POST(req: NextRequest) {
 Reply with ONLY valid JSON: {"types":[],"countries":[],"cities":[],"text":""}
 
 Rules:
-- types: Match from this list ONLY: Contemporary Art, Modern Art, Fine Arts, Art Gallery, General Museum, Cultural Center, Design Museum, Photography Museum, Science Museum, Natural History, History Museum, Archaeological Museum
+- types: Match from this list ONLY: Contemporary Art, Modern Art, Fine Arts, Art Gallery, General Museum, Cultural Center, Design Museum, Architecture Museum, Photography Museum, Science Museum, Natural History, History Museum, Archaeological Museum, Maritime Museum, Unusual Museum
 - countries: Use ISO 3166-1 alpha-2 codes (e.g. FI for Finland, JP for Japan, KR for South Korea, QA for Qatar)
 - cities: Extract city names in BOTH English AND Korean if applicable (e.g. ["Yokohama", "요코하마"])
 - text: Key search terms for text-based fallback (museum name, keywords, etc.)
@@ -454,12 +457,16 @@ Reply JSON only: {"1":"reason","2":"reason",...}`;
     const CATEGORY_KO: Record<string, string> = {
         'Contemporary Art': '현대미술', 'Modern Art': '모던아트', 'Fine Arts': '순수미술',
         'Art Gallery': '미술관', 'Science Museum': '과학관', 'Natural History': '자연사',
-        'History Museum': '역사관', 'Design Museum': '디자인', 'Photography Museum': '사진',
+        'History Museum': '역사관', 'Design Museum': '디자인', 'Architecture Museum': '건축박물관', 'Photography Museum': '사진',
         'Archaeological Museum': '고고학', 'General Museum': '박물관', 'Cultural Center': '문화센터',
+        'Maritime Museum': '해양박물관', 'Unusual Museum': '이색박물관',
     };
     const CATEGORY_JA: Record<string, string> = {
         'Contemporary Art': '現代美術', 'Modern Art': 'モダンアート', 'Fine Arts': '美術',
         'Art Gallery': 'ギャラリー', 'Science Museum': '科学館', 'General Museum': '博物館',
+        'Natural History': '自然史', 'History Museum': '歴史博物館', 'Design Museum': 'デザイン', 'Architecture Museum': '建築博物館',
+        'Photography Museum': '写真', 'Archaeological Museum': '考古学',
+        'Cultural Center': '文化センター', 'Maritime Museum': '海洋博物館', 'Unusual Museum': 'ユニーク博物館',
     };
     const translateType = (type: string, loc: string) => {
         if (loc === 'ko') return CATEGORY_KO[type] || type;

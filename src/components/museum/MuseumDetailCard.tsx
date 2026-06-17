@@ -127,9 +127,11 @@ const COUNTRY_TIMEZONES: Record<string, string> = {
 const WEEKDAY_KEYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 const WEEKDAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
 const WEEKDAY_KO_FULL = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
-const CLOCK_TOKEN_PATTERN = String.raw`(?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?::\d{2}(?::\d{2})?)|(?:\s*시\s*(?:\d{1,2}\s*분?)?))?\s*(?:AM|PM|오전|오후)?`;
-const CLOCK_RANGE_PATTERN = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–]\\s*(${CLOCK_TOKEN_PATTERN})`, 'i');
-const CLOCK_RANGE_PATTERN_GLOBAL = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–]\\s*(${CLOCK_TOKEN_PATTERN})`, 'gi');
+const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土'];
+const WEEKDAY_JA_FULL = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+const CLOCK_TOKEN_PATTERN = String.raw`(?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?::\d{2}(?::\d{2})?)|(?:\s*[시時]\s*(?:\d{1,2}\s*(?:분|分)?)?))?\s*(?:AM|PM|오전|오후)?`;
+const CLOCK_RANGE_PATTERN = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–〜～]\\s*(${CLOCK_TOKEN_PATTERN})`, 'i');
+const CLOCK_RANGE_PATTERN_GLOBAL = new RegExp(`(${CLOCK_TOKEN_PATTERN})\\s*[-~–〜～]\\s*(${CLOCK_TOKEN_PATTERN})`, 'gi');
 const ALL_DAY_INDEXES = [0, 1, 2, 3, 4, 5, 6];
 
 function getWeekdayLabel(dayIndex: number, locale: string) {
@@ -224,7 +226,7 @@ function parseLocalParts(timeZone: string) {
 function parseClockMinutes(raw: string) {
     const source = raw.trim();
     const meridiem = /PM|오후/i.test(source) ? 'pm' : /AM|오전/i.test(source) ? 'am' : null;
-    const match = source.match(/(\d{1,2})(?::(\d{2})(?::\d{2})?|(?:\s*시\s*(\d{1,2})?\s*분?)?)?/);
+    const match = source.match(/(\d{1,2})(?::(\d{2})(?::\d{2})?|(?:\s*[시時]\s*(\d{1,2})?\s*(?:분|分)?)?)?/);
     if (!match) return null;
     let hour = Number(match[1]);
     const minute = Number(match[2] || match[3] || 0);
@@ -265,12 +267,17 @@ function inferStartClockMeridiem(startRaw: string, endRaw: string) {
 }
 
 function expandKoDayExpression(raw: string) {
-    const source = raw.replace(/요일/g, '').replace(/\s+/g, '');
+    const source = raw.replace(/요일|曜日/g, '').replace(/\s+/g, '');
     if (/^(매일|매주|상시|연중무휴|월~일|월-일)$/.test(source)) return ALL_DAY_INDEXES;
-    const range = source.match(/^([일월화수목금토])\s*[~-]\s*([일월화수목금토])$/);
+    const dayIndex = (day: string) => {
+        const ko = WEEKDAY_KO.indexOf(day);
+        if (ko >= 0) return ko;
+        return WEEKDAY_JA.indexOf(day);
+    };
+    const range = source.match(/^([일월화수목금토日月火水木金土])\s*[-~–〜～]\s*([일월화수목금토日月火水木金土])$/);
     if (range) {
-        const start = WEEKDAY_KO.indexOf(range[1]);
-        const end = WEEKDAY_KO.indexOf(range[2]);
+        const start = dayIndex(range[1]);
+        const end = dayIndex(range[2]);
         if (start < 0 || end < 0) return [];
         const days: number[] = [];
         let cursor = start;
@@ -284,7 +291,7 @@ function expandKoDayExpression(raw: string) {
     }
     return source
         .split(/[·,\/]/)
-        .map(day => WEEKDAY_KO.indexOf(day))
+        .map(day => dayIndex(day))
         .filter(day => day >= 0);
 }
 
@@ -292,7 +299,7 @@ function parseWeeklyOpeningTemplate(hoursValue: string | undefined) {
     if (!hoursValue) return null;
     const rows = hoursValue
         .replace(/\r?\n/g, ' / ')
-        .split(/\s*(?:\/|,|;|。|\.)(?=\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|매일|[일월화수목금토]|월요일|화요일|수요일|목요일|금요일|토요일|일요일))/i)
+        .split(/\s*(?:\/|,|;|。|\.)(?=\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|매일|[일월화수목금토日月火水木金土]|월요일|화요일|수요일|목요일|금요일|토요일|일요일|日曜日|月曜日|火曜日|水曜日|木曜日|金曜日|土曜日))/i)
         .map(part => part.trim())
         .filter(Boolean);
 
@@ -308,7 +315,7 @@ function parseWeeklyOpeningTemplate(hoursValue: string | undefined) {
     let parsedCount = 0;
     const explicitlyMentionedDays = new Set<number>();
     for (const row of rows) {
-        const match = row.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|월요일|화요일|수요일|목요일|금요일|토요일|일요일|매일|[일월화수목금토](?:\s*[·,\/~-]\s*[일월화수목금토])*)\s*[:：]?\s*(.+)$/i);
+        const match = row.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|월요일|화요일|수요일|목요일|금요일|토요일|일요일|日曜日|月曜日|火曜日|水曜日|木曜日|金曜日|土曜日|매일|[일월화수목금토日月火水木金土](?:\s*[·,\/~-〜～]\s*[일월화수목금토日月火水木金土])*)\s*[:：]?\s*(.+)$/i);
         if (!match) continue;
         const dayToken = match[1];
         const value = match[2].replace(/\s+/g, ' ').trim();
@@ -320,7 +327,7 @@ function parseWeeklyOpeningTemplate(hoursValue: string | undefined) {
         if (dayIndexes.length === 0) continue;
         dayIndexes.forEach(index => explicitlyMentionedDays.add(index));
 
-        const closed = /closed|휴관|休館|闭馆/i.test(value);
+        const closed = /closed|휴관|휴무|休館|定休日|閉館|闭馆/i.test(value);
         const range = findClockRange(value);
         const start = range?.start || '';
         const end = range?.end || '';
@@ -519,10 +526,12 @@ function koDayPartIncludesToday(part: string, dayIndex: number) {
 function getTodayHoursSegment(hoursValue: string, dayName: string, dayIndex: number) {
     const koShort = WEEKDAY_KO[dayIndex < 0 ? 1 : dayIndex];
     const koFull = WEEKDAY_KO_FULL[dayIndex < 0 ? 1 : dayIndex];
-    const dayNames = [dayName, koFull, koShort];
+    const jaShort = WEEKDAY_JA[dayIndex < 0 ? 1 : dayIndex];
+    const jaFull = WEEKDAY_JA_FULL[dayIndex < 0 ? 1 : dayIndex];
+    const dayNames = [dayName, koFull, koShort, jaFull, jaShort];
     const parts = hoursValue
         .replace(/\r?\n/g, ' / ')
-        .split(/\s*(?:\/|,|;|。|\.)(?=\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|[일월화수목금토]|월요일|화요일|수요일|목요일|금요일|토요일|일요일))/i)
+        .split(/\s*(?:\/|,|;|。|\.)(?=\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|[일월화수목금토日月火水木金土]|월요일|화요일|수요일|목요일|금요일|토요일|일요일|日曜日|月曜日|火曜日|水曜日|木曜日|金曜日|土曜日))/i)
         .map(part => part.trim())
         .filter(Boolean);
 
@@ -533,7 +542,7 @@ function getTodayHoursSegment(hoursValue: string, dayName: string, dayIndex: num
     });
     if (explicit) return explicit;
 
-    const compactClosed = new RegExp(`(^|[\\s,·/~-])${koShort}(요일)?\\s*(정기\\s*)?휴관`, 'i');
+    const compactClosed = new RegExp(`(^|[\\s,·/~-〜～])(${koShort}(요일)?|${jaShort}(曜日)?)\\s*(정기\\s*)?(휴관|휴무|休館|定休日|閉館)`, 'i');
     if (compactClosed.test(hoursValue)) return `${koFull}: 휴관`;
     const closedClauses = hoursValue.match(/[일월화수목금토](?:요일)?(?:\s*[·,\/~-]\s*[일월화수목금토](?:요일)?)*\s*(?:정기\s*)?휴관/g) || [];
     if (closedClauses.some(clause => new RegExp(`${koShort}(요일)?`).test(clause))) return `${koFull}: 휴관`;
@@ -609,20 +618,21 @@ function getOpenStatus(hoursValue: string | undefined, country: string | undefin
     const local = parseLocalParts(timeZone);
     const dayIndex = WEEKDAY_KEYS.indexOf(local.weekday as any);
     const koDay = WEEKDAY_KO[dayIndex < 0 ? 1 : dayIndex];
+    const jaDay = WEEKDAY_JA[dayIndex < 0 ? 1 : dayIndex];
     const dayName = local.weekday;
     const todaySegment = getTodayHoursSegment(hoursValue, dayName, dayIndex);
     const normalized = todaySegment.replace(/\s+/g, ' ');
     const hasExplicitTodaySegment = todaySegment !== hoursValue
-        || new RegExp(`(^|\\b|\\s)(${dayName}|${koDay}(요일)?)\\s*[:：]?`, 'i').test(normalized)
+        || new RegExp(`(^|\\b|\\s)(${dayName}|${koDay}(요일)?|${jaDay}(曜日)?)\\s*[:：]?`, 'i').test(normalized)
         || koDayPartIncludesToday(normalized, dayIndex);
-    const closedRegex = new RegExp(`(${dayName}|${koDay}(요일)?)\\s*[:：]?\\s*(Closed|휴관|정기\\s*휴관|closed)`, 'i');
-    const genericClosedOnly = /^(closed|휴관|정기\s*휴관|休館|闭馆)$/i.test(normalized);
+    const closedRegex = new RegExp(`(${dayName}|${koDay}(요일)?|${jaDay}(曜日)?)\\s*[:：]?\\s*(Closed|휴관|휴무|정기\\s*휴관|休館|定休日|閉館|closed)`, 'i');
+    const genericClosedOnly = /^(closed|휴관|휴무|정기\s*휴관|休館|定休日|閉館|闭馆)$/i.test(normalized);
     const todayClosedClauses = normalized.match(/[일월화수목금토](?:요일)?(?:\s*[·,\/~-]\s*[일월화수목금토](?:요일)?)*\s*(?:정기\s*)?휴관/g) || [];
     const todayClosedByClause = todayClosedClauses.some(clause => koDayPartIncludesToday(clause, dayIndex));
     const hasClockRange = CLOCK_RANGE_PATTERN.test(normalized);
     if (closedRegex.test(normalized)
         || todayClosedByClause
-        || (hasExplicitTodaySegment && !hasClockRange && /closed|휴관|休館|闭馆/i.test(normalized))
+        || (hasExplicitTodaySegment && !hasClockRange && /closed|휴관|휴무|休館|定休日|閉館|闭馆/i.test(normalized))
         || genericClosedOnly) {
         const isTodaySpecificClosure = hasExplicitTodaySegment || todayClosedByClause || closedRegex.test(normalized);
         return isTodaySpecificClosure
@@ -736,6 +746,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const { locale } = useApp();
     const { showAlert } = useModal();
     const [loading, setLoading] = useState(!initialData);
+    const [portalReady, setPortalReady] = useState(false);
     const [isPicked, setIsPicked] = useState(false);
     const [saveId, setSaveId] = useState<string | null>(null);
     const [showBurst, setShowBurst] = useState(false);
@@ -768,8 +779,8 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
         const params = new URLSearchParams({ fromMuseum: museumId });
         if (isMapContext) params.set('fromMap', '1');
-        router.push(`/artworks/${artworkId}?${params.toString()}`);
-    }, [isMapContext, museumId, router]);
+        window.location.assign(`/artworks/${artworkId}?${params.toString()}`);
+    }, [isMapContext, museumId]);
 
     const openMuseumArtworkList = useCallback(() => {
         const params = new URLSearchParams({ museumId });
@@ -785,12 +796,9 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 sessionStorage.setItem('navigating-forward', String(Date.now()));
             } catch { }
         }
-        router.push(`/artworks?${params.toString()}`);
-    }, [data, isMapContext, locale, museumId, router]);
+        window.location.assign(`/artworks?${params.toString()}`);
+    }, [data, isMapContext, locale, museumId]);
 
-    // Live data states
-    const [exhibitions, setExhibitions] = useState<any[]>([]);
-    const [loadingLive, setLoadingLive] = useState(false);
     const [reportOpen, setReportOpen] = useState(false);
     const [fullDescriptionOpen, setFullDescriptionOpen] = useState(false);
     const [fullDescriptionClosing, setFullDescriptionClosing] = useState(false);
@@ -812,6 +820,10 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const [compareToastShowAction, setCompareToastShowAction] = useState(false);
     const [scrollY, setScrollY] = useState(0);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setPortalReady(true);
+    }, []);
 
     const openFullDescription = useCallback(() => {
         setFullDescriptionClosing(false);
@@ -874,8 +886,9 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const handleDetailScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
         setScrollY((e.target as HTMLDivElement).scrollTop);
     }, []);
-    const { text: translatedDesc, isTranslating: isDescTranslating } = useTranslatedText(data?.description, locale, { withLoading: true });
-    const { text: translatedSummary, isTranslating: isSummaryTranslating } = useTranslatedText(data?.summary, locale, { withLoading: true });
+    const embeddedSummary = locale !== 'ko' ? data?.summaryTranslations?.[locale] : undefined;
+    const { isTranslating: isDescTranslating } = useTranslatedText(null, locale, { withLoading: true });
+    const { text: translatedSummary, isTranslating: isSummaryTranslating } = useTranslatedText(embeddedSummary ? null : data?.summary, locale, { withLoading: true });
     // DB-cached translations for museum
     const { translations: cachedMuseum } = useCachedTranslation('museum', data?.id, locale);
     // Museum names should always display in their original language
@@ -900,7 +913,6 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     useEffect(() => {
         // If initialData was provided, skip the main fetch
         if (initialData) {
-            fetchLiveData(initialData.name, initialData.city);
             fetchRelatedStories();
             gtag.event('view_museum_detail', {
                 category: 'museum',
@@ -916,7 +928,6 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     setData(res.data);
                     setLoading(false);
                     if (res.data) {
-                        fetchLiveData(res.data.name, res.data.city);
                         fetchRelatedStories();
                         gtag.event('view_museum_detail', {
                             category: 'museum',
@@ -945,18 +956,6 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             })
             .catch(console.error);
     }, [museumId]);
-
-    const fetchLiveData = async (name: string, city: string) => {
-        setLoadingLive(true);
-        try {
-            const exhRes = await fetch(`/api/museums/${museumId}/exhibitions?name=${encodeURIComponent(name)}`).then(r => r.json());
-            if (exhRes.data) setExhibitions(exhRes.data);
-        } catch (e) {
-            console.error("Failed to fetch live extended data", e);
-        } finally {
-            setLoadingLive(false);
-        }
-    };
 
     const fetchRelatedStories = async () => {
         try {
@@ -1068,7 +1067,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         ? (data.descriptionKo || cachedMuseum.description || translateDescription(data.description, locale))
         : locale === 'en'
             ? data.description
-            : (cachedMuseum.description || translatedDesc || translateDescription(data.description, locale));
+            : (cachedMuseum.description || translateDescription(data.description, locale));
     const decisionLabels = ({
         ko: { title: '방문 전에 확인해요', directions: '길찾기', rating: '평점', hours: '운영 정보', access: '가는 길', address: '주소' },
         en: { title: 'Before you visit', directions: 'Directions', rating: 'Rating', hours: 'Hours', access: 'Getting there', address: 'Address' },
@@ -1373,7 +1372,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                 </div>
                             ) : (
                                 <p className="museum-summary-text text-base leading-relaxed">
-                                    {locale === 'ko' ? data.summary : translatedSummary || data.summary}
+                                    {locale === 'ko' ? data.summary : embeddedSummary || translatedSummary || data.summary}
                                 </p>
                             )}
                             {detailDescription && (
@@ -1463,10 +1462,15 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                 </a>
                             )}
                         </div>
-                        {isMapContext && onMoveToLocation && (
+                        {(onMoveToLocation || (data?.latitude && data?.longitude)) && (
                             <button
                                 type="button"
-                                onClick={onMoveToLocation}
+                                onClick={onMoveToLocation || (() => {
+                                    const lat = Number(data?.latitude);
+                                    const lng = Number(data?.longitude);
+                                    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+                                    window.location.assign(`/?flyTo=${lat},${lng}&flyToId=${encodeURIComponent(String(museumId))}`);
+                                })}
                                 className="mm-detail-action-button mm-detail-action-button--secondary mt-2 flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-4 text-sm font-semibold text-blue-600 shadow-sm transition-all hover:bg-blue-50 active:scale-95 dark:border-blue-500/20 dark:bg-blue-950/35 dark:text-blue-200 dark:hover:bg-blue-950/50"
                             >
                                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.9}>
@@ -1503,7 +1507,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     {/* Map-style Info List */}
                     <div className="hidden">
                         {/* Visitor Info Items */}
-                        {data.visitorInfo && Array.isArray(data.visitorInfo) && data.visitorInfo.map((item: any, i: number) => {
+                        {false && data.visitorInfo && Array.isArray(data.visitorInfo) && data.visitorInfo.map((item: any, i: number) => {
                             const displayLabel = translateViLabel(item.label, locale);
                             const isLocation = item.label === '위치';
                             const isAccess = item.label === '교통' || item.label === '가는 길';
@@ -1631,11 +1635,16 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             <div className={`mm-detail-story-rail flex gap-3.5 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide -mx-2 px-2 ${relatedStories.length === 1 ? 'is-single' : ''}`}>
                                 {relatedStories.map((story: any) => {
                                     const storyTitle = getDisplayStoryTitle(locale === 'ko' ? story.title : (story.titleTranslations?.[locale] || story.titleEn || story.title), [data]);
+                                    const storyHref = `/blog/${story.id}?fromMuseum=${encodeURIComponent(museumId)}`;
                                     return (
-                                    <button
-                                        type="button"
+                                    <a
+                                        href={storyHref}
                                         key={story.id}
-                                        onClick={() => router.push(`/blog/${story.id}?fromMuseum=${encodeURIComponent(museumId)}`)}
+                                        onPointerDown={() => {
+                                            try {
+                                                sessionStorage.setItem('navigating-forward', String(Date.now()));
+                                            } catch { }
+                                        }}
                                         className="mm-card mm-detail-story-card w-[260px] sm:w-[300px] flex-shrink-0 snap-start p-0 text-left group cursor-pointer appearance-none"
                                         aria-label={storyTitle}
                                     >
@@ -1666,7 +1675,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                                 {storyTitle}
                                             </h4>
                                         </div>
-                                    </button>
+                                    </a>
                                     );
                                 })}
                             </div>
@@ -1729,7 +1738,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 </div>
             </GlassPanel>
 
-            {visitInfoSheet && typeof document !== 'undefined' && createPortal(
+            {portalReady && visitInfoSheet && createPortal(
                 <div className={`mm-hours-sheet-backdrop fixed inset-0 z-[10020] flex items-end justify-center bg-black/35 backdrop-blur-md ${visitInfoSheetClosing ? 'is-closing' : ''}`} onClick={closeVisitInfoSheet}>
                     <div className={`mm-hours-sheet w-full max-w-xl rounded-t-[28px] bg-white p-5 shadow-2xl dark:bg-slate-950 ${visitInfoSheetClosing ? 'is-closing' : ''}`} onClick={(e) => e.stopPropagation()}>
                         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200 dark:bg-slate-800" />
@@ -1772,7 +1781,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 document.body
             )}
 
-            {directionsSheetOpen && typeof document !== 'undefined' && createPortal(
+            {portalReady && directionsSheetOpen && createPortal(
                 <div className={`mm-hours-sheet-backdrop fixed inset-0 z-[10020] flex items-end justify-center bg-black/35 backdrop-blur-md ${directionsSheetClosing ? 'is-closing' : ''}`} onClick={closeDirectionsSheet}>
                     <div className={`mm-hours-sheet mm-directions-sheet w-full max-w-xl rounded-t-[28px] bg-white p-5 shadow-2xl dark:bg-slate-950 ${directionsSheetClosing ? 'is-closing' : ''}`} onClick={(e) => e.stopPropagation()}>
                         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200 dark:bg-slate-800" />
@@ -1832,7 +1841,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 document.body
             )}
 
-            {fullDescriptionOpen && createPortal(
+            {portalReady && fullDescriptionOpen && createPortal(
                 <div className={`mm-full-description-backdrop fixed inset-0 z-[10020] flex items-end justify-center bg-black/35 backdrop-blur-md ${fullDescriptionClosing ? 'is-closing' : ''}`} onClick={closeFullDescription}>
                     <div className={`mm-full-description-sheet w-full max-w-xl rounded-t-[28px] bg-white p-5 shadow-2xl dark:bg-slate-950 ${fullDescriptionClosing ? 'is-closing' : ''}`} onClick={(e) => e.stopPropagation()}>
                         <div className="mb-4 flex items-center justify-between gap-3">
@@ -1906,7 +1915,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             )}
 
             {/* Mobile floating FAB group — rendered via portal to escape transform container */}
-            {typeof document !== 'undefined' && createPortal(
+            {portalReady && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     {/* My Pick button (top) */}
                     <button
@@ -1935,7 +1944,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             )}
 
             {/* Save Confetti Toast */}
-            {showSaveToast && typeof document !== 'undefined' && createPortal(
+            {portalReady && showSaveToast && createPortal(
                 <div className={`fixed bottom-24 left-1/2 z-[9999] ${saveToastExiting ? 'animate-save-toast-out' : 'animate-save-toast-in'}`}>
                     {/* Confetti particles */}
                     {!saveToastExiting && [0, 1, 2, 3, 4, 5, 6, 7].map(i => (
@@ -1957,7 +1966,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             )}
 
             {/* Compare toast with navigate button */}
-            {showCompareToast && typeof document !== 'undefined' && createPortal(
+            {portalReady && showCompareToast && createPortal(
                 <div className={`fixed bottom-24 left-1/2 z-[9999] ${compareToastExiting ? 'animate-save-toast-out' : 'animate-save-toast-in'}`}>
                     <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white pl-5 pr-2 py-2 rounded-2xl shadow-2xl shadow-blue-600/20 flex items-center gap-3 font-bold text-sm whitespace-nowrap">
                         <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1972,7 +1981,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             <button
                                 onClick={() => {
                                     setShowCompareToast(false);
-                                    router.push('/compare');
+                                    window.location.assign('/compare');
                                 }}
                                 className="ml-1 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-colors active:scale-95 whitespace-nowrap"
                             >
@@ -1985,7 +1994,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             )}
 
             {/* Address copy toast */}
-            {copyToast && typeof document !== 'undefined' && createPortal(
+            {portalReady && copyToast && createPortal(
                 <div className={`fixed bottom-24 left-1/2 z-[9999] ${copyToastExiting ? 'animate-save-toast-out' : 'animate-save-toast-in'}`}>
                     <div className="bg-gradient-to-r from-blue-700 to-blue-500 text-white px-5 py-2.5 rounded-full shadow-2xl shadow-blue-600/20 flex items-center gap-2 font-bold text-sm whitespace-nowrap">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

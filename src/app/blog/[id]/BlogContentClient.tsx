@@ -6,7 +6,7 @@ import { useCachedTranslation } from '@/hooks/useCachedTranslation';
 import { useApp } from '@/components/AppContext';
 import { formatDate, t, type Locale } from '@/lib/i18n';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { buildShareUrl } from '@/lib/utm';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
@@ -355,7 +355,6 @@ function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
     const allTexts = data ? data.flatMap((w: any) => [w.title || '', w.description || '']) : [];
     const translations = useTranslatedTexts(allTexts, locale as Locale);
     const [selectedWork, setSelectedWork] = useState<any>(null);
-    const router = useRouter();
 
     if (!data || data.length === 0) return null;
     return (
@@ -373,7 +372,7 @@ function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
                     <div
                         key={i}
                         className="mm-card min-w-[260px] max-w-[280px] flex-shrink-0 snap-start group cursor-pointer"
-                        onClick={() => work.id ? router.push(`/artworks/${work.id}`) : setSelectedWork(work)}
+                        onClick={() => work.id ? window.location.assign(`/artworks/${work.id}`) : setSelectedWork(work)}
                     >
                         <div className="h-[180px] overflow-hidden" style={{ background: 'var(--mm-surface-secondary)' }}>
                             <SafeImage
@@ -414,7 +413,6 @@ function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
 
 function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string }) {
     const [showAll, setShowAll] = useState(false);
-    const router = useRouter();
     if (!museums || museums.length === 0) return null;
     const VISIBLE = 2;
     const visibleMuseums = showAll ? museums : museums.slice(0, VISIBLE);
@@ -431,7 +429,7 @@ function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string })
                             if (typeof window !== 'undefined') {
                                 sessionStorage.setItem('navigating-forward', String(Date.now()));
                             }
-                            router.push(`/museums/${encodeURIComponent(museumRouteId)}?from=story`);
+                            window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=story`);
                         };
                         return (
                             <div key={m.id} className="inline-flex items-center gap-0">
@@ -478,7 +476,6 @@ function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string })
 
 export default function BlogContentClient({ post, serverLocale }: { post: any; serverLocale: string }) {
     const { locale } = useApp();
-    const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
@@ -505,7 +502,10 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
             try {
                 const ref = document.referrer;
                 const sameOrigin = !!ref && new URL(ref).origin === window.location.origin;
-                if (!sameOrigin && !sessionStorage.getItem('back-anchor-set')) {
+                // SPA 내부 이동은 referrer가 갱신되지 않으므로, 실제 문서 직접 진입일 때만 history를 재구성
+                const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+                const isFreshDocLoad = !!navEntry && navEntry.name === window.location.href && performance.now() < 5000;
+                if (!sameOrigin && isFreshDocLoad && !sessionStorage.getItem('back-anchor-set')) {
                     const here = window.location.pathname + window.location.search;
                     window.history.replaceState({ backAnchor: true }, '', '/');
                     window.history.pushState({ detail: true }, '', here);
@@ -537,8 +537,8 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
             target = normalizeInternalReturnTarget(document.referrer, currentPath);
         }
 
-        router.replace(target || '/blog');
-    }, [artworkBackHref, backHref, fromMap, pathname, router, searchParams]);
+        window.location.assign(target || '/blog');
+    }, [artworkBackHref, backHref, fromMap, pathname, searchParams]);
 
     const handleShare = useCallback(async () => {
         const url = buildShareUrl(window.location.href);
@@ -605,7 +605,12 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
 
     const [previewError, setPreviewError] = useState(false);
     const [storyBackVisible, setStoryBackVisible] = useState(true);
+    const [portalReady, setPortalReady] = useState(false);
     const showBackControls = pathname?.startsWith('/blog/') && pathname !== '/blog';
+
+    useEffect(() => {
+        setPortalReady(true);
+    }, []);
 
     useEffect(() => {
         if (typeof document === 'undefined') return;
@@ -619,7 +624,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     }, []);
 
     return (
-        <div className={`mm-editorial-page2 mm-story-detail-page2 w-full mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div className={`mm-editorial-page2 mm-story-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             {/* Preview Image with fallback */}
             <div className="mm-detail-hero2 mm-story-detail-hero2 h-[340px] sm:h-[420px] lg:h-[520px] lg:rounded-[32px]">
                 <div className="mm-detail-round-actions">
@@ -655,7 +660,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 </div>
             </div>
 
-            {showBackControls && storyBackVisible && typeof document !== 'undefined' && createPortal(
+            {portalReady && showBackControls && storyBackVisible && createPortal(
                 <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back mm-story-floating-back lg:hidden">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -664,7 +669,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 document.body
             )}
 
-            {storyTranslationPending && typeof document !== 'undefined' && createPortal(
+            {portalReady && storyTranslationPending && createPortal(
                 <div className="mm-story-translation-toast animate-save-toast-in" role="status" aria-live="polite">
                     <span className="mm-story-translation-spinner" aria-hidden="true" />
                     <span>{translationToastLabel}</span>

@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
@@ -21,6 +22,77 @@ function sanitizeText(text: string): string {
     return text.replace(/<[^>]*>/g, '').trim();
 }
 
+const BLOG_MUSEUM_LIST_SELECT = {
+    id: true,
+    name: true,
+    nameKo: true,
+    nameEn: true,
+    nameTranslations: true,
+    city: true,
+    cityKo: true,
+    cityTranslations: true,
+    country: true,
+    imageUrl: true,
+    cachedPhotoUrls: true,
+    placePhotos: true,
+    latitude: true,
+    longitude: true,
+};
+
+const BLOG_LIST_SELECT = {
+    id: true,
+    title: true,
+    titleEn: true,
+    author: true,
+    previewImage: true,
+    status: true,
+    category: true,
+    views: true,
+    createdAt: true,
+    updatedAt: true,
+    museums: {
+        include: {
+            museum: { select: BLOG_MUSEUM_LIST_SELECT },
+        },
+    },
+    storyArtworks: {
+        include: {
+            artwork: { select: { image: true } },
+        },
+        orderBy: { order: 'asc' as const },
+        take: 1,
+    },
+};
+
+const BLOG_FULL_INCLUDE = {
+    museums: {
+        include: {
+            museum: { select: BLOG_MUSEUM_LIST_SELECT },
+        },
+    },
+    storyArtworks: {
+        include: {
+            artwork: { select: { image: true } },
+        },
+        orderBy: { order: 'asc' as const },
+        take: 1,
+    },
+};
+
+function stripBlogListPayload(post: any) {
+    const result = { ...post };
+    if (Array.isArray(result.museums)) {
+        result.museums = result.museums.map((item: any) => {
+            if (!item?.museum) return item;
+            const museum = { ...item.museum };
+            delete museum.cachedPhotoUrls;
+            delete museum.placePhotos;
+            return { ...item, museum };
+        });
+    }
+    return result;
+}
+
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -34,6 +106,7 @@ export async function GET(req: NextRequest) {
             }
         }
         const category = searchParams.get('category');
+        const listView = !includeDrafts && searchParams.get('view') !== 'full';
 
         const posts = await (prisma as any).story.findMany({
             where: {
@@ -41,23 +114,32 @@ export async function GET(req: NextRequest) {
                 ...(category ? { category } : {}),
             },
             orderBy: { createdAt: 'desc' },
-            include: {
-                museums: {
-                    include: {
-                        museum: { select: { id: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, city: true, cityKo: true, cityTranslations: true, country: true, imageUrl: true, cachedPhotoUrls: true, placePhotos: true, latitude: true, longitude: true } }
-                    }
-                },
-                storyArtworks: {
-                    include: {
-                        artwork: { select: { image: true } }
-                    },
-                    orderBy: { order: 'asc' as const },
-                    take: 1,
-                }
-            }
+            ...(listView ? { select: BLOG_LIST_SELECT } : { include: BLOG_FULL_INCLUDE }),
         });
 
-        return successResponse(transformNestedPhotos(posts));
+        let transformed = transformNestedPhotos(posts);
+        if (listView) transformed = transformed.map(stripBlogListPayload);
+        // 썸네일 기준은 상세 커버 이미지(previewImage) — 없을 때만 연결 박물관 이미지로 대체
+        for (const post of transformed) {
+            if (post.previewImage) continue;
+            const museumImages = (post.museums || [])
+                .map((sm: any) => sm.museum?.imageUrl)
+                .filter((u: any) => typeof u === 'string' && u.length > 0);
+            if (museumImages.length > 0) {
+                let hash = 0;
+                for (let i = 0; i < post.id.length; i++) hash = (hash * 31 + post.id.charCodeAt(i)) >>> 0;
+                post.previewImage = museumImages[hash % museumImages.length];
+            }
+        }
+
+        return NextResponse.json(
+            { data: transformed },
+            {
+                headers: listView
+                    ? { 'Cache-Control': 'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400' }
+                    : { 'Cache-Control': 'private, no-store' },
+            }
+        );
     } catch (err: any) {
         console.error('Fetch blog error:', err);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch blog posts', 500);

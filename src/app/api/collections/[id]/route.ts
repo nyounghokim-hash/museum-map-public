@@ -28,7 +28,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
         if (!collection) return errorResponse('NOT_FOUND', 'Collection not found', 404);
 
-        return successResponse(transformNestedPhotos(collection));
+        const items = collection.items || [];
+        return successResponse(transformNestedPhotos({
+            ...collection,
+            isVisitedCollection: items.length > 0 && items.every((item: any) => !!item.reviewId),
+        }));
     } catch (err) {
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch collection', 500);
     }

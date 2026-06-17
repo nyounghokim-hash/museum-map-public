@@ -53,6 +53,7 @@ export default function CreateCollectionPage() {
 
         const items = plan.stops.map((s: any) => ({
             museumId: s.museumId,
+            reviewId: s.reviewId || null,
             order: s.order
         }));
 

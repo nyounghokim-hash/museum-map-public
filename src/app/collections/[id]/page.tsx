@@ -11,6 +11,7 @@ import { useTranslatedText } from '@/hooks/useTranslation';
 import { buildShareUrl } from '@/lib/utm';
 import { getMuseumImageSrc, getMuseumImageFallback } from '@/lib/getMuseumImage';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
 const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 
@@ -70,7 +71,7 @@ export default function CollectionDetailPage() {
             return;
         }
         const museumIds = collection.items.map((i: any) => i.museumId).join(',');
-        router.push(`/plans/new?museums=${museumIds}`);
+        window.location.assign(`/plans/new?museums=${museumIds}`);
     };
 
     const handleShareCollection = () => {
@@ -79,13 +80,13 @@ export default function CollectionDetailPage() {
     };
 
     if (loading) return (
-        <div className="w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8">
+        <div className="mm-collection-detail2 w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8">
             <div className="mb-6">
                 <div className="skeleton h-8 rounded-lg w-1/2 max-w-sm mb-3" />
                 <div className="skeleton h-4 rounded w-1/3 max-w-xs" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="skeleton-card overflow-hidden">
                         <div className="skeleton h-40 w-full rounded-none" />
                         <div className="p-4">
@@ -109,9 +110,16 @@ export default function CollectionDetailPage() {
                     <div className="flex items-center gap-3 min-w-0">
                         <div className="min-w-0">
                             <h1 className="text-lg sm:text-2xl font-bold leading-tight tracking-tight" title={collection.title}>{locale === 'ko' ? collection.title : <TranslatedTitle text={collection.title} locale={locale} />}</h1>
-                            <p className="text-xs font-medium truncate" style={{ color: 'var(--mm-text-tertiary)' }}>
-                                {authorText} · {itemsCount} {t('collections.items', locale)}
-                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                {collection.isVisitedCollection && (
+                                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                        {locale === 'ko' ? '다녀간 컬렉션' : 'Visited collection'}
+                                    </span>
+                                )}
+                                <p className="text-xs font-medium truncate" style={{ color: 'var(--mm-text-tertiary)' }}>
+                                    {authorText} · {itemsCount} {t('collections.items', locale)}
+                                </p>
+                            </div>
                         </div>
                     </div>
                     <div className="flex w-full items-center gap-2 shrink-0 sm:ml-2 sm:w-auto sm:justify-end">
@@ -158,7 +166,7 @@ export default function CollectionDetailPage() {
                                         try {
                                             sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
                                         } catch { }
-                                        router.push(`/blog/${story.id}`);
+                                        window.location.assign(`/blog/${story.id}`);
                                     }}
                                     className="mm-card group flex active:scale-[0.99] cursor-pointer"
                                 >
@@ -198,21 +206,14 @@ export default function CollectionDetailPage() {
 
             {/* Museum list */}
             {itemsCount === 0 ? (
-                <div className="py-20 text-center border-2 border-dashed border-gray-200 dark:border-neutral-800 rounded-2xl mb-10">
-                    <div className="text-4xl mb-4">
-                        <svg className="w-12 h-12 mx-auto text-gray-300 dark:text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
-                        </svg>
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">{t('collections.thisEmpty', locale)}</p>
-                </div>
+                <EmptyStateGame locale={locale} title={t('collections.thisEmpty', locale)} compact className="mb-10 rounded-2xl border border-blue-100/70 dark:border-blue-400/10" />
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                     {collection.items.map((item: any) => (
                         <div
                             key={item.id}
                             className="mm-collection-card2 overflow-hidden group cursor-pointer hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98]"
-                            onClick={() => router.push(`/museums/${item.museum.id}`)}
+                            onClick={() => window.location.assign(`/museums/${item.museum.id}`)}
                         >
                             <div className="h-40 relative overflow-hidden" style={{ background: 'var(--mm-surface-secondary)' }}>
                                 {(() => {

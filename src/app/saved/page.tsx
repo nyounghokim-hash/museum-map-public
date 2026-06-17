@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { GlassPanel } from '@/components/ui/glass';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { t, translateCategory } from '@/lib/i18n';
@@ -10,12 +9,13 @@ import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalized
 import { getMuseumHistory, clearMuseumHistory } from '@/lib/museum-history';
 import { useCompare } from '@/hooks/useCompare';
 import * as gtag from '@/lib/gtag';
+import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
 /* ── i18n for tabs & sort ── */
 type L = Record<string, string>;
 const ui: Record<string, L> = {
     tabSaved: { ko: '내 픽', en: 'My Pick', ja: 'お気に入り', de: 'Gespeichert', fr: 'Favoris', es: 'Guardados', pt: 'Salvos', 'zh-CN': '收藏', 'zh-TW': '收藏', da: 'Gemt', fi: 'Tallennettu', sv: 'Sparade', et: 'Salvestatud' },
-    tabHistory: { ko: '살펴보기', en: 'Explored', ja: '閲覧履歴', de: 'Verlauf', fr: 'Consultés', es: 'Explorados', pt: 'Explorados', 'zh-CN': '浏览记录', 'zh-TW': '瀏覽紀錄', da: 'Udforsket', fi: 'Selattu', sv: 'Utforskade', et: 'Vaadatud' },
+    tabHistory: { ko: '최근 본 장소', en: 'Explored', ja: '閲覧履歴', de: 'Verlauf', fr: 'Consultés', es: 'Explorados', pt: 'Explorados', 'zh-CN': '浏览记录', 'zh-TW': '瀏覽紀錄', da: 'Udforsket', fi: 'Selattu', sv: 'Utforskade', et: 'Vaadatud' },
     kickerSaved: { ko: 'MY PICK', en: 'MY PICK', ja: 'MY PICK', de: 'MY PICK', fr: 'MY PICK', es: 'MY PICK', pt: 'MY PICK', 'zh-CN': 'MY PICK', 'zh-TW': 'MY PICK', da: 'MY PICK', fi: 'MY PICK', sv: 'MY PICK', et: 'MY PICK' },
     kickerHistory: { ko: 'HISTORY', en: 'HISTORY', ja: 'HISTORY', de: 'HISTORY', fr: 'HISTORY', es: 'HISTORY', pt: 'HISTORY', 'zh-CN': 'HISTORY', 'zh-TW': 'HISTORY', da: 'HISTORY', fi: 'HISTORY', sv: 'HISTORY', et: 'HISTORY' },
     sortNewest: { ko: '최신순', en: 'Newest', ja: '新しい順', de: 'Neueste', fr: 'Récents', es: 'Recientes', pt: 'Recentes', 'zh-CN': '最新', 'zh-TW': '最新', da: 'Nyeste', fi: 'Uusimmat', sv: 'Senaste', et: 'Uusimad' },
@@ -230,6 +230,11 @@ export default function SavedPage() {
                 )}
             </div>
 
+            <div className="mm-section-heading">
+                <h2>{activeTab === 'saved' ? g('savedSection', locale) : (locale === 'ko' ? '최근 살펴본 곳' : 'Recently explored')}</h2>
+                <span>{displayItems.length.toLocaleString()} {locale === 'ko' ? '곳' : 'places'}</span>
+            </div>
+
             {/* Controls Bar: Select (saved tab only) + Sort Filter */}
             <div className="flex items-center justify-between gap-3 mb-6">
                 <div className="flex items-center gap-2">
@@ -305,24 +310,18 @@ export default function SavedPage() {
                 </div>
             </div>
 
-            <div className="mm-section-heading">
-                <h2>{activeTab === 'saved' ? g('savedSection', locale) : (locale === 'ko' ? '최근 살펴본 곳' : 'Recently explored')}</h2>
-                <span>{displayItems.length.toLocaleString()} {locale === 'ko' ? '곳' : 'places'}</span>
-            </div>
-
             {/* Museum List */}
             {isLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="mm-list-surface mm-saved-list-surface">
                     {Array.from({ length: 6 }).map((_, i) => (
-                        <GlassPanel key={i} className="overflow-hidden">
-                            <div className="h-40 skeleton" style={{ borderRadius: 0 }}>
-                                <div className="absolute top-3 right-3 w-16 h-6 skeleton skeleton-text" />
+                        <div key={i} className="mm-list-row2 w-full">
+                            <div className="mm-saved-row-thumb mm-skel-block" />
+                            <div className="min-w-0 flex-1">
+                                <div className="mm-skel-line w-16 mb-2" />
+                                <div className={`mm-skel-line h-4 ${i % 2 === 0 ? 'w-2/3' : 'w-1/2'} mb-2`} />
+                                <div className="mm-skel-line w-1/3" />
                             </div>
-                            <div className="p-4">
-                                <div className="skeleton skeleton-title w-3/4 mb-2" />
-                                <div className="skeleton skeleton-text w-1/2" />
-                            </div>
-                        </GlassPanel>
+                        </div>
                     ))}
                 </div>
             ) : displayItems.length > 0 ? (
@@ -386,16 +385,11 @@ export default function SavedPage() {
                     })}
                 </div>
             ) : (
-                <div className="col-span-full py-16 sm:py-20 text-center text-gray-400 dark:text-gray-500 w-full">
-                    {activeTab === 'saved' && locale === 'ko' ? (
-                        <>
-                            <p>아직 픽한 곳이 없어요.</p>
-                            <p>마음에 드는 박물관이나 미술관을 내 픽에 담아보세요.</p>
-                        </>
-                    ) : (
-                        activeTab === 'saved' ? t('saved.noSaves', locale) : g('noHistory', locale)
-                    )}
-                </div>
+                <EmptyStateGame
+                    locale={locale}
+                    title={activeTab === 'saved' ? (locale === 'ko' ? '아직 픽한 곳이 없어요.' : t('saved.noSaves', locale)) : g('noHistory', locale)}
+                    description={activeTab === 'saved' && locale === 'ko' ? '마음에 드는 박물관이나 미술관을 내 픽에 담아보세요.' : undefined}
+                />
             )}
 
             {activeTab === 'saved' && displayItems.length > 0 && (

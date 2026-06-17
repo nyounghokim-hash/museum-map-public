@@ -44,7 +44,7 @@ export default function CookieConsent() {
     const t = texts[locale] || texts.en;
 
     return (
-        <div className="fixed inset-x-0 bottom-0 z-[99998] pointer-events-none px-4 pb-[calc(env(safe-area-inset-bottom,0px)+4.75rem)] sm:pb-6">
+        <div className="mm-cookie-consent fixed inset-x-0 bottom-0 z-[89] pointer-events-none px-4 pb-[calc(env(safe-area-inset-bottom,0px)+6.5rem)] sm:pb-6">
             <div className={`pointer-events-auto glass-popup gradient-border rounded-2xl p-4 sm:p-5 mx-auto max-w-md w-full text-center ${closing ? 'animate-fadeOutDown' : 'animate-fadeInUp'}`} style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
                 <h3 className="text-base font-bold dark:text-white mb-1.5">
                     {locale === 'ko' ? '쿠키 사용 안내' : 'Cookie Notice'}

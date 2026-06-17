@@ -4,6 +4,56 @@ import { successResponse, errorResponse } from '@/lib/api-utils';
 import { transformMuseumPhotos } from '@/lib/photo-proxy';
 import { privateMuseumWhere } from '@/lib/museumVisibility';
 
+const MAP_MUSEUM_SELECT = {
+    id: true,
+    name: true,
+    nameKo: true,
+    nameEn: true,
+    nameTranslations: true,
+    country: true,
+    city: true,
+    cityKo: true,
+    cityTranslations: true,
+    type: true,
+    imageUrl: true,
+    latitude: true,
+    longitude: true,
+    popularityScore: true,
+    createdAt: true,
+    googleRating: true,
+    googleRatingsTotal: true,
+    cachedPhotoUrls: true,
+} as const;
+
+function pickLocaleTranslations(value: unknown, locale: string) {
+    if (!locale || locale === 'ko' || locale === 'en' || !value || typeof value !== 'object') return undefined;
+    const translated = (value as Record<string, unknown>)[locale];
+    return typeof translated === 'string' && translated ? { [locale]: translated } : undefined;
+}
+
+function toMapMuseum(museum: any, locale: string) {
+    const transformed = transformMuseumPhotos(museum);
+    return {
+        id: transformed.id,
+        name: transformed.name,
+        nameKo: transformed.nameKo,
+        nameEn: transformed.nameEn,
+        nameTranslations: pickLocaleTranslations(transformed.nameTranslations, locale),
+        country: transformed.country,
+        city: transformed.city,
+        cityKo: transformed.cityKo,
+        cityTranslations: pickLocaleTranslations(transformed.cityTranslations, locale),
+        type: transformed.type,
+        imageUrl: transformed.imageUrl || '',
+        latitude: transformed.latitude,
+        longitude: transformed.longitude,
+        popularityScore: transformed.popularityScore,
+        createdAt: transformed.createdAt,
+        googleRating: transformed.googleRating,
+        googleRatingsTotal: transformed.googleRatingsTotal,
+    };
+}
+
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -13,6 +63,8 @@ export async function GET(req: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1', 10);
         const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 5000);
         const offset = (page - 1) * limit;
+        const isMapView = searchParams.get('view') === 'map' || searchParams.get('fields') === 'map';
+        const locale = searchParams.get('locale') || 'ko';
 
         // Support fetching multiple museums by IDs (for compare feature)
         const ids = searchParams.get('ids');
@@ -74,7 +126,7 @@ export async function GET(req: NextRequest) {
                 orderBy: { popularityScore: 'desc' },
                 skip: offset,
                 take: limit,
-                select: {
+                select: isMapView ? MAP_MUSEUM_SELECT : {
                     id: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, description: true, descriptionKo: true, summary: true, summaryTranslations: true, country: true, city: true, cityKo: true, cityTranslations: true,
                     type: true, website: true, imageUrl: true, latitude: true, longitude: true, popularityScore: true,
                     createdAt: true, googleRating: true, googleRatingsTotal: true, placePhotos: true, cachedPhotoUrls: true,
@@ -84,7 +136,7 @@ export async function GET(req: NextRequest) {
             prisma.museum.count({ where })
         ]);
 
-        return successResponse({ data: data.map(transformMuseumPhotos), total: count, page, limit });
+        return successResponse({ data: isMapView ? data.map(museum => toMapMuseum(museum, locale)) : data.map(transformMuseumPhotos), total: count, page, limit });
     } catch (err: any) {
         console.error('API Error /museums:', err);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch museums', 500, err.message);

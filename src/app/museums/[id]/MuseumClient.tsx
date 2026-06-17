@@ -36,7 +36,10 @@ export default function MuseumClient({ museumId, initialData }: { museumId: stri
                 const sameOrigin = !!ref && new URL(ref).origin === window.location.origin;
                 const hasArtworkReturn = !!sessionStorage.getItem('artwork-to-museum-return');
                 const hasDetailSource = new URLSearchParams(window.location.search).has('from');
-                if (!sameOrigin && !hasArtworkReturn && !hasDetailSource && !sessionStorage.getItem('back-anchor-set')) {
+                // SPA 내부 이동은 referrer가 갱신되지 않으므로, 실제 문서 직접 진입일 때만 history를 재구성
+                const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+                const isFreshDocLoad = !!navEntry && navEntry.name === window.location.href && performance.now() < 5000;
+                if (!sameOrigin && isFreshDocLoad && !hasArtworkReturn && !hasDetailSource && !sessionStorage.getItem('back-anchor-set')) {
                     const here = window.location.pathname + window.location.search;
                     window.history.replaceState({ backAnchor: true }, '', '/');
                     window.history.pushState({ detail: true }, '', here);

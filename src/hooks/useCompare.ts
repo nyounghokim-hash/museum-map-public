@@ -14,6 +14,11 @@ function notifyCompareChanged(ids: string[]) {
     window.dispatchEvent(new CustomEvent<string[]>(COMPARE_CHANGE_EVENT, { detail: ids }));
 }
 
+function sameIds(a: string[], b: string[]) {
+    if (a.length !== b.length) return false;
+    return a.every((id, index) => id === b[index]);
+}
+
 /** Push current compare IDs to server. Silently ignores 401 (not signed in). */
 async function pushToServer(ids: string[]) {
     try {
@@ -43,7 +48,7 @@ export function useCompare() {
 
         if (!isAuthed) {
             isAuthedRef.current = false;
-            setCompareIds([]);
+            setCompareIds(prev => (prev.length > 0 ? [] : prev));
             clearLegacyStored();
             return;
         }
@@ -62,11 +67,11 @@ export function useCompare() {
             })
             .then((serverIds) => {
                 if (cancelled || serverIds == null) return;
-                setCompareIds(serverIds);
+                setCompareIds(prev => (sameIds(prev, serverIds) ? prev : serverIds));
                 notifyCompareChanged(serverIds);
             })
             .catch(() => {
-                if (!cancelled) setCompareIds([]);
+                if (!cancelled) setCompareIds(prev => (prev.length > 0 ? [] : prev));
             });
 
         return () => {
@@ -77,7 +82,7 @@ export function useCompare() {
     useEffect(() => {
         const handleCompareChanged = (event: Event) => {
             const ids = (event as CustomEvent<string[]>).detail;
-            if (Array.isArray(ids)) setCompareIds(ids);
+            if (Array.isArray(ids)) setCompareIds(prev => (sameIds(prev, ids) ? prev : ids));
         };
 
         window.addEventListener(COMPARE_CHANGE_EVENT, handleCompareChanged);
@@ -109,7 +114,7 @@ export function useCompare() {
 
     const clearCompare = useCallback(() => {
         clearLegacyStored();
-        setCompareIds([]);
+        setCompareIds(prev => (prev.length > 0 ? [] : prev));
         notifyCompareChanged([]);
         syncIfAuthed([]);
     }, [syncIfAuthed]);
