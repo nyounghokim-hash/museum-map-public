@@ -6,6 +6,7 @@ import NavHeader from '@/components/layout/NavHeader'
 import MobileBottomNav from '@/components/layout/MobileBottomNav'
 import FloatingBackButton from '@/components/layout/FloatingBackButton'
 import MainContent from '@/components/layout/MainContent'
+import RoutePendingReset from '@/components/layout/RoutePendingReset'
 import { AppProvider } from '@/components/AppContext'
 import { ModalProvider } from '@/components/ui/Modal'
 import { GoogleAnalytics } from '@next/third-parties/google'
@@ -263,11 +264,12 @@ export default async function RootLayout({
                   background: transparent !important;
                   color: #0f172a !important;
                   font-size: 15px !important;
-                  font-weight: 800 !important;
+                  font-weight: 400 !important;
                   line-height: 1 !important;
                 }
                 .mm-map2-search input::placeholder {
                   color: #94a3b8 !important;
+                  font-weight: 400 !important;
                 }
                 .mm-map2-search button,
                 .mm-map2-icon-pill,
@@ -392,7 +394,8 @@ export default async function RootLayout({
                   width: min(300px, calc(100vw - 104px)) !important;
                 }
                 .mm-map2-floating-list {
-                  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 64px) !important;
+                  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 61px) !important;
+                  z-index: 150 !important;
                   max-height: 290px !important;
                   overflow-y: auto !important;
                 }
@@ -405,11 +408,11 @@ export default async function RootLayout({
                 }
                 .mm-map2-search-result-title {
                   color: #0f172a !important;
-                  font-weight: 750 !important;
+                  font-weight: 650 !important;
                 }
                 .mm-map2-search-result-subtitle {
                   color: #64748b !important;
-                  font-weight: 600 !important;
+                  font-weight: 500 !important;
                 }
                 .mm-map2-category-menu {
                   top: calc(max(12px, env(safe-area-inset-top, 0px)) + 124px) !important;
@@ -449,9 +452,35 @@ export default async function RootLayout({
                   text-align: left !important;
                   word-break: keep-all !important;
                 }
+                .mm-map2-category-label {
+                  min-width: 0 !important;
+                  overflow: hidden !important;
+                  text-overflow: ellipsis !important;
+                  white-space: nowrap !important;
+                }
+                .mm-map2-category-count {
+                  display: inline-flex !important;
+                  align-items: center !important;
+                  justify-content: center !important;
+                  min-width: 22px !important;
+                  height: 18px !important;
+                  margin-left: auto !important;
+                  padding: 0 6px !important;
+                  border-radius: 999px !important;
+                  color: #2563eb !important;
+                  background: rgba(37,99,235,.09) !important;
+                  font-size: 10px !important;
+                  font-weight: 750 !important;
+                  line-height: 1 !important;
+                }
                 .mm-map2-category-menu-grid button.is-active {
                   color: #fff !important;
                   background: #2563eb !important;
+                }
+                .mm-map2-category-menu-grid button.is-active .mm-map2-category-count,
+                .mm-map2-side-grid button.is-active .mm-map2-category-count {
+                  color: #fff !important;
+                  background: rgba(255,255,255,.22) !important;
                 }
                 .mm-map2-float-actions {
                   position: absolute !important;
@@ -1216,6 +1245,7 @@ export default async function RootLayout({
               <MainContent>
                 {children}
               </MainContent>
+              <RoutePendingReset />
               <MobileBottomNav />
               <FloatingBackButton />
               <CookieConsent />

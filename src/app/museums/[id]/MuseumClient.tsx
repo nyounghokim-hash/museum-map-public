@@ -1,13 +1,13 @@
 'use client';
-import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState, useEffect } from 'react';
 import MuseumDetailCard from '@/components/museum/MuseumDetailCard';
+import { useApp } from '@/components/AppContext';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { addMuseumView } from '@/lib/museum-history';
+import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
 
 export default function MuseumClient({ museumId, initialData }: { museumId: string; initialData?: any }) {
-    const router = useRouter();
-    const [isExiting, setIsExiting] = useState(false);
+    const { locale } = useApp();
     const [isFromBack, setIsFromBack] = useState(false);
     const [isFromForward, setIsFromForward] = useState(false);
     const isBackingRef = useRef(false);
@@ -52,28 +52,27 @@ export default function MuseumClient({ museumId, initialData }: { museumId: stri
     const handleBack = useCallback(() => {
         if (isBackingRef.current) return;
         isBackingRef.current = true;
-        setIsExiting(true);
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('navigating-back', String(Date.now()));
             const artworkReturn = sessionStorage.getItem('artwork-to-museum-return');
             if (artworkReturn && window.history.length <= 1) {
                 sessionStorage.removeItem('artwork-to-museum-return');
-                router.replace(artworkReturn);
+                navigateWithPending(artworkReturn, locale, true);
                 return;
             }
             const historyState = window.history.state;
             if (historyState?.backAnchor) {
-                router.replace('/');
+                navigateWithPending('/', locale, true);
                 return;
             }
         }
-        router.back();
-    }, [router]);
+        backWithFallback('/', locale);
+    }, [locale]);
 
     useSwipeBack({ onBack: handleBack });
 
     return (
-        <div className={`w-full xl:max-w-4xl mx-auto p-0 sm:p-6 pb-0 sm:pb-6 mt-0 sm:mt-6 bg-white dark:bg-neutral-950 xl:bg-transparent xl:dark:bg-transparent min-h-screen xl:min-h-0 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : isFromForward ? 'page-slide-in-forward' : 'page-slide-in'}`}>
+        <div className={`w-full xl:max-w-4xl mx-auto p-0 sm:p-6 pb-0 sm:pb-6 mt-0 sm:mt-6 bg-white dark:bg-neutral-950 xl:bg-transparent xl:dark:bg-transparent min-h-screen xl:min-h-0 ${isFromBack ? 'page-slide-in-back' : isFromForward ? 'page-slide-in-forward' : 'page-slide-in'}`}>
             <MuseumDetailCard museumId={museumId} onClose={handleBack} initialData={initialData} />
         </div>
     );

@@ -2,6 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { useApp } from '@/components/AppContext';
+import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
 
 const FLOATING_BACK_ROUTES = new Set([
     '/admin',
@@ -46,6 +48,7 @@ function getBackFallback(pathname: string | null) {
 
 export default function FloatingBackButton() {
     const pathname = usePathname();
+    const { locale } = useApp();
     const backingRef = useRef(false);
     const [isDesktop, setIsDesktop] = useState(false);
 
@@ -65,40 +68,16 @@ export default function FloatingBackButton() {
         if (backingRef.current) return;
         backingRef.current = true;
         if (pathname === '/admin') {
-            window.location.assign('/profile');
+            navigateWithPending('/profile', locale);
             return;
         }
         if (pathname === '/settings' && typeof window !== 'undefined') {
             const storedFallback = sessionStorage.getItem('mm_settings_return_to') || '/';
             const fallbackTarget = storedFallback === '/settings' ? '/' : storedFallback;
-            window.dispatchEvent(new Event('mm-settings-exit'));
-            if (window.history.length > 1) {
-                const currentPath = `${window.location.pathname}${window.location.search}`;
-                window.history.back();
-                window.setTimeout(() => {
-                    const nextPath = `${window.location.pathname}${window.location.search}`;
-                    if (nextPath === currentPath) {
-                        window.location.assign(fallbackTarget);
-                    }
-                }, 700);
-                return;
-            }
-            window.location.assign(fallbackTarget);
+            backWithFallback(fallbackTarget, locale, { timeoutMs: 700 });
             return;
         }
-        if (typeof window !== 'undefined' && window.history.length > 1) {
-            const currentPath = `${window.location.pathname}${window.location.search}`;
-            const fallbackTarget = getBackFallback(pathname);
-            window.history.back();
-            window.setTimeout(() => {
-                const nextPath = `${window.location.pathname}${window.location.search}`;
-                if (nextPath === currentPath) {
-                    window.location.assign(fallbackTarget);
-                }
-            }, 420);
-        } else {
-            window.location.assign('/');
-        }
+        backWithFallback(getBackFallback(pathname), locale, { timeoutMs: 520 });
     };
 
     return (

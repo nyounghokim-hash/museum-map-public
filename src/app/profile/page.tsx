@@ -224,13 +224,6 @@ export default function ProfilePage() {
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
             </Link>
           )}
-          <Link href="/settings" className="mm-profile-action-row2">
-            <span>
-              <strong>{labels.preferences}</strong>
-              <em>{labels.preferencesDesc}</em>
-            </span>
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-          </Link>
           <button type="button" onClick={() => { clearClientAccountStateForLogout(); try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } signOut({ callbackUrl: '/' }); }} className="mm-profile-action-row2 is-danger">
             <span>
               <strong>{labels.logout}</strong>

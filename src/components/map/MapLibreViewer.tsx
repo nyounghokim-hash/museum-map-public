@@ -503,6 +503,8 @@ export default function MapLibreViewer({
   savedIds,
   selectionMode = false,
   onMapPointSelect,
+  onMapInteraction,
+  popupDismissKey,
 }: {
   museums: Museum[],
   onMuseumClick: (id: string) => void,
@@ -518,6 +520,8 @@ export default function MapLibreViewer({
   compareIds?: Set<string>,
   selectionMode?: boolean,
   onMapPointSelect?: (location: UserLocation) => void,
+  onMapInteraction?: () => void,
+  popupDismissKey?: number,
 }) {
   const localeRef = useRef(locale);
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -534,6 +538,7 @@ export default function MapLibreViewer({
   const lastMuseumSourceSignatureRef = useRef('');
   const userLocationRef = useRef(userLocation);
   const onMapPointSelectRef = useRef(onMapPointSelect);
+  const onMapInteractionRef = useRef(onMapInteraction);
   const activePopupRef = useRef<{ remove: () => void } | null>(null);
   const suppressMapClickUntilRef = useRef(0);
   const clusterTouchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
@@ -573,7 +578,14 @@ export default function MapLibreViewer({
 
   useEffect(() => { highlightMuseumIdRef.current = highlightMuseumId; }, [highlightMuseumId]);
   useEffect(() => { onMapPointSelectRef.current = onMapPointSelect; }, [onMapPointSelect]);
+  useEffect(() => { onMapInteractionRef.current = onMapInteraction; }, [onMapInteraction]);
   useEffect(() => { userLocationRef.current = userLocation; }, [userLocation]);
+  useEffect(() => {
+    if (popupDismissKey === undefined) return;
+    if (!activePopupRef.current) return;
+    activePopupRef.current.remove();
+    activePopupRef.current = null;
+  }, [popupDismissKey]);
   useEffect(() => {
     savedIdsRef.current = savedIds;
     syncMuseumSourceData();
@@ -862,6 +874,7 @@ export default function MapLibreViewer({
       // Click/touch handlers
       let lastMuseumClickTime = 0;
       const handleMuseumTap = (e: any) => {
+        onMapInteractionRef.current?.();
         const now = Date.now();
         if (now < suppressMapClickUntilRef.current) return;
         if (now - lastMuseumClickTime < 250) return;
@@ -897,6 +910,7 @@ export default function MapLibreViewer({
         //   but features weren't populated, or when layers were just re-added after a style reload.
         const point = getEventPoint(e);
         if (!point) return;
+        onMapInteractionRef.current?.();
 
         if (map.isMoving() && retryCount < 2) {
           map.stop();
@@ -945,6 +959,7 @@ export default function MapLibreViewer({
                 style={{ animation: `fadeInUp 0.25s ease-out ${idx * 0.04}s both` }}
                 onClick={() => {
                   if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+                  onMapInteractionRef.current?.();
                   if (p?.id) onMuseumClickRef.current(p.id);
                 }}
               >
@@ -1001,6 +1016,7 @@ export default function MapLibreViewer({
         if (Date.now() < suppressMapClickUntilRef.current) return;
         const point = getEventPoint(e);
         if (!point) return;
+        onMapInteractionRef.current?.();
         if (activePopupRef.current) {
           e.preventDefault?.();
           e.originalEvent?.preventDefault?.();
@@ -1050,6 +1066,7 @@ export default function MapLibreViewer({
           }
           const clusterFeature = getClusterFeatureAtPoint(map, point) || getClusterFeatureAtPoint(map, startPoint);
           if (clusterFeature) {
+            onMapInteractionRef.current?.();
             e.preventDefault?.();
             e.originalEvent?.preventDefault?.();
             handleClusterClick({ point, features: [clusterFeature] });
@@ -1212,6 +1229,7 @@ export default function MapLibreViewer({
       // Re-register click handlers
       let darkLastMuseumClick = 0;
       const darkHandleMuseumTap = (e: any) => {
+        onMapInteractionRef.current?.();
         const now = Date.now();
         if (now < suppressMapClickUntilRef.current) return;
         if (now - darkLastMuseumClick < 250) return;
@@ -1243,6 +1261,7 @@ export default function MapLibreViewer({
 
         const point = getEventPoint(e);
         if (!point) return;
+        onMapInteractionRef.current?.();
         if (map.isMoving() && retryCount < 2) {
           map.stop();
           window.setTimeout(() => darkHandleClusterClick({ point, features: [], __retryCount: retryCount + 1 }), 80);
@@ -1287,6 +1306,7 @@ export default function MapLibreViewer({
                 style={{ animation: `fadeInUp 0.25s ease-out ${idx * 0.04}s both` }}
                 onClick={() => {
                   if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+                  onMapInteractionRef.current?.();
                   if (p?.id) onMuseumClickRef.current(p.id);
                 }}
               >
@@ -1343,6 +1363,7 @@ export default function MapLibreViewer({
         if (Date.now() < suppressMapClickUntilRef.current) return;
         const point = getEventPoint(e);
         if (!point) return;
+        onMapInteractionRef.current?.();
         if (activePopupRef.current) {
           e.preventDefault?.();
           e.originalEvent?.preventDefault?.();

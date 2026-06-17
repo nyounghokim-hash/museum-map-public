@@ -5,7 +5,13 @@ import { useSession } from 'next-auth/react';
 const STORAGE_KEY = 'compareMuseums';
 export const COMPARE_CHANGE_EVENT = 'compareChange';
 const MAX_COMPARE = 3;
-const compareCache = new Map<string, string[]>();
+const CACHE_TTL_MS = 30_000;
+type CompareCacheEntry = { ids: string[]; ts: number };
+type UseCompareOptions = {
+    initialFetch?: 'immediate' | 'idle';
+    idleTimeout?: number;
+};
+const compareCache = new Map<string, CompareCacheEntry>();
 const compareInflight = new Map<string, Promise<string[] | null>>();
 
 function clearLegacyStored() {
@@ -37,14 +43,31 @@ function getCompareAccountKey(session: unknown, status: string) {
 
 function getCachedCompare(accountKey: string | null) {
     if (!accountKey) return [];
-    return compareCache.get(accountKey) ?? [];
+    return compareCache.get(accountKey)?.ids ?? [];
 }
 
 function setCompareCache(accountKey: string | null, ids: string[]) {
     if (!accountKey) return;
     const next = normalizeIds(ids);
-    compareCache.set(accountKey, next);
+    compareCache.set(accountKey, { ids: next, ts: Date.now() });
     notifyCompareChanged(next);
+}
+
+function scheduleIdle(callback: () => void, timeout = 2500) {
+    if (typeof window === 'undefined') {
+        callback();
+        return undefined;
+    }
+    const win = window as Window & typeof globalThis & {
+        requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+        cancelIdleCallback?: (handle: number) => void;
+    };
+    if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+        const id = win.requestIdleCallback(callback, { timeout });
+        return () => win.cancelIdleCallback?.(id);
+    }
+    const id = win.setTimeout(callback, timeout);
+    return () => win.clearTimeout(id);
 }
 
 export function invalidateCompareCache() {
@@ -55,7 +78,8 @@ export function invalidateCompareCache() {
 
 async function fetchCompareFromServer(accountKey: string | null, force = false) {
     if (!accountKey) return [];
-    if (!force && compareCache.has(accountKey)) return compareCache.get(accountKey) ?? [];
+    const cached = compareCache.get(accountKey);
+    if (!force && cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.ids;
     const existing = compareInflight.get(accountKey);
     if (existing) return existing;
 
@@ -65,7 +89,7 @@ async function fetchCompareFromServer(accountKey: string | null, force = false) 
             if (!r.ok) return null;
             const json = await r.json();
             const ids = normalizeIds((json?.data?.ids as string[] | undefined) ?? []);
-            compareCache.set(accountKey, ids);
+            compareCache.set(accountKey, { ids, ts: Date.now() });
             notifyCompareChanged(ids);
             return ids;
         })
@@ -92,7 +116,7 @@ async function writeCompareToServer(accountKey: string | null, ids: string[]) {
             console.warn('[compare] server sync failed:', res.status);
             return false;
         }
-        compareCache.set(accountKey, next);
+        compareCache.set(accountKey, { ids: next, ts: Date.now() });
         notifyCompareChanged(next);
         return true;
     } catch {
@@ -100,7 +124,8 @@ async function writeCompareToServer(accountKey: string | null, ids: string[]) {
     }
 }
 
-export function useCompare() {
+export function useCompare(options: UseCompareOptions = {}) {
+    const { initialFetch = 'immediate', idleTimeout = 2500 } = options;
     const { data: session, status } = useSession();
     const accountKey = getCompareAccountKey(session, status);
     const [compareIds, setCompareIds] = useState<string[]>(() => getCachedCompare(accountKey));
@@ -121,19 +146,27 @@ export function useCompare() {
         clearLegacyStored();
         const cached = getCachedCompare(accountKey);
         if (cached.length > 0) setCompareIds(prev => (sameIds(prev, cached) ? prev : cached));
-        fetchCompareFromServer(accountKey)
-            .then((serverIds) => {
-                if (cancelled || serverIds == null) return;
-                setCompareIds(prev => (sameIds(prev, serverIds) ? prev : serverIds));
-            })
-            .catch(() => {
-                if (!cancelled) setCompareIds(prev => (prev.length > 0 ? [] : prev));
-            });
+        const load = () => {
+            fetchCompareFromServer(accountKey)
+                .then((serverIds) => {
+                    if (cancelled || serverIds == null) return;
+                    setCompareIds(prev => (sameIds(prev, serverIds) ? prev : serverIds));
+                })
+                .catch(() => {
+                    if (!cancelled && cached.length === 0) setCompareIds(prev => (prev.length > 0 ? [] : prev));
+                });
+        };
+
+        const cancelIdle = initialFetch === 'idle' && !compareCache.has(accountKey)
+            ? scheduleIdle(load, idleTimeout)
+            : undefined;
+        if (!cancelIdle) load();
 
         return () => {
             cancelled = true;
+            cancelIdle?.();
         };
-    }, [accountKey, status]);
+    }, [accountKey, status, initialFetch, idleTimeout]);
 
     useEffect(() => {
         const handleCompareChanged = (event: Event) => {

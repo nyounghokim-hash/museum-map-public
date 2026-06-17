@@ -70,25 +70,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         // Handle re-ordering of stops
         if (body.stops && Array.isArray(body.stops)) {
+            const existingStops = await prisma.planStop.findMany({
+                where: { planId: id },
+                select: { id: true, museumId: true },
+            });
+            const stopIds = new Set(existingStops.map(stop => stop.id));
+            const stopIdByMuseumId = new Map(existingStops.map(stop => [stop.museumId, stop.id]));
+            const updates = [];
+
             for (const stop of body.stops) {
-                if (stop.id && stop.order !== undefined) {
-                    await prisma.planStop.update({
-                        where: { id: stop.id },
-                        data: { order: stop.order }
-                    });
-                } else if (stop.museumId && stop.order !== undefined) {
-                    const existingStop = await prisma.planStop.findFirst({
-                        where: { planId: id, museumId: stop.museumId },
-                        select: { id: true },
-                    });
-                    if (existingStop) {
-                        await prisma.planStop.update({
-                            where: { id: existingStop.id },
-                            data: { order: stop.order },
-                        });
-                    }
-                }
+                if (stop.order === undefined) continue;
+                const order = Number(stop.order);
+                if (!Number.isFinite(order)) continue;
+                const stopId = stop.id && stopIds.has(stop.id)
+                    ? stop.id
+                    : stop.museumId
+                        ? stopIdByMuseumId.get(stop.museumId)
+                        : null;
+                if (!stopId) continue;
+                updates.push(prisma.planStop.update({
+                    where: { id: stopId },
+                    data: { order },
+                }));
             }
+            if (updates.length > 0) await prisma.$transaction(updates);
         }
 
         return successResponse(updated);

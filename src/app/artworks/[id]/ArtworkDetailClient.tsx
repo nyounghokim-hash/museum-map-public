@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
 import { buildShareUrl } from '@/lib/utm';
 import { useApp } from '@/components/AppContext';
 
@@ -11,6 +10,7 @@ import type { Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
+import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
 
 
 
@@ -44,13 +44,11 @@ interface ArtworkDetailClientProps {
 export default function ArtworkDetailClient({ artworkId, serverLocale, initialData }: ArtworkDetailClientProps) {
     const { locale: appLocale } = useApp();
     const locale = appLocale || serverLocale;
-    const router = useRouter();
 
     const [artwork, setArtwork] = useState<any>(initialData || null);
     const [loading, setLoading] = useState(!initialData);
     const [imgLoaded, setImgLoaded] = useState(false);
     const [lightboxOpen, setLightboxOpen] = useState(false);
-    const [isExiting, setIsExiting] = useState(false);
     const [isFromBack, setIsFromBack] = useState(false);
     const [portalReady, setPortalReady] = useState(false);
     const isBackingRef = useRef(false);
@@ -77,27 +75,26 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const handleBack = useCallback(() => {
         if (isBackingRef.current) return;
         isBackingRef.current = true;
-        setIsExiting(true);
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('navigating-back', String(Date.now()));
             const returnPath = sessionStorage.getItem('artwork-list-return');
             const historyState = window.history.state;
             if (returnPath && window.history.length <= 1) {
                 sessionStorage.removeItem('artwork-list-return');
-                router.replace(returnPath);
+                navigateWithPending(returnPath, locale, true);
                 return;
             }
             if (historyState?.backAnchor) {
-                router.replace('/artworks');
+                navigateWithPending('/artworks', locale, true);
                 return;
             }
             if (window.history.length <= 1) {
-                router.replace('/artworks');
+                navigateWithPending('/artworks', locale, true);
                 return;
             }
         }
-        router.back();
-    }, [router]);
+        backWithFallback('/artworks', locale);
+    }, [locale]);
 
     const allTexts = useMemo(() => {
         if (!artwork) return [];
@@ -215,7 +212,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                 <p className="text-gray-500 dark:text-gray-400 text-lg font-bold">
                     {locale === 'ko' ? '작품을 찾지 못했어요' : 'Artwork not found'}
                 </p>
-                <button onClick={() => router.push('/artworks')} className="mt-4 text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                <button onClick={() => navigateWithPending('/artworks', locale)} className="mt-4 text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline">
                     ← {locale === 'ko' ? '작품 목록' : 'Back to artworks'}
                 </button>
             </div>
@@ -250,7 +247,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const displayArtist = getDisplayArtist();
 
     return (
-        <div ref={containerRef} className={`mm-editorial-page2 mm-artwork-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div ref={containerRef} className={`mm-editorial-page2 mm-artwork-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             <div className="mm-detail-hero2 w-full h-[420px] sm:h-[520px] bg-gray-100 dark:bg-neutral-800 sm:rounded-b-[32px] relative mt-0">
                 <div className="mm-detail-round-actions">
                     <button onClick={handleBack} aria-label="Back" className="mm-detail-top-back">

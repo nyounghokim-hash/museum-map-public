@@ -11,6 +11,7 @@ import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { useTranslatedTexts } from '@/hooks/useTranslation';
 import { useModal } from '@/components/ui/Modal';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
+import { navigateWithPending } from '@/lib/route-pending';
 
 export default function NavHeader() {
     const { data: session } = useSession();
@@ -301,7 +302,7 @@ export default function NavHeader() {
                     <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
                         {NAV_LINKS.map(link => {
                             const isGuest = !session || session?.user?.name?.startsWith('guest_');
-                            const isProtectedRoute = ['/saved', '/plans', '/collections', '/compare'].includes(link.href);
+                            const isProtectedRoute = ['/saved', '/plans', '/compare'].includes(link.href);
 
                             const handleDesktopClick = (e: React.MouseEvent) => {
                                 if (isGuest && isProtectedRoute) {
@@ -388,7 +389,7 @@ export default function NavHeader() {
                                                             setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, isRead: true } : notif));
                                                         }
                                                         setNotifOpen(false);
-                                                        window.location.href = '/notifications';
+                                                        navigateWithPending('/notifications', locale);
                                                     }}
                                                 >
                                                     <div className="flex items-start gap-3">
@@ -410,7 +411,7 @@ export default function NavHeader() {
                         {activeTrip && !activeTrip.pending && (
                             <button
                                 type="button"
-                                onClick={() => { if (typeof window !== 'undefined') window.location.assign('/?trip=active'); }}
+                                onClick={() => { if (typeof window !== 'undefined') navigateWithPending('/?trip=active', locale); }}
                                 className="hidden lg:inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 transition-all hover:bg-blue-100 active:scale-95 dark:border-blue-500/20 dark:bg-blue-500/12 dark:text-blue-300"
                                 aria-label={locale === 'ko' ? '여행 경로 보기' : 'View active trip route'}
                             >
@@ -553,7 +554,7 @@ export default function NavHeader() {
                         <nav className="flex-1 p-4 space-y-1">
                             {NAV_LINKS.map(link => {
                                 const isGuest = !session || session?.user?.name?.startsWith('guest_');
-                                const isProtectedRoute = ['/saved', '/plans', '/collections', '/compare'].includes(link.href);
+                                const isProtectedRoute = ['/saved', '/plans', '/compare'].includes(link.href);
 
                                     const handleDrawerClick = (e: React.MouseEvent) => {
                                         if (isGuest && isProtectedRoute) {

@@ -20,6 +20,7 @@ import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
+import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
@@ -40,6 +41,8 @@ const MAP_MANUAL_LOCATION_KEY = 'mm_map_manual_location';
 const MAP_LOCATION_PICK_MODE_KEY = 'mm_map_location_pick_mode';
 const MAP_CATEGORY_FILTER_KEY = 'mm_map_category_filter';
 const MUSEUMS_CACHE_PREFIX = 'museums_cache_v8_map_minimal';
+const WEATHER_CACHE_PREFIX = 'mm_weather_cache_v1';
+const WEATHER_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true };
 const MAP_ZOOM_MIN = 2;
 const MAP_ZOOM_MAX = 18;
@@ -133,6 +136,23 @@ function scheduleSessionJsonCache(key: string, data: unknown) {
   return () => win.clearTimeout(timer);
 }
 
+function scheduleIdleTask(callback: () => void, timeout = 2500) {
+  if (typeof window === 'undefined') {
+    callback();
+    return undefined;
+  }
+  const win = window as Window & typeof globalThis & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+  if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+    const idleId = win.requestIdleCallback(callback, { timeout });
+    return () => win.cancelIdleCallback?.(idleId);
+  }
+  const timer = win.setTimeout(callback, timeout);
+  return () => win.clearTimeout(timer);
+}
+
 function parseJsonOffMainThread<T = unknown>(text: string): Promise<T> {
   if (
     typeof window === 'undefined'
@@ -204,6 +224,31 @@ function isUsableMuseumsCache(data: unknown) {
 
 function getMuseumsCacheKey(locale: string) {
   return `${MUSEUMS_CACHE_PREFIX}_${locale || 'ko'}`;
+}
+
+function getWeatherCacheKey(location: MapLocation, locale: string) {
+  return `${WEATHER_CACHE_PREFIX}_${locale || 'ko'}_${location.lat.toFixed(2)}_${location.lng.toFixed(2)}`;
+}
+
+function readCachedWeather(location: MapLocation, locale: string): CurrentWeather | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(getWeatherCacheKey(location, locale));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.data || typeof parsed.ts !== 'number') return null;
+    if (Date.now() - parsed.ts > WEATHER_CACHE_TTL_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedWeather(location: MapLocation, locale: string, data: CurrentWeather) {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.setItem(getWeatherCacheKey(location, locale), JSON.stringify({ data, ts: Date.now() }));
+  } catch { }
 }
 
 function readMapPrefs(): MapPrefs {
@@ -861,7 +906,10 @@ function NewMuseumListItem({ museum, locale, onSelect }: { museum: any; locale: 
 }
 
 export default function MainPage() {
-  const { compareIds: compareIdsArr } = useCompare();
+  const { compareIds: compareIdsArr } = useCompare({
+    initialFetch: 'idle',
+    idleTimeout: 3500,
+  });
   const { savedIds: savedMuseumIds, refresh: refreshSavedIds } = useAccountSaves({
     initialFetch: 'idle',
     idleTimeout: 3500,
@@ -934,6 +982,7 @@ export default function MainPage() {
   }, [categoryDropdownOpen]);
   const [chipOpen, setChipOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [clusterPopupDismissKey, setClusterPopupDismissKey] = useState(0);
   const [newMuseumsOpen, setNewMuseumsOpen] = useState(false);
   const [newMuseumsClosing, setNewMuseumsClosing] = useState(false);
   const [showLoading, setShowLoading] = useState(false);
@@ -996,15 +1045,31 @@ export default function MainPage() {
     }
     if (except !== 'sideMenu') setMapSideMenuOpen(false);
   }, [categoryDropdownOpen, newMuseumsOpen]);
+
+  const closeSearchMode = useCallback(() => {
+    setSearchQuery('');
+    setSearchFocused(false);
+  }, []);
+
+  const dismissClusterPopup = useCallback(() => {
+    setClusterPopupDismissKey(key => key + 1);
+  }, []);
+
+  const closeSearchAndClusterPopup = useCallback(() => {
+    closeSearchMode();
+    dismissClusterPopup();
+  }, [closeSearchMode, dismissClusterPopup]);
+
   const openCategoryDropdown = useCallback(() => {
     if (categoryCloseTimerRef.current) {
       clearTimeout(categoryCloseTimerRef.current);
       categoryCloseTimerRef.current = null;
     }
     setCategoryDropdownClosing(false);
+    closeSearchAndClusterPopup();
     closeAllPopups('category');
     setCategoryDropdownOpen(true);
-  }, [closeAllPopups]);
+  }, [closeAllPopups, closeSearchAndClusterPopup]);
   const prevSelectedRef = useRef<any>(null);
   const selectedMuseumRef = useRef<any>(null);
   const isHandlingPopState = useRef(false);
@@ -1206,26 +1271,9 @@ export default function MainPage() {
     const maxRetries = 5;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelCacheWrite: (() => void) | undefined;
+    let cancelServerRefresh: (() => void) | undefined;
+    let serverFetchStarted = false;
     const museumsCacheKey = getMuseumsCacheKey(locale);
-
-    // Parse cached map data outside the main thread so mobile taps stay responsive.
-    try {
-      const cached = sessionStorage.getItem(museumsCacheKey);
-      if (cached) {
-        parseJsonOffMainThread<any>(cached)
-          .then(data => {
-            if (cancelled) return;
-            if (isUsableMuseumsCache(data)) {
-              setMuseums(data);
-            } else {
-              try { sessionStorage.removeItem(museumsCacheKey); } catch { }
-            }
-          })
-          .catch(() => {
-            try { sessionStorage.removeItem(museumsCacheKey); } catch { }
-          });
-      }
-    } catch { }
 
     const fetchMuseums = () => {
       fetch(`/api/museums?limit=5000&view=map&locale=${encodeURIComponent(locale)}`)
@@ -1259,11 +1307,45 @@ export default function MainPage() {
         });
     };
 
-    fetchMuseums();
+    const startFetchMuseums = () => {
+      if (serverFetchStarted) return;
+      serverFetchStarted = true;
+      fetchMuseums();
+    };
+
+    let hasCachedSnapshot = false;
+    // Parse cached map data outside the main thread so mobile taps stay responsive.
+    try {
+      const cached = sessionStorage.getItem(museumsCacheKey);
+      if (cached) {
+        hasCachedSnapshot = true;
+        parseJsonOffMainThread<any>(cached)
+          .then(data => {
+            if (cancelled) return;
+            if (isUsableMuseumsCache(data)) {
+              setMuseums(data);
+            } else {
+              try { sessionStorage.removeItem(museumsCacheKey); } catch { }
+              startFetchMuseums();
+            }
+          })
+          .catch(() => {
+            try { sessionStorage.removeItem(museumsCacheKey); } catch { }
+            startFetchMuseums();
+          });
+      }
+    } catch { }
+
+    cancelServerRefresh = hasCachedSnapshot
+      ? scheduleIdleTask(startFetchMuseums, 3200)
+      : undefined;
+    if (!cancelServerRefresh) startFetchMuseums();
+
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
       cancelCacheWrite?.();
+      cancelServerRefresh?.();
     };
   }, [locale]);
 
@@ -1483,7 +1565,7 @@ export default function MainPage() {
 
   // Search results: museums only. Map markers are still filtered only by category.
   const museumSearchResults = useMemo(() => {
-    if (!normalizedSearchQuery) return mapMuseums;
+    if (!normalizedSearchQuery) return [];
     return mapMuseums.filter(m => {
       const values = [
         m.name,
@@ -1519,6 +1601,16 @@ export default function MainPage() {
     }
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   }, [filteredMuseums, locale]);
+  const categoryFilterCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: museums.length };
+    for (const museum of museums) {
+      const type = museum.type || 'OTHER';
+      if (type === 'Aquarium') continue;
+      counts[type] = (counts[type] || 0) + 1;
+    }
+    return counts;
+  }, [museums]);
+  const getCategoryFilterCount = useCallback((filter: string) => categoryFilterCounts[filter] || 0, [categoryFilterCounts]);
   const mobileToolLabels = MOBILE_TOOL_LABELS[locale] || MOBILE_TOOL_LABELS.en;
   const mapLocationLabels = MAP_LOCATION_LABELS[locale] || MAP_LOCATION_LABELS.en;
   const mapZoomLabels = MAP_ZOOM_LABELS[locale] || MAP_ZOOM_LABELS.en;
@@ -1541,6 +1633,7 @@ export default function MainPage() {
 
   const [tripSheetOpen, setTripSheetOpen] = useState(true);
   const [tripStopsLocal, setTripStopsLocal] = useState<any[]>([]);
+  const [tripOrderSaving, setTripOrderSaving] = useState(false);
   const [nearbyOpen, setNearbyOpen] = useState(false);
   const [nearbyClosing, setNearbyClosing] = useState(false);
   const [weatherOpen, setWeatherOpen] = useState(false);
@@ -1684,11 +1777,14 @@ export default function MainPage() {
 
   useEffect(() => {
     if (locationSource !== 'current') return;
+    if (!mapPrefs.location && !mapPrefs.weather) return;
     setCurrentWeather(null);
-    requestCurrentLocation(false, false);
-  }, [locationSource, requestCurrentLocation]);
+    const cancelIdle = scheduleIdleTask(() => requestCurrentLocation(false, false), 2800);
+    return () => cancelIdle?.();
+  }, [locationSource, mapPrefs.location, mapPrefs.weather, requestCurrentLocation]);
 
   const handleCurrentLocationPress = useCallback(() => {
+    closeSearchAndClusterPopup();
     persistLocationSource('current');
     setLocationPickMode(false);
     setLocationPickIntroOpen(false);
@@ -1701,7 +1797,7 @@ export default function MainPage() {
       setMapFlyTo({ ...userLocation, zoom: 15, key: Date.now() });
     }
     requestCurrentLocation();
-  }, [persistLocationSource, requestCurrentLocation, userLocation]);
+  }, [closeSearchAndClusterPopup, persistLocationSource, requestCurrentLocation, userLocation]);
 
   const confirmUseCurrentLocation = useCallback(() => {
     persistLocationSource('current');
@@ -1726,6 +1822,7 @@ export default function MainPage() {
   }, []);
 
   const startManualLocationPick = useCallback(() => {
+    closeSearchAndClusterPopup();
     if (locationPickMode) {
       cancelLocationPickMode();
       return;
@@ -1738,7 +1835,7 @@ export default function MainPage() {
     if (typeof window !== 'undefined') {
       setSessionValue(MAP_LOCATION_PICK_MODE_KEY, '1');
     }
-  }, [cancelLocationPickMode, closeAllPopups, locationPickMode, persistLocationSource]);
+  }, [cancelLocationPickMode, closeAllPopups, closeSearchAndClusterPopup, locationPickMode, persistLocationSource]);
 
   const dismissLocationPickIntro = useCallback(() => {
     setLocationPickIntroOpen(false);
@@ -1841,17 +1938,20 @@ export default function MainPage() {
     if (zoomCommandReleaseRef.current) clearTimeout(zoomCommandReleaseRef.current);
   }, []);
   const handleMapZoomIn = useCallback(() => {
+    closeSearchAndClusterPopup();
     requestMapZoom(MAP_ZOOM_LEVELS[Math.min(MAP_ZOOM_LEVELS.length - 1, mapZoomSliderIndex + 1)], true);
-  }, [mapZoomSliderIndex, requestMapZoom]);
+  }, [closeSearchAndClusterPopup, mapZoomSliderIndex, requestMapZoom]);
   const handleMapZoomOut = useCallback(() => {
+    closeSearchAndClusterPopup();
     requestMapZoom(MAP_ZOOM_LEVELS[Math.max(0, mapZoomSliderIndex - 1)], true);
-  }, [mapZoomSliderIndex, requestMapZoom]);
+  }, [closeSearchAndClusterPopup, mapZoomSliderIndex, requestMapZoom]);
   const handleMapZoomSliderChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    closeSearchAndClusterPopup();
     mapZoomSliderActiveRef.current = true;
     const nextIndex = Number(event.target.value);
     setMapZoomSliderIndex(nextIndex);
     requestMapZoom(MAP_ZOOM_LEVELS[nextIndex] ?? MAP_ZOOM_LEVELS[0]);
-  }, [requestMapZoom]);
+  }, [closeSearchAndClusterPopup, requestMapZoom]);
   const handleMapZoomSliderCommit = useCallback((event: SyntheticEvent<HTMLInputElement>) => {
     mapZoomSliderActiveRef.current = false;
     const nextIndex = Number(event.currentTarget.value);
@@ -1885,6 +1985,11 @@ export default function MainPage() {
 
   const fetchCurrentWeather = useCallback(async () => {
     const fetchByLocation = async (location: MapLocation) => {
+      const cached = readCachedWeather(location, locale);
+      if (cached) {
+        setCurrentWeather(cached);
+        return;
+      }
       const url = `https://api.open-meteo.com/v1/forecast?latitude=${location.lat}&longitude=${location.lng}&current=temperature_2m,weather_code&timezone=auto`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('weather fetch failed');
@@ -1893,11 +1998,13 @@ export default function MainPage() {
       try {
         cityName = (await fetchLocationLabel(location, locale)).display;
       } catch {}
-      setCurrentWeather({
+      const nextWeather = {
         temp: Number(json.current.temperature_2m),
         code: Number(json.current.weather_code),
         cityName,
-      });
+      };
+      setCurrentWeather(nextWeather);
+      writeCachedWeather(location, locale, nextWeather);
     };
     if (locationSource === 'manual' && manualLocation) {
       setWeatherLoading(true);
@@ -1933,25 +2040,29 @@ export default function MainPage() {
 
   const openNearbyPopup = useCallback((triggerRef?: RefObject<HTMLButtonElement | null>) => {
     if (triggerRef) setNearbyPopupTriggerRef(triggerRef);
+    closeSearchAndClusterPopup();
     closeAllPopups('nearby');
     setNearbyClosing(false);
     nearbyOpenRef.current = true;
     setNearbyOpen(true);
-  }, [closeAllPopups]);
+  }, [closeAllPopups, closeSearchAndClusterPopup]);
 
   const openWeatherPopup = useCallback((triggerRef?: RefObject<HTMLButtonElement | null>) => {
     if (triggerRef) setWeatherPopupTriggerRef(triggerRef);
+    closeSearchAndClusterPopup();
     closeAllPopups('weather');
     fetchCurrentWeather();
     setWeatherClosing(false);
     weatherOpenRef.current = true;
     setWeatherOpen(true);
-  }, [closeAllPopups, fetchCurrentWeather]);
+  }, [closeAllPopups, closeSearchAndClusterPopup, fetchCurrentWeather]);
 
   useEffect(() => {
     if (isLgViewport) return;
-    fetchCurrentWeather();
-  }, [fetchCurrentWeather, isLgViewport]);
+    if (!mapPrefs.weather) return;
+    const cancelIdle = scheduleIdleTask(() => fetchCurrentWeather(), 4200);
+    return () => cancelIdle?.();
+  }, [fetchCurrentWeather, isLgViewport, mapPrefs.weather]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -1963,33 +2074,56 @@ export default function MainPage() {
     const scrollY = window.scrollY;
     const previous = {
       htmlOverflow: html.style.overflow,
+      htmlColorScheme: html.style.colorScheme,
       bodyOverflow: body.style.overflow,
       bodyPosition: body.style.position,
       bodyTop: body.style.top,
       bodyLeft: body.style.left,
       bodyRight: body.style.right,
       bodyWidth: body.style.width,
+      bodyBackground: body.style.background,
+      themeMetas: Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')).map(meta => ({
+        meta,
+        content: meta.getAttribute('content'),
+      })),
+      statusMeta: document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]'),
+      statusContent: document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') ?? null,
     };
 
+    const searchStatusColor = isDarkMode ? '#020617' : '#ffffff';
+    previous.themeMetas.forEach(({ meta }) => meta.setAttribute('content', searchStatusColor));
+    previous.statusMeta?.setAttribute('content', isDarkMode ? 'black-translucent' : 'default');
     html.style.overflow = 'hidden';
+    html.style.colorScheme = isDarkMode ? 'dark' : 'light';
     body.style.overflow = 'hidden';
     body.style.position = 'fixed';
     body.style.top = `-${scrollY}px`;
     body.style.left = '0';
     body.style.right = '0';
     body.style.width = '100%';
+    body.style.background = searchStatusColor;
 
     return () => {
       html.style.overflow = previous.htmlOverflow;
+      html.style.colorScheme = previous.htmlColorScheme;
       body.style.overflow = previous.bodyOverflow;
       body.style.position = previous.bodyPosition;
       body.style.top = previous.bodyTop;
       body.style.left = previous.bodyLeft;
       body.style.right = previous.bodyRight;
       body.style.width = previous.bodyWidth;
+      body.style.background = previous.bodyBackground;
+      previous.themeMetas.forEach(({ meta, content }) => {
+        if (content === null) meta.removeAttribute('content');
+        else meta.setAttribute('content', content);
+      });
+      if (previous.statusMeta) {
+        if (previous.statusContent === null) previous.statusMeta.removeAttribute('content');
+        else previous.statusMeta.setAttribute('content', previous.statusContent);
+      }
       window.scrollTo(0, scrollY);
     };
-  }, [isLgViewport, isPanelOpen, searchFocused, searchQuery]);
+  }, [isDarkMode, isLgViewport, isPanelOpen, searchFocused, searchQuery]);
 
   // Sync local stops when activeTrip changes
   useEffect(() => {
@@ -2004,26 +2138,35 @@ export default function MainPage() {
       const [moved] = newStops.splice(fromIndex, 1);
       newStops.splice(toIndex, 0, moved);
       const reordered = newStops.map((s, i) => ({ ...s, order: i }));
+      const previousStops = tripStopsLocal;
       const labels = TRIP_REORDER_LABELS[locale] || TRIP_REORDER_LABELS.en;
       showConfirm(labels.message, async () => {
-        setTripStopsLocal(reordered);
-        setActiveTrip((prev: any) => prev ? { ...prev, stops: reordered } : prev);
-        if (typeof window !== 'undefined') {
-          const parsed = getActiveTripForAccount();
-          if (parsed) setActiveTripForAccount({ ...parsed, stops: reordered });
-        }
-        if (activeTrip?.planId) {
-          try {
+        const applyStops = (stops: any[]) => {
+          setTripStopsLocal(stops);
+          setActiveTrip((prev: any) => prev ? { ...prev, stops } : prev);
+          if (typeof window !== 'undefined') {
+            const parsed = getActiveTripForAccount();
+            if (parsed) setActiveTripForAccount({ ...parsed, stops });
+          }
+        };
+
+        setTripOrderSaving(true);
+        applyStops(reordered);
+        try {
+          if (activeTrip?.planId) {
             const res = await fetch(`/api/plans/${activeTrip.planId}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ stops: reordered.map((s: any) => ({ id: s.id, museumId: s.museumId, order: s.order })) }),
             });
             if (!res.ok) throw new Error('Failed to save trip order');
-            showAlert(labels.saved);
-          } catch {
-            showAlert(labels.failed);
           }
+          showAlert(labels.saved);
+        } catch {
+          applyStops(previousStops);
+          showAlert(labels.failed);
+        } finally {
+          setTripOrderSaving(false);
         }
       }, labels.title);
     },
@@ -2164,6 +2307,7 @@ export default function MainPage() {
                 })}
               </div>
               {tripIsDragging && <p className="text-xs text-blue-500 dark:text-blue-400 text-center mt-3 animate-pulse">{t('plans.dragReorder', locale)}</p>}
+              {tripOrderSaving && <p role="status" className="text-xs text-blue-500 dark:text-blue-400 text-center mt-3">{locale === 'ko' ? '여행 순서를 저장하는 중...' : 'Saving trip order...'}</p>}
             </div>
             {/* Bottom buttons */}
             <div className="mm-active-trip-footer2 p-4 border-t space-y-2 shrink-0">
@@ -2219,6 +2363,7 @@ export default function MainPage() {
                   );
                 })}
               </div>
+              {tripOrderSaving && <p role="status" className="text-xs text-blue-500 dark:text-blue-400 text-center pt-2">{locale === 'ko' ? '여행 순서를 저장하는 중...' : 'Saving trip order...'}</p>}
               {/* End trip button inside drawer */}
               <div className="pt-2 pb-2">
                 <button onClick={handleEndTrip} className="w-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98]">{t('plans.endTrip', locale)}</button>
@@ -2387,7 +2532,7 @@ export default function MainPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => { setSearchFocused(true); closeCategoryDropdown(); closeNewMuseums(); setMapSideMenuOpen(false); }}
+                  onFocus={() => { setSearchFocused(true); dismissClusterPopup(); closeCategoryDropdown(); closeNewMuseums(); setMapSideMenuOpen(false); }}
                   onBlur={() => setSearchFocused(false)}
                   placeholder={t('map.search', locale)}
                 />
@@ -2402,10 +2547,12 @@ export default function MainPage() {
                 className="mm-map2-icon-pill"
                 style={mm2.iconPill}
                 onClick={() => {
+                  closeSearchAndClusterPopup();
                   closeAllPopups();
                   try {
                     sessionStorage.setItem('mm_settings_return_to', '/');
                   } catch {}
+                  startRoutePending(locale);
                   window.location.assign('/settings');
                 }}
                 aria-label={locale === 'ko' ? '설정' : 'Settings'}
@@ -2423,6 +2570,7 @@ export default function MainPage() {
                   type="button"
                   className={`mm-map2-new-museums-chip ${newMuseumsOpen ? 'is-active' : ''}`}
                   onClick={() => {
+                    closeSearchAndClusterPopup();
                     if (newMuseumsOpen) closeNewMuseums();
                     else {
                       closeAllPopups('newMuseums');
@@ -2482,10 +2630,13 @@ export default function MainPage() {
             )}
 
             {activeTrip && (
-              <div className="mm-map2-trip-anchor">
+              <div className={`mm-map2-trip-anchor ${newMuseums.length > 0 ? 'has-new-museums' : ''}`}>
                 <button
                   type="button"
-                  onClick={() => setIsViewingActiveRoute(true)}
+                  onClick={() => {
+                    closeSearchAndClusterPopup();
+                    setIsViewingActiveRoute(true);
+                  }}
                   className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
                   style={mm2.toolPill}
                   aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
@@ -2512,6 +2663,7 @@ export default function MainPage() {
                     ref={weatherBtnRefMobile}
 	                    type="button"
 	                    onClick={() => {
+                        closeSearchAndClusterPopup();
 	                      if (weatherOpen) closeWeatherPopup();
 	                      else openWeatherPopup(weatherBtnRefMobile);
 	                    }}
@@ -2529,6 +2681,7 @@ export default function MainPage() {
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
                     event.stopPropagation();
+                    closeSearchAndClusterPopup();
                     if (categoryDropdownOpen) closeCategoryDropdown();
                     else openCategoryDropdown();
                   }}
@@ -2544,9 +2697,9 @@ export default function MainPage() {
 
                 {mapPrefs.nearby && (
                   <button
-                    ref={nearbyBtnRefMobile}
+	                    ref={nearbyBtnRefMobile}
                     type="button"
-	                    onClick={() => { if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefMobile); }}
+	                    onClick={() => { closeSearchAndClusterPopup(); if (nearbyOpen) closeNearbyPopup(); else openNearbyPopup(nearbyBtnRefMobile); }}
                     className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${nearbyOpen ? 'is-active' : ''}`}
                     style={{ ...mm2.toolPill, ...(nearbyOpen ? mm2.activePill : null) }}
                     aria-label={mobileToolLabels.nearby}
@@ -2612,8 +2765,9 @@ export default function MainPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        closeSearchAndClusterPopup();
                         setMapSideMenuOpen(false);
-                        window.location.assign('/login');
+                        navigateWithPending('/login', locale);
                       }}
                     >
                       <span className="h-6 w-6 overflow-hidden rounded-full bg-blue-100 text-xs font-semibold text-blue-700 flex items-center justify-center">
@@ -2626,8 +2780,9 @@ export default function MainPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        closeSearchAndClusterPopup();
                         setMapSideMenuOpen(false);
-                        window.location.assign('/admin');
+                        navigateWithPending('/admin', locale);
                       }}
                     >
                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold text-white">A</span>
@@ -2637,11 +2792,12 @@ export default function MainPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      closeSearchAndClusterPopup();
                       setMapSideMenuOpen(false);
                       try {
                         sessionStorage.setItem('mm_settings_return_to', '/');
                       } catch {}
-                      window.location.assign('/settings');
+                      navigateWithPending('/settings', locale);
                     }}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2655,6 +2811,7 @@ export default function MainPage() {
                   <button
                     type="button"
                     onClick={() => {
+                      closeSearchAndClusterPopup();
                       setMapSideMenuOpen(false);
                       closeAllPopups('chip');
                       setChipOpen(true);
@@ -2667,7 +2824,8 @@ export default function MainPage() {
                   </button>
                   <button
                     type="button"
-	                    onClick={() => {
+		                    onClick={() => {
+                          closeSearchAndClusterPopup();
 	                      setMapSideMenuOpen(false);
 	                      openWeatherPopup();
 	                    }}
@@ -2685,7 +2843,8 @@ export default function MainPage() {
                         type="button"
                         className={activeFilter === f ? 'is-active' : ''}
                         onClick={() => {
-	                          setCategoryFilter(f);
+                          closeSearchAndClusterPopup();
+                          setCategoryFilter(f);
                           setChipOpen(false);
                           setMapSideMenuOpen(false);
                           setAiOpen(false);
@@ -2694,7 +2853,8 @@ export default function MainPage() {
                         }}
                       >
                         <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
-                        {translateCategory(f, locale)}
+                        <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
+                        <span className="mm-map2-category-count">{getCategoryFilterCount(f).toLocaleString()}</span>
                       </button>
                     ))}
                   </div>
@@ -2738,7 +2898,7 @@ export default function MainPage() {
                     className={activeFilter === f ? 'is-active' : ''}
                     style={{ ...mm2.categoryButton, ...(activeFilter === f ? mm2.categoryButtonActive : null) }}
                     onClick={() => {
-	                      setCategoryFilter(f);
+                      setCategoryFilter(f);
                       setChipOpen(false);
                       closeCategoryDropdown();
                       setAiOpen(false);
@@ -2747,7 +2907,8 @@ export default function MainPage() {
                     }}
                   >
                     <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
-                    {translateCategory(f, locale)}
+                    <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
+                    <span className="mm-map2-category-count">{getCategoryFilterCount(f).toLocaleString()}</span>
                   </button>
                 ))}
               </div>
@@ -2783,6 +2944,8 @@ export default function MainPage() {
             compareIds={compareIdsSet}
             selectionMode={locationPickMode}
             onMapPointSelect={locationPickMode ? handleManualLocationSelect : undefined}
+            onMapInteraction={closeSearchMode}
+            popupDismissKey={clusterPopupDismissKey}
           />
         )}
 
@@ -2925,7 +3088,7 @@ export default function MainPage() {
                   <div className="mm-map2-pc-trip-new-museums relative">
                     <button
                       type="button"
-                      onClick={() => { if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
+	                      onClick={() => { closeSearchAndClusterPopup(); if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
                       className={`mm-map2-pc-control mm-map2-new-museums-pc-action flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
                         ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                         : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
@@ -2959,7 +3122,10 @@ export default function MainPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => setIsViewingActiveRoute(true)}
+	                  onClick={() => {
+                      closeSearchAndClusterPopup();
+                      setIsViewingActiveRoute(true);
+                    }}
                   className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
                   style={mm2.toolPill}
                   aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
@@ -2986,7 +3152,7 @@ export default function MainPage() {
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => { if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
+	                    onClick={() => { closeSearchAndClusterPopup(); if (newMuseumsOpen) { closeNewMuseums(); } else { closeAllPopups('newMuseums'); setNewMuseumsOpen(true); } }}
                     className={`mm-map2-pc-control mm-map2-new-museums-pc-action flex items-center justify-center bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl rounded-2xl shadow-lg border transition-all active:scale-95 ${newMuseumsOpen
                       ? 'border-blue-300 dark:border-blue-700 ring-2 ring-blue-500/30'
                       : 'border-gray-100/50 dark:border-neutral-800/50 hover:border-blue-200 dark:hover:border-blue-800'
@@ -3091,7 +3257,8 @@ export default function MainPage() {
                           }}
                         >
                           <img className="mm-map2-category-icon" src={getMuseumCategoryIconSrc(f)} alt="" aria-hidden="true" />
-                          {translateCategory(f, locale)}
+                          <span className="mm-map2-category-label">{translateCategory(f, locale)}</span>
+                          <span className="mm-map2-category-count">{getCategoryFilterCount(f).toLocaleString()}</span>
                         </button>
                       ))}
                     </div>

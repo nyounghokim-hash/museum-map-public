@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
+import { navigateWithPending } from '@/lib/route-pending';
 
 const TEXTS: Record<string, { title: string; message: string; login: string; cancel: string }> = {
     ko: { title: '로그인하면 사용할 수 있어요', message: '내 픽, 여행, 컬렉션은 로그인 후 저장돼요.', login: '로그인하기', cancel: '나중에' },
@@ -47,8 +48,7 @@ export default function LoginRequiredModal({ isOpen, onClose, callbackUrl }: Log
     const handleLogin = () => {
         const url = callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : '/login';
         if (typeof window !== 'undefined') {
-            document.documentElement.classList.add('mm-route-pending');
-            window.location.assign(url);
+            navigateWithPending(url, locale);
         }
     };
 

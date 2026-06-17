@@ -7,6 +7,7 @@ import { useApp } from '@/components/AppContext';
 import { LOCALE_NAMES, type Locale } from '@/lib/i18n';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
+import { backWithFallback } from '@/lib/route-pending';
 
 type MapSettingKey = 'location' | 'nearby' | 'weather';
 type MapPrefs = Record<MapSettingKey, boolean>;
@@ -275,7 +276,6 @@ export default function SettingsPage() {
   const [mapPrefs, setMapPrefs] = useState<MapPrefs>(DEFAULT_MAP_PREFS);
   const [locationSource, setLocationSource] = useState<MapLocationSource>('current');
   const [loginModalOpen, setLoginModalOpen] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
   const labels = LABELS[locale] || LABELS.en;
   const policyLabels = POLICY_LABELS[locale] || POLICY_LABELS.en;
   const locationLabels = LOCATION_SETTING_LABELS[locale] || LOCATION_SETTING_LABELS.en;
@@ -296,12 +296,6 @@ export default function SettingsPage() {
     });
     setLocationSource(savedLocationSource);
   }, [accountLocationEmail]);
-
-  useEffect(() => {
-    const handleExit = () => setIsExiting(true);
-    window.addEventListener('mm-settings-exit', handleExit);
-    return () => window.removeEventListener('mm-settings-exit', handleExit);
-  }, []);
 
   const updateMapPref = (key: MapSettingKey) => {
     setMapPrefs(prev => {
@@ -325,23 +319,11 @@ export default function SettingsPage() {
     if (typeof window === 'undefined') return;
     const storedFallback = sessionStorage.getItem('mm_settings_return_to') || '/';
     const fallbackTarget = storedFallback === '/settings' ? '/' : storedFallback;
-    setIsExiting(true);
-    if (window.history.length > 1) {
-      const currentPath = `${window.location.pathname}${window.location.search}`;
-      window.history.back();
-      window.setTimeout(() => {
-        const nextPath = `${window.location.pathname}${window.location.search}`;
-        if (nextPath === currentPath) {
-          window.location.assign(fallbackTarget);
-        }
-      }, 700);
-      return;
-    }
-    window.location.assign(fallbackTarget);
+    backWithFallback(fallbackTarget, locale, { timeoutMs: 700 });
   };
 
   return (
-    <div className={`mm-settings-page2 no-back-swipe mx-auto w-full max-w-[640px] px-5 pb-32 pt-[max(28px,env(safe-area-inset-top,0px))] lg:pb-12 ${isExiting ? 'mm-settings-page2--exit' : 'mm-settings-page2--enter'}`}>
+    <div className="mm-settings-page2 no-back-swipe mx-auto w-full max-w-[640px] px-5 pb-32 pt-[max(28px,env(safe-area-inset-top,0px))] lg:pb-12 mm-settings-page2--enter">
       <div className="mm-settings-header2 mb-12">
         <button type="button" className="mm-settings-back-button2" onClick={handleBack} aria-label={locale === 'ko' ? '뒤로가기' : 'Back'}>
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>

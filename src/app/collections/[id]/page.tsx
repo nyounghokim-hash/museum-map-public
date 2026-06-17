@@ -1,5 +1,5 @@
 'use client';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
@@ -12,6 +12,7 @@ import { buildShareUrl } from '@/lib/utm';
 import { getMuseumImageSrc, getMuseumImageFallback } from '@/lib/getMuseumImage';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
+import { backWithFallback } from '@/lib/route-pending';
 
 const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 
@@ -31,12 +32,10 @@ function formatAuthor(user: any, locale: Locale) {
 
 export default function CollectionDetailPage() {
     const { id } = useParams();
-    const router = useRouter();
     const { locale } = useApp();
     const { showAlert } = useModal();
     const [collection, setCollection] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [isExiting, setIsExiting] = useState(false);
     const [isFromBack, setIsFromBack] = useState(false);
 
     useEffect(() => {
@@ -50,10 +49,8 @@ export default function CollectionDetailPage() {
     }, []);
 
     const handleBack = useCallback(() => {
-        setIsExiting(true);
-        if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now()));
-        router.back();
-    }, [router]);
+        backWithFallback('/collections', locale);
+    }, [locale]);
 
     useEffect(() => {
         fetch(`/api/collections/${id}`)
@@ -103,7 +100,7 @@ export default function CollectionDetailPage() {
     const authorText = formatAuthor(collection.user, locale);
 
     return (
-        <div className={`mm-collection-detail2 w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8 ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div className={`mm-collection-detail2 w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 pb-56 lg:pb-8 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             {/* Sticky header with back button */}
             <div className="mm-collection-detail2-head mb-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

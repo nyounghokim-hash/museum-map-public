@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
+import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; artworks: string; story: string; collection: string; compare: string }> = {
     ko: { map: '홈', saved: '내 픽', plans: '내 여행', artworks: '작품', story: 'MM스토리', collection: '컬렉션', compare: '비교' },
@@ -23,9 +24,9 @@ const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; ar
     et: { map: 'Avaleht', saved: 'Salvestatud', plans: 'Reisid', artworks: 'Teosed', story: 'MM Story', collection: 'Kogu', compare: 'Võrdle' },
 };
 
-function navigateNative(href: string) {
+function navigateNative(href: string, locale?: string | null) {
     if (typeof window === 'undefined') return;
-    window.location.assign(href);
+    navigateWithPending(href, locale);
 }
 
 const styles = {
@@ -252,7 +253,7 @@ export default function MobileBottomNav() {
     const isGuest = !session || session.user?.name?.startsWith('guest_');
     const [menuOpen, setMenuOpen] = useState(false);
     const [menuClosing, setMenuClosing] = useState(false);
-    const [navigatingAway, setNavigatingAway] = useState(false);
+    const [pendingHref, setPendingHref] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
@@ -282,14 +283,15 @@ export default function MobileBottomNav() {
     useEffect(() => {
         setMenuOpen(false);
         setMenuClosing(false);
-        setNavigatingAway(false);
+        setPendingHref(null);
     }, [pathname]);
 
     const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
     if (!isMobile || !showNavPages.includes(pathname) || detailOpen) return null;
 
     const labels = NAV_LABELS[locale] || NAV_LABELS.en;
-    const isCenterActive = pathname === '/plans' || pathname.startsWith('/collections') || pathname === '/compare';
+    const optimisticPath = pendingHref || pathname;
+    const isCenterActive = optimisticPath === '/plans' || optimisticPath.startsWith('/collections') || optimisticPath === '/compare';
     const themedShellStyle = darkMode ? {
         background: 'rgba(7,20,38,.94)',
         borderTop: '1px solid rgba(96,165,250,.22)',
@@ -335,17 +337,29 @@ export default function MobileBottomNav() {
             setLoginModalOpen(true);
             return;
         }
-        setNavigatingAway(true);
-        navigateNative(href);
+        setPendingHref(href);
+        navigateNative(href, locale);
+    };
+
+    const goPublic = (href: string) => {
+        closeMenu();
+        setPendingHref(href);
+        navigateNative(href, locale);
+    };
+
+    const primeMenuNavigation = (href: string, protectedRoute = false) => {
+        if (protectedRoute && isGuest) return;
+        setPendingHref(href);
+        startRoutePending(locale);
     };
 
     const tabsLeft = [
-        { href: '/', key: 'map' as const, label: labels.map, active: !navigatingAway && pathname === '/' },
-        { href: '/saved', key: 'saved' as const, label: labels.saved, active: !navigatingAway && pathname.startsWith('/saved'), auth: true },
+        { href: '/', key: 'map' as const, label: labels.map, active: optimisticPath === '/' },
+        { href: '/saved', key: 'saved' as const, label: labels.saved, active: optimisticPath.startsWith('/saved'), auth: true },
     ];
     const tabsRight = [
-        { href: '/blog', key: 'story' as const, label: labels.story, active: !navigatingAway && pathname.startsWith('/blog') },
-        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: !navigatingAway && pathname.startsWith('/artworks') },
+        { href: '/blog', key: 'story' as const, label: labels.story, active: optimisticPath.startsWith('/blog') },
+        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: optimisticPath.startsWith('/artworks') },
     ];
 
     const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -355,16 +369,25 @@ export default function MobileBottomNav() {
             setLoginModalOpen(true);
             return;
         }
-        setNavigatingAway(true);
+        if (tab.href !== pathname) {
+            setPendingHref(tab.href);
+            startRoutePending(locale);
+        }
     };
 
     const renderTab = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (
         <a
             key={tab.href}
             href={tab.href}
+            onPointerDown={() => {
+                if (tab.href === pathname) return;
+                if ('auth' in tab && tab.auth && isGuest) return;
+                setPendingHref(tab.href);
+                startRoutePending(locale);
+            }}
             onClick={handleTabClick(tab)}
-            className={`mm-nav-original-tab ${tab.active && !menuOpen ? 'is-active' : ''}`}
-            style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(tab.active && !menuOpen ? styles.tabActive : null) }}
+            className={`mm-nav-original-tab ${tab.active && !menuOpen ? 'is-active' : ''} ${pendingHref === tab.href ? 'is-pending' : ''}`}
+            style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(tab.active && !menuOpen ? styles.tabActive : null), ...(pendingHref === tab.href ? styles.centerPressed : null) }}
         >
             <TabIcon name={tab.key} active={tab.active && !menuOpen} />
             <span style={{ ...styles.label, fontWeight: tab.active && !menuOpen ? 850 : 600 }}>{tab.label}</span>
@@ -377,17 +400,17 @@ export default function MobileBottomNav() {
                 <>
                     <div className={`mobile-nav-menu-overlay ${menuClosing ? 'is-closing' : ''}`} style={styles.overlay} onClick={closeMenu} />
                     <div className={`mobile-nav-center-menu ${menuClosing ? 'is-closing' : ''}`} style={{ ...styles.menu, ...themedMenuStyle }}>
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onClick={() => goProtected('/plans')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={() => primeMenuNavigation('/plans', true)} onClick={() => goProtected('/plans')}>
                             <MenuIcon name="plans" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.plans}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onClick={() => goProtected('/collections')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={() => primeMenuNavigation('/collections')} onClick={() => goPublic('/collections')}>
                             <MenuIcon name="collection" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.collection}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onClick={() => goProtected('/compare')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={() => primeMenuNavigation('/compare', true)} onClick={() => goProtected('/compare')}>
                             <MenuIcon name="compare" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.compare}</span>
                         </button>
@@ -408,14 +431,7 @@ export default function MobileBottomNav() {
                                 aria-label={labels.plans}
                                 className="mobile-nav-center-button"
                                 style={{ ...styles.centerButton, ...(!isCenterActive ? styles.centerInactive : null), ...(!isCenterActive ? themedCenterInactiveStyle : null), ...(menuOpen ? styles.centerPressed : null) }}
-                                onClick={() => {
-                                    if (isGuest) {
-                                        setLoginCallbackUrl('/plans');
-                                        setLoginModalOpen(true);
-                                        return;
-                                    }
-                                    toggleMenu();
-                                }}
+                                onClick={toggleMenu}
                             >
                                 <CenterMuseumIcon active={isCenterActive || menuOpen} />
                             </button>

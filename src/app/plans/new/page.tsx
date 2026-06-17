@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { GlassPanel } from '@/components/ui/glass';
@@ -12,16 +12,17 @@ import * as gtag from '@/lib/gtag';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import CalendarPicker from '@/components/ui/CalendarPicker';
 import { useDragReorder } from '@/hooks/useDragReorder';
+import { backWithFallback, navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
 
 function AutoRouteContent() {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const { showAlert } = useModal();
     const [route, setRoute] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [saveStarted, setSaveStarted] = useState(false);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState<string | null>(null);
     const { locale, darkMode } = useApp();
@@ -104,10 +105,11 @@ function AutoRouteContent() {
 
     const handleSavePlan = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (saving) return;
         setSaving(true);
+        setSaveStarted(true);
         const formData = new FormData(e.target as HTMLFormElement);
         const title = formData.get('title') as string;
-        const date = formData.get('date') as string;
 
         try {
             const res = await fetch('/api/plans', {
@@ -116,22 +118,26 @@ function AutoRouteContent() {
                 body: JSON.stringify({ title, date: startDate, startDate: startDate || null, endDate: endDate || null, stops: route })
             });
             const data = await res.json();
-            if (data.data) {
+            if (res.ok && data.data) {
                 gtag.event('save_plan', {
                     category: 'plan',
                     label: title,
                     value: route.length
                 });
-                router.push('/plans');
+                startRoutePending(locale);
+                navigateWithPending('/plans', locale);
             } else {
                 console.error('[Save Plan Error]', data);
                 showAlert(`${t('plans.saveError', locale)} ${data.error?.message || JSON.stringify(data.error) || ''}`);
                 setSaving(false);
+                setSaveStarted(false);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('[Save Plan Network Error]', err);
-            showAlert(`${t('global.networkError', locale)} (${err.message})`);
+            const message = err instanceof Error ? err.message : String(err);
+            showAlert(`${t('global.networkError', locale)} (${message})`);
             setSaving(false);
+            setSaveStarted(false);
         }
     };
 
@@ -278,6 +284,11 @@ function AutoRouteContent() {
                         >
                             {saving ? t('plans.saving', locale) : t('plans.saveButton', locale)}
                         </button>
+                        {saveStarted && (
+                            <p className="mt-2 text-center text-[11px] font-semibold text-blue-500 dark:text-blue-300" role="status" aria-live="polite">
+                                {t('plans.saving', locale)}
+                            </p>
+                        )}
                     </form>
                 </div>
             </div>
@@ -286,7 +297,7 @@ function AutoRouteContent() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); router.back(); }}
+                        onClick={() => backWithFallback('/saved', locale)}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

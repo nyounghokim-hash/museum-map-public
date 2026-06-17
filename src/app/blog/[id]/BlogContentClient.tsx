@@ -14,6 +14,7 @@ import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { translateViLabel, translateViValue } from '@/lib/visitorInfoI18n';
 import ReportModal from '@/components/ui/ReportModal';
+import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const STORY_TRANSLATION_TOAST: Record<string, string> = {
     ko: '다국어 번역 중이에요',
@@ -517,6 +518,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const handleBack = useCallback(() => {
         if (isBackingRef.current) return;
         isBackingRef.current = true;
+        startRoutePending(effectiveLocale);
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('navigating-back', String(Date.now()));
         }
@@ -536,8 +538,8 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
             target = normalizeInternalReturnTarget(document.referrer, currentPath);
         }
 
-        window.location.assign(target || '/blog');
-    }, [artworkBackHref, backHref, fromMap, pathname, searchParams]);
+        navigateWithPending(target || '/blog', effectiveLocale);
+    }, [artworkBackHref, backHref, effectiveLocale, fromMap, pathname, searchParams]);
 
     const handleShare = useCallback(async () => {
         const url = buildShareUrl(window.location.href);
