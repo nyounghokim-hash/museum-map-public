@@ -756,6 +756,12 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const { addToCompare, removeFromCompare, isInCompare } = useCompare();
     const isSignedInUser = status === 'authenticated' && !session?.user?.name?.startsWith('guest_');
 
+    const goLogin = useCallback(() => {
+        if (typeof window === 'undefined') return;
+        const callbackUrl = `${window.location.pathname}${window.location.search}`;
+        window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    }, []);
+
     const triggerBurst = () => {
         setShowBurst(true);
         setTimeout(() => setShowBurst(false), 700);
@@ -939,10 +945,25 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 })
                 .catch(console.error);
         }
+    }, [museumId]);
 
+    useEffect(() => {
+        if (status === 'loading') return;
+        if (!isSignedInUser) {
+            setIsPicked(false);
+            setSaveId(null);
+            return;
+        }
+
+        let cancelled = false;
         fetch('/api/me/saves')
-            .then(r => r.json())
+            .then(async r => {
+                if (r.status === 401) return null;
+                if (!r.ok) throw new Error('Failed to fetch saves');
+                return r.json();
+            })
             .then(res => {
+                if (cancelled || !res) return;
                 if (res.data) {
                     const save = res.data.find((s: any) => s.museumId === museumId || s.museum?.id === museumId);
                     if (save) {
@@ -955,7 +976,10 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 }
             })
             .catch(console.error);
-    }, [museumId]);
+        return () => {
+            cancelled = true;
+        };
+    }, [museumId, status, isSignedInUser]);
 
     const fetchRelatedStories = async () => {
         try {
@@ -1006,7 +1030,11 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
     const handleToggleCompare = () => {
         if (!data) return;
-        if (!isSignedInUser) { window.location.assign('/login'); return; }
+        if (status === 'loading') {
+            showAlert(locale === 'ko' ? '계정 정보를 확인하는 중이에요. 잠시 후 다시 시도해 주세요.' : 'Checking your account. Please try again in a moment.');
+            return;
+        }
+        if (!isSignedInUser) { goLogin(); return; }
         if (isInCompare(data.id)) {
             removeFromCompare(data.id);
             triggerCompareToast(t('compare.removed', locale), false, false);
@@ -1020,29 +1048,57 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const handleTogglePick = async (e?: React.MouseEvent<HTMLButtonElement>) => {
         e?.preventDefault();
         if (!data) return;
-        if (!isSignedInUser) { window.location.assign('/login'); return; }
+        if (status === 'loading') {
+            showAlert(locale === 'ko' ? '계정 정보를 확인하는 중이에요. 잠시 후 다시 시도해 주세요.' : 'Checking your account. Please try again in a moment.');
+            return;
+        }
+        if (!isSignedInUser) { goLogin(); return; }
         if (isPicked && saveId) {
             const prevSaveId = saveId;
             setIsPicked(false);
             setSaveId(null);
             triggerShrink();
-            fetch(`/api/me/saves/${prevSaveId}`, { method: 'DELETE' })
-                .then(() => { onSaveChange?.(); })
-                .catch(() => { setIsPicked(true); setSaveId(prevSaveId); });
+            try {
+                const response = await fetch(`/api/me/saves/${prevSaveId}`, { method: 'DELETE' });
+                if (response.status === 401) {
+                    setIsPicked(true);
+                    setSaveId(prevSaveId);
+                    goLogin();
+                    return;
+                }
+                if (!response.ok) throw new Error('Failed to delete save');
+                onSaveChange?.();
+            } catch {
+                setIsPicked(true);
+                setSaveId(prevSaveId);
+                showAlert(t('global.saveError', locale));
+            }
         } else {
             setIsPicked(true);
             triggerBurst();
-            fetch('/api/saves', { method: 'POST', body: JSON.stringify({ museumId: data.id }) })
-                .then(r => r.json()).then(res => {
-                    if (res.data) {
-                        setSaveId(res.data.id || res.data._id);
-                        onSaveChange?.();
-                        triggerSaveToast();
-                        gtag.event('save_museum', { category: 'museum', label: data.name, value: 1 });
-                    } else {
-                        setIsPicked(false);
-                    }
-                }).catch(() => { setIsPicked(false); });
+            try {
+                const response = await fetch('/api/saves', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ museumId: data.id }),
+                });
+                if (response.status === 401) {
+                    setIsPicked(false);
+                    goLogin();
+                    return;
+                }
+                if (!response.ok) throw new Error('Failed to save museum');
+                const res = await response.json();
+                const nextSaveId = res.data?.id || res.data?._id;
+                if (!nextSaveId) throw new Error('Missing save id');
+                setSaveId(nextSaveId);
+                onSaveChange?.();
+                triggerSaveToast();
+                gtag.event('save_museum', { category: 'museum', label: data.name, value: 1 });
+            } catch {
+                setIsPicked(false);
+                showAlert(t('global.saveError', locale));
+            }
         }
     };
 

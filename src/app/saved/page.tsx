@@ -1,6 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { t, translateCategory } from '@/lib/i18n';
@@ -43,8 +42,12 @@ function goLogin(callbackUrl: string) {
     window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
 }
 
+function sameIds(a: string[], b: string[]) {
+    if (a.length !== b.length) return false;
+    return a.every((id, index) => id === b[index]);
+}
+
 export default function SavedPage() {
-    const router = useRouter();
     const [activeTab, setActiveTab] = useState<'saved' | 'history'>('saved');
     const [saves, setSaves] = useState<any[]>([]);
     const [historyMuseums, setHistoryMuseums] = useState<any[]>([]);
@@ -58,7 +61,7 @@ export default function SavedPage() {
     const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
     const { locale } = useApp();
     const { showAlert, showConfirm } = useModal();
-    const { addToCompare, compareCount, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare();
+    const { compareIds, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare();
 
     // Fetch saves for "저장" tab
     useEffect(() => {
@@ -207,7 +210,7 @@ export default function SavedPage() {
         window.location.assign(`/plans/new?museums=${encodeURIComponent(ids)}`);
     };
 
-    const handleCompareSelected = () => {
+    const handleCompareSelected = async () => {
         if (selectedMuseums.size === 0) {
             setIsSelectMode(true);
             return;
@@ -222,19 +225,42 @@ export default function SavedPage() {
         }
 
         const ids = Array.from(selectedMuseums);
-        const available = Math.max(0, 3 - compareCount);
-        if (available === 0) { showAlert(t('compare.full', locale)); return; }
+        const nextCompareIds = compareIds.slice(0, 3);
+        let skippedFull = false;
 
-        let addedCount = 0;
-        ids.slice(0, available).forEach(id => { if (addToCompare(id)) addedCount++; });
-        if (addedCount === 0) {
+        for (const id of ids) {
+            if (nextCompareIds.includes(id)) continue;
+            if (nextCompareIds.length >= 3) {
+                skippedFull = true;
+                continue;
+            }
+            nextCompareIds.push(id);
+        }
+
+        if (sameIds(nextCompareIds, compareIds) && skippedFull) {
             showAlert(t('compare.full', locale));
             return;
         }
 
-        setSelectedMuseums(new Set());
-        setIsSelectMode(false);
-        window.location.assign('/compare');
+        try {
+            if (!sameIds(nextCompareIds, compareIds)) {
+                const response = await fetch('/api/me/compare', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: nextCompareIds }),
+                });
+                if (response.status === 401) {
+                    goLogin('/saved');
+                    return;
+                }
+                if (!response.ok) throw new Error('Failed to save compare list');
+            }
+            setSelectedMuseums(new Set());
+            setIsSelectMode(false);
+            window.location.assign('/compare');
+        } catch {
+            showAlert(locale === 'ko' ? '비교 목록을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.' : 'Could not save the compare list. Please try again.');
+        }
     };
 
     const handleClearHistory = () => {
@@ -331,11 +357,22 @@ export default function SavedPage() {
                                 const idsToDelete = new Set(selectedMuseums);
                                 setDeletingIds(idsToDelete);
                                 await new Promise(r => setTimeout(r, 300));
-                                const saveIds = saves.filter(s => idsToDelete.has(s.museum.id)).map(s => s.id);
-                                await Promise.all(saveIds.map(id => fetch(`/api/me/saves/${id}`, { method: 'DELETE' })));
-                                setSaves(prev => prev.filter(s => !idsToDelete.has(s.museum.id)));
-                                setSelectedMuseums(new Set());
-                                setDeletingIds(new Set());
+                                try {
+                                    const saveIds = saves.filter(s => idsToDelete.has(s.museum.id)).map(s => s.id);
+                                    const responses = await Promise.all(saveIds.map(id => fetch(`/api/me/saves/${id}`, { method: 'DELETE' })));
+                                    const unauthorized = responses.some(response => response.status === 401);
+                                    if (unauthorized) {
+                                        goLogin('/saved');
+                                        return;
+                                    }
+                                    if (responses.some(response => !response.ok)) throw new Error('Failed to delete saves');
+                                    setSaves(prev => prev.filter(s => !idsToDelete.has(s.museum.id)));
+                                    setSelectedMuseums(new Set());
+                                } catch {
+                                    showAlert(locale === 'ko' ? '선택한 장소를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.' : 'Could not delete the selected places. Please try again.');
+                                } finally {
+                                    setDeletingIds(new Set());
+                                }
                             });
                         }}
                         className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition"
@@ -372,10 +409,10 @@ export default function SavedPage() {
                             <button
                                 key={`${activeTab}-${sortBy}-${itemId}`}
                                 style={{ animation: `fadeInUp 0.4s ${Math.min(i, 15) * 50}ms both` }}
-                                className={`mm-list-row2 group w-full text-left transition-all duration-200 ${deletingIds.has(museum.id) ? 'animate-slideOutLeft' : ''}`}
+                                className={`mm-list-row2 group w-full text-left transition-all duration-200 ${isSelectMode && activeTab === 'saved' ? 'mm-list-row-selectable' : ''} ${selectedMuseums.has(museum.id) ? 'is-selected' : ''} ${deletingIds.has(museum.id) ? 'animate-slideOutLeft' : ''}`}
                                 onClick={() => {
                                     if (isSelectMode && activeTab === 'saved') toggleSelect(museum.id);
-                                    else router.push(`/museums/${museum.id}`);
+                                    else window.location.assign(`/museums/${museum.id}`);
                                 }}
                             >
                                 <div className="mm-saved-row-thumb relative">
@@ -436,8 +473,11 @@ export default function SavedPage() {
                     <div className="mm-decision-panel2 p-4">
                         <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedMuseums.size > 0 ? g('quickBodySelected', locale) : g('quickBodyIdle', locale)}</p>
                         <div className="grid grid-cols-2 gap-2 mt-3">
-                            <button onClick={selectedMuseums.size > 0 ? handleCreateAutoRoute : () => setIsSelectMode(true)} className="h-11 rounded-2xl bg-blue-600 text-white text-sm font-semibold active:scale-95 transition-all">
-                                {selectedMuseums.size > 0 ? t('saved.createAutoRoute', locale) : g('choosePlaces', locale)}
+                            <button
+                                onClick={selectedMuseums.size > 0 ? handleCreateAutoRoute : () => setIsSelectMode(prev => !prev)}
+                                className="h-11 rounded-2xl bg-blue-600 text-white text-sm font-semibold active:scale-95 transition-all"
+                            >
+                                {selectedMuseums.size > 0 ? t('saved.createAutoRoute', locale) : (isSelectMode ? g('doneChoosing', locale) : g('choosePlaces', locale))}
                             </button>
                             <button onClick={handleCompareSelected} className="h-11 rounded-2xl bg-white text-slate-700 border border-blue-100 text-sm font-semibold active:scale-95 transition-all dark:bg-slate-900 dark:text-slate-100 dark:border-blue-900/50">
                                 {g('comparePicked', locale)}

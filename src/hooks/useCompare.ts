@@ -26,6 +26,7 @@ async function pushToServer(ids: string[]) {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids }),
+            keepalive: true,
         });
         if (!res.ok && res.status !== 401) {
             console.warn('[compare] server sync failed:', res.status);
