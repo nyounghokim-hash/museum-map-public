@@ -460,7 +460,7 @@ export default function ArtworksPage() {
                                             />
                                         ) : null}
                                         <div className="logo-fallback w-full h-full flex items-center justify-center" style={{ display: aw.image ? 'none' : 'flex' }}>
-                                            <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
+                                            <img src="/logo.svg" alt="" className="mm-empty-logo mm-artwork-fallback-logo dark:invert" />
                                         </div>
                                     </div>
                                     <div className="p-3.5">
@@ -526,11 +526,11 @@ export default function ArtworksPage() {
                                                 src={selected.image}
                                                 alt={selected.title}
                                                 className="w-full h-full object-cover"
-                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'mm-empty-logo object-contain dark:invert m-auto'; }}
+                                                onError={(e) => { e.currentTarget.src = '/logo.svg'; e.currentTarget.className = 'mm-empty-logo mm-artwork-fallback-logo object-contain dark:invert m-auto'; }}
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
-                                                <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
+                                                <img src="/logo.svg" alt="" className="mm-empty-logo mm-artwork-fallback-logo dark:invert" />
                                             </div>
                                         )}
                                     </div>

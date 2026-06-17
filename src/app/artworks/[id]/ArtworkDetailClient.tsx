@@ -281,12 +281,12 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                             }}
                         />
                         <div className="logo-fallback w-full h-full flex items-center justify-center" style={{ display: 'none' }}>
-                            <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
+                            <img src="/logo.svg" alt="" className="mm-empty-logo mm-artwork-fallback-logo dark:invert" />
                         </div>
                     </>
                 ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                        <img src="/logo.svg" alt="" className="mm-empty-logo dark:invert" />
+                        <img src="/logo.svg" alt="" className="mm-empty-logo mm-artwork-fallback-logo dark:invert" />
                     </div>
                 )}
                 <div className="mm-detail-hero-copy">

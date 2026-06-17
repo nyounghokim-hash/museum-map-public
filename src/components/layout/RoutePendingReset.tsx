@@ -25,7 +25,7 @@ export default function RoutePendingReset() {
     }, []);
 
     useEffect(() => {
-        const maybeStartPending = (event: MouseEvent | PointerEvent) => {
+        const maybeStartPending = (event: MouseEvent) => {
             if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             const anchor = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
             if (!anchor || anchor.target || anchor.hasAttribute('download')) return;
@@ -38,10 +38,8 @@ export default function RoutePendingReset() {
                 startRoutePending(locale);
             } catch { }
         };
-        document.addEventListener('pointerdown', maybeStartPending, true);
         document.addEventListener('click', maybeStartPending, true);
         return () => {
-            document.removeEventListener('pointerdown', maybeStartPending, true);
             document.removeEventListener('click', maybeStartPending, true);
         };
     }, [locale]);
