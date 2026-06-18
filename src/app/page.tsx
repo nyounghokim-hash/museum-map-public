@@ -3185,7 +3185,7 @@ export default function MainPage() {
               )}
 
               {/* Category Dropdown */}
-              <div className="mm-map2-pc-category-anchor relative ml-auto">
+              <div className={`mm-map2-pc-category-anchor relative ml-auto ${categoryDropdownOpen || categoryDropdownClosing ? 'is-open' : ''}`}>
                 <button
                   onMouseDown={(event) => event.stopPropagation()}
                   onClick={(event) => {
@@ -3367,23 +3367,23 @@ export default function MainPage() {
             </div>
             {/* Desktop: count badge */}
             {!aiOpen && !selectedMuseum && isLgViewport && (
-              <div className="hidden md:block absolute bottom-4 right-4 z-[51]">
+              <div className={`mm-map2-pc-count-layer hidden md:block absolute bottom-4 right-4 ${chipOpen ? 'is-open' : ''}`}>
                 {chipOpen && (
-                  <div className="absolute bottom-full right-0 mb-2 bg-black/90 backdrop-blur-md rounded-2xl shadow-xl p-3 min-w-[160px] animate-fadeInUp">
-                    <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">{locale === 'ko' ? '카테고리별' : 'By Category'}</div>
+                  <div className="mm-map2-pc-count-popover animate-fadeInUp">
+                    <div className="mm-map2-pc-count-title">{locale === 'ko' ? '카테고리별' : 'By Category'}</div>
                     {categoryCounts.map(([name, count]) => (
-                      <div key={name} className="flex justify-between items-center py-1">
-                        <span className="text-[11px] text-white/80">{name}</span>
-                        <span className="text-[11px] font-bold text-white ml-4">{count}</span>
+                      <div key={name} className="mm-map2-pc-count-row">
+                        <span>{name}</span>
+                        <strong>{count}</strong>
                       </div>
                     ))}
-                    <div className="border-t border-white/10 mt-1.5 pt-1.5 flex justify-between items-center"><span className="text-[11px] font-bold text-white/60">{locale === 'ko' ? '전체' : 'Total'}</span><span className="text-sm font-black text-white">{filteredMuseums.length.toLocaleString()}</span></div>
+                    <div className="mm-map2-pc-count-total"><span>{locale === 'ko' ? '전체' : 'Total'}</span><strong>{filteredMuseums.length.toLocaleString()}</strong></div>
                   </div>
                 )}
-                <button onClick={() => { closeAllPopups('chip'); setChipOpen(!chipOpen); }} className="flex items-center gap-2 px-4 py-2 rounded-xl transition-all active:scale-95 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md shadow-lg border border-gray-200/50 dark:border-neutral-700/50">
-                  <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{locale === 'ko' ? '미술관 및 박물관' : 'Museums'}</span>
-                  <span className="font-bold text-xs text-blue-600 dark:text-blue-400">{filteredMuseums.length.toLocaleString()}</span>
+                <button onClick={() => { closeAllPopups('chip'); setChipOpen(!chipOpen); }} className={`mm-map2-pc-count-button ${chipOpen ? 'is-active' : ''}`}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  <span>{locale === 'ko' ? '미술관 및 박물관' : 'Museums'}</span>
+                  <strong>{filteredMuseums.length.toLocaleString()}</strong>
                 </button>
               </div>
             )}
