@@ -24,7 +24,6 @@ import { translateViLabel, translateViValue, getWebsiteLabels, getFeaturedWorksT
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { findVisitorHoursItem, openingHoursToDisplaySource } from '@/lib/openingHoursTemplate';
 import { resolveMuseumOpenStatus } from '@/lib/openStatus';
-import { navigateWithPending } from '@/lib/route-pending';
 
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 
@@ -762,8 +761,8 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const goLogin = useCallback(() => {
         if (typeof window === 'undefined') return;
         const callbackUrl = `${window.location.pathname}${window.location.search}`;
-        navigateWithPending(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`, locale);
-    }, [locale]);
+        window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    }, []);
 
     const triggerBurst = () => {
         setShowBurst(true);
@@ -788,8 +787,8 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
         const params = new URLSearchParams({ fromMuseum: museumId });
         if (isMapContext) params.set('fromMap', '1');
-        navigateWithPending(`/artworks/${encodeURIComponent(artworkId)}?${params.toString()}`, locale);
-    }, [isMapContext, locale, museumId]);
+        window.location.assign(`/artworks/${artworkId}?${params.toString()}`);
+    }, [isMapContext, museumId]);
 
     const openMuseumArtworkList = useCallback(() => {
         const params = new URLSearchParams({ museumId });
@@ -805,7 +804,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                 sessionStorage.setItem('navigating-forward', String(Date.now()));
             } catch { }
         }
-        navigateWithPending(`/artworks?${params.toString()}`, locale);
+        window.location.assign(`/artworks?${params.toString()}`);
     }, [data, isMapContext, locale, museumId]);
 
     const [reportOpen, setReportOpen] = useState(false);
@@ -1522,7 +1521,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                     const lat = Number(data?.latitude);
                                     const lng = Number(data?.longitude);
                                     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-                                    navigateWithPending(`/?flyTo=${lat},${lng}&flyToId=${encodeURIComponent(String(museumId))}`, locale);
+                                    window.location.assign(`/?flyTo=${lat},${lng}&flyToId=${encodeURIComponent(String(museumId))}`);
                                 })}
                                 className="mm-detail-action-button mm-detail-action-button--secondary mt-2 flex w-full min-w-0 items-center justify-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-4 text-sm font-semibold text-blue-600 shadow-sm transition-all hover:bg-blue-50 active:scale-95 dark:border-blue-500/20 dark:bg-blue-950/35 dark:text-blue-200 dark:hover:bg-blue-950/50"
                             >
@@ -1548,8 +1547,8 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     {/* Updated date chip */}
                     {data.updatedAt && (
                         <div className="mb-3 flex items-center">
-                            <span className="mm-detail-updated-chip">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-50 dark:bg-neutral-800/60 text-[10px] font-bold text-gray-400 dark:text-neutral-500">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 {getUpdatedLabel(locale)} {new Date(data.updatedAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : locale === 'ja' ? 'ja-JP' : locale === 'zh-CN' ? 'zh-CN' : locale === 'zh-TW' ? 'zh-TW' : locale === 'de' ? 'de-DE' : locale === 'fr' ? 'fr-FR' : locale === 'es' ? 'es-ES' : locale === 'pt' ? 'pt-PT' : locale === 'da' ? 'da-DK' : locale === 'fi' ? 'fi-FI' : locale === 'sv' ? 'sv-SE' : locale === 'et' ? 'et-EE' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
@@ -2034,7 +2033,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             <button
                                 onClick={() => {
                                     setShowCompareToast(false);
-                                    navigateWithPending('/compare', locale);
+                                    window.location.assign('/compare');
                                 }}
                                 className="ml-1 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-colors active:scale-95 whitespace-nowrap"
                             >

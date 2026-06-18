@@ -22,47 +22,12 @@ function getRoutePendingLabel(locale?: string | null) {
     return ROUTE_PENDING_LABELS[locale || ''] || ROUTE_PENDING_LABELS.en;
 }
 
-function getPendingPath(href?: string | null) {
-    if (!href) return '';
-    try {
-        const url = new URL(href, window.location.origin);
-        return url.pathname;
-    } catch {
-        return href.split('?')[0] || '';
-    }
-}
-
-function getRoutePendingTitle(locale?: string | null, href?: string | null) {
-    const path = getPendingPath(href);
-    const isKo = locale === 'ko';
-    if (path === '/') return isKo ? '홈을 여는 중' : 'Opening home';
-    if (path.startsWith('/saved')) return isKo ? '내 픽을 여는 중' : 'Opening My Pick';
-    if (path.startsWith('/plans')) return isKo ? '내 여행을 여는 중' : 'Opening trips';
-    if (path.startsWith('/collections')) return isKo ? '컬렉션을 여는 중' : 'Opening collections';
-    if (path.startsWith('/compare')) return isKo ? '비교 화면을 여는 중' : 'Opening compare';
-    if (path.startsWith('/blog')) return isKo ? '스토리를 여는 중' : 'Opening stories';
-    if (path.startsWith('/artworks')) return isKo ? '작품을 여는 중' : 'Opening artworks';
-    if (path.startsWith('/museums')) return isKo ? '상세 정보를 여는 중' : 'Opening details';
-    if (path.startsWith('/settings')) return isKo ? '설정을 여는 중' : 'Opening settings';
-    if (path.startsWith('/login')) return isKo ? '로그인을 여는 중' : 'Opening login';
-    return getRoutePendingLabel(locale);
-}
-
-function getRoutePendingKind(href?: string | null) {
-    const path = getPendingPath(href);
-    if (path === '/') return 'map';
-    if (path.startsWith('/museums') || path.startsWith('/artworks/') || (path.startsWith('/blog/') && path !== '/blog')) return 'detail';
-    return 'list';
-}
-
-export function startRoutePending(locale?: string | null, href?: string | null) {
+export function startRoutePending(locale?: string | null) {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    root.classList.add('mm-route-pending', 'mm-route-pending-view');
+    root.classList.add('mm-route-pending');
     root.classList.remove('mm-route-pending-slow');
     document.body?.setAttribute('data-route-pending-label', getRoutePendingLabel(locale));
-    document.body?.setAttribute('data-route-pending-title', getRoutePendingTitle(locale, href));
-    document.body?.setAttribute('data-route-pending-kind', getRoutePendingKind(href));
     if (typeof window === 'undefined') return;
     if (slowTimer) window.clearTimeout(slowTimer);
     slowTimer = window.setTimeout(() => {
@@ -72,10 +37,8 @@ export function startRoutePending(locale?: string | null, href?: string | null) 
 
 export function clearRoutePending() {
     if (typeof document === 'undefined') return;
-    document.documentElement.classList.remove('mm-route-pending', 'mm-route-pending-slow', 'mm-route-pending-view');
+    document.documentElement.classList.remove('mm-route-pending', 'mm-route-pending-slow');
     document.body?.removeAttribute('data-route-pending-label');
-    document.body?.removeAttribute('data-route-pending-title');
-    document.body?.removeAttribute('data-route-pending-kind');
     if (typeof window !== 'undefined' && slowTimer) {
         window.clearTimeout(slowTimer);
         slowTimer = undefined;
@@ -89,7 +52,7 @@ function currentDocumentPath() {
 
 export function navigateWithPending(href: string, locale?: string | null, replace = false) {
     if (typeof window === 'undefined') return;
-    startRoutePending(locale, href);
+    startRoutePending(locale);
     if (replace) window.location.replace(href);
     else window.location.assign(href);
 }
@@ -102,7 +65,7 @@ export function backWithFallback(
     if (typeof window === 'undefined') return;
     const timeoutMs = options.timeoutMs ?? 650;
     const currentPath = currentDocumentPath();
-    startRoutePending(locale, fallbackHref);
+    startRoutePending(locale);
     try {
         sessionStorage.setItem('navigating-back', String(Date.now()));
     } catch { }

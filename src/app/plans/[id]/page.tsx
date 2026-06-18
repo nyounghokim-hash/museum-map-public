@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import ConfettiCanvas from '@/components/ui/ConfettiCanvas';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import { useSession } from 'next-auth/react';
 import { useModal } from '@/components/ui/Modal';
@@ -13,7 +14,6 @@ import { t, formatDate } from '@/lib/i18n';
 import { getCountryName, getCityName } from '@/lib/countries';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { clearActiveTripForAccount, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
-import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
 
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
 
@@ -25,6 +25,7 @@ export default function PlanDetailPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const { locale, darkMode } = useApp();
     const { showAlert, showConfirm } = useModal();
+    const router = useRouter();
     const { data: session } = useSession();
     const isAdmin = session?.user?.email === 'nyoungho.kim@gmail.com';
 
@@ -238,7 +239,7 @@ export default function PlanDetailPage() {
             setShowPendingModal(true);
             setTimeout(() => {
                 setShowPendingModal(false);
-                navigateWithPending('/', locale);
+                window.location.assign('/');
             }, 3000);
         } else if (isAdmin && isFuture) {
             // Admin: schedule activation after 10 seconds
@@ -247,14 +248,14 @@ export default function PlanDetailPage() {
             setShowPendingModal(true);
             setTimeout(() => {
                 setShowPendingModal(false);
-                navigateWithPending('/', locale);
+                window.location.assign('/');
             }, 3000);
         } else {
             // Start immediately with confetti
             setShowConfetti(true);
             setTimeout(() => {
                 setShowConfetti(false);
-                navigateWithPending('/', locale);
+                window.location.assign('/');
             }, 3000);
         }
     }, [plan, routeStops, id, showAlert, locale, isAdmin]);
@@ -269,9 +270,9 @@ export default function PlanDetailPage() {
 
     const handleStopClick = useCallback((stop: any) => {
         if (stop.museumId) {
-            navigateWithPending(`/museums/${encodeURIComponent(stop.museumId)}`, locale);
+            window.location.assign(`/museums/${stop.museumId}`);
         }
-    }, [locale]);
+    }, []);
 
     if (loading) return null;
     if (error) return (
@@ -590,7 +591,7 @@ export default function PlanDetailPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => { setIsExiting(true); backWithFallback('/plans', locale); }}
+                        onClick={() => { setIsExiting(true); if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); router.back(); }}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

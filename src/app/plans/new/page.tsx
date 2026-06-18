@@ -12,7 +12,7 @@ import * as gtag from '@/lib/gtag';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import CalendarPicker from '@/components/ui/CalendarPicker';
 import { useDragReorder } from '@/hooks/useDragReorder';
-import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
+import { backWithFallback, navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
 
@@ -124,6 +124,7 @@ function AutoRouteContent() {
                     label: title,
                     value: route.length
                 });
+                startRoutePending(locale);
                 navigateWithPending('/plans', locale);
             } else {
                 console.error('[Save Plan Error]', data);

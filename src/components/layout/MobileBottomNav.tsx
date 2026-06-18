@@ -350,7 +350,7 @@ export default function MobileBottomNav() {
     const primeMenuNavigation = (href: string, protectedRoute = false) => {
         if (protectedRoute && isGuest) return;
         setPendingHref(href);
-        startRoutePending(locale, href);
+        startRoutePending(locale);
     };
 
     const tabsLeft = [
@@ -371,7 +371,7 @@ export default function MobileBottomNav() {
         }
         if (tab.href !== pathname) {
             setPendingHref(tab.href);
-            startRoutePending(locale, tab.href);
+            startRoutePending(locale);
         }
     };
 
@@ -383,7 +383,7 @@ export default function MobileBottomNav() {
                 if (tab.href === pathname) return;
                 if ('auth' in tab && tab.auth && isGuest) return;
                 setPendingHref(tab.href);
-                startRoutePending(locale, tab.href);
+                startRoutePending(locale);
             }}
             onClick={handleTabClick(tab)}
             className={`mm-nav-original-tab ${tab.active && !menuOpen ? 'is-active' : ''} ${pendingHref === tab.href ? 'is-pending' : ''}`}

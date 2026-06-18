@@ -1556,7 +1556,7 @@ export default function MainPage() {
     if (museum) {
       openMuseumPanel(museum);
     } else {
-      navigateWithPending(`/museums/${encodeURIComponent(id)}`, locale);
+      window.location.assign(`/museums/${id}`);
     }
   };
 
@@ -2553,7 +2553,8 @@ export default function MainPage() {
                   try {
                     sessionStorage.setItem('mm_settings_return_to', '/');
                   } catch {}
-                  navigateWithPending('/settings', locale);
+                  startRoutePending(locale);
+                  window.location.assign('/settings');
                 }}
                 aria-label={locale === 'ko' ? '설정' : 'Settings'}
               >

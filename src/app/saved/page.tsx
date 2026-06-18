@@ -10,7 +10,6 @@ import { useCompare } from '@/hooks/useCompare';
 import { useAccountSaves } from '@/hooks/useAccountSaves';
 import * as gtag from '@/lib/gtag';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
-import { navigateWithPending } from '@/lib/route-pending';
 
 /* ── i18n for tabs & sort ── */
 type L = Record<string, string>;
@@ -39,9 +38,9 @@ const g = (key: string, locale: string) => ui[key]?.[locale] || ui[key]?.['en'] 
 
 type SortType = 'newest' | 'rating' | 'alpha' | 'oldest' | 'nearby';
 
-function goLogin(callbackUrl: string, locale?: string | null) {
+function goLogin(callbackUrl: string) {
     if (typeof window === 'undefined') return;
-    navigateWithPending(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`, locale);
+    window.location.assign(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
 }
 
 function sameIds(a: string[], b: string[]) {
@@ -61,7 +60,7 @@ export default function SavedPage() {
     const { locale } = useApp();
     const { showAlert, showConfirm } = useModal();
     const { compareIds, replaceCompare, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare();
-    const handleSavesUnauthorized = useCallback(() => goLogin('/saved', locale), [locale]);
+    const handleSavesUnauthorized = useCallback(() => goLogin('/saved'), []);
     const { saves, loading, refresh: refreshSaves, setCachedSaves } = useAccountSaves({ onUnauthorized: handleSavesUnauthorized });
 
     // Load history for "살펴보기" tab
@@ -180,7 +179,7 @@ export default function SavedPage() {
         if (selectedMuseums.size === 0) { showAlert(t('saved.selectAtLeast', locale)); return; }
         const ids = Array.from(selectedMuseums).join(',');
         gtag.event('generate_autoroute', { category: 'autoroute', label: ids, value: selectedMuseums.size });
-        navigateWithPending(`/plans/new?museums=${encodeURIComponent(ids)}`, locale);
+        window.location.assign(`/plans/new?museums=${encodeURIComponent(ids)}`);
     };
 
     const handleCompareSelected = async () => {
@@ -193,7 +192,7 @@ export default function SavedPage() {
             return;
         }
         if (!isCompareAuthenticated) {
-            goLogin('/saved', locale);
+            goLogin('/saved');
             return;
         }
 
@@ -224,7 +223,7 @@ export default function SavedPage() {
             }
             setSelectedMuseums(new Set());
             setIsSelectMode(false);
-            navigateWithPending('/compare', locale);
+            window.location.assign('/compare');
         } catch {
             showAlert(locale === 'ko' ? '비교 목록을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.' : 'Could not save the compare list. Please try again.');
         }
@@ -329,7 +328,7 @@ export default function SavedPage() {
                                     const responses = await Promise.all(saveIds.map(id => fetch(`/api/me/saves/${id}`, { method: 'DELETE' })));
                                     const unauthorized = responses.some(response => response.status === 401);
                                     if (unauthorized) {
-                                        goLogin('/saved', locale);
+                                        goLogin('/saved');
                                         return;
                                     }
                                     if (responses.some(response => !response.ok)) throw new Error('Failed to delete saves');
@@ -379,7 +378,7 @@ export default function SavedPage() {
                                 className={`mm-list-row2 group w-full text-left transition-all duration-200 ${isSelectMode && activeTab === 'saved' ? 'mm-list-row-selectable' : ''} ${selectedMuseums.has(museum.id) ? 'is-selected' : ''} ${deletingIds.has(museum.id) ? 'animate-slideOutLeft' : ''}`}
                                 onClick={() => {
                                     if (isSelectMode && activeTab === 'saved') toggleSelect(museum.id);
-                                    else navigateWithPending(`/museums/${encodeURIComponent(museum.id)}`, locale);
+                                    else window.location.assign(`/museums/${museum.id}`);
                                 }}
                             >
                                 <div className="mm-saved-row-thumb relative">

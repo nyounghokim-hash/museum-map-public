@@ -14,7 +14,7 @@ import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { translateViLabel, translateViValue } from '@/lib/visitorInfoI18n';
 import ReportModal from '@/components/ui/ReportModal';
-import { navigateWithPending } from '@/lib/route-pending';
+import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const STORY_TRANSLATION_TOAST: Record<string, string> = {
     ko: '다국어 번역 중이에요',
@@ -372,7 +372,7 @@ function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
                     <div
                         key={i}
                         className="mm-card min-w-[260px] max-w-[280px] flex-shrink-0 snap-start group cursor-pointer"
-                        onClick={() => work.id ? navigateWithPending(`/artworks/${encodeURIComponent(work.id)}`, locale) : setSelectedWork(work)}
+                        onClick={() => work.id ? window.location.assign(`/artworks/${work.id}`) : setSelectedWork(work)}
                     >
                         <div className="h-[180px] overflow-hidden" style={{ background: 'var(--mm-surface-secondary)' }}>
                             <SafeImage
@@ -429,7 +429,7 @@ function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string })
                             if (typeof window !== 'undefined') {
                                 sessionStorage.setItem('navigating-forward', String(Date.now()));
                             }
-                            navigateWithPending(`/museums/${encodeURIComponent(museumRouteId)}?from=story`, locale);
+                            window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=story`);
                         };
                         return (
                             <div key={m.id} className="inline-flex items-center gap-0">
@@ -518,6 +518,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const handleBack = useCallback(() => {
         if (isBackingRef.current) return;
         isBackingRef.current = true;
+        startRoutePending(effectiveLocale);
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('navigating-back', String(Date.now()));
         }

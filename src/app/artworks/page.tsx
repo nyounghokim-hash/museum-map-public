@@ -11,7 +11,6 @@ import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocal
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
-import { navigateWithPending } from '@/lib/route-pending';
 
 const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string; listTitle: string; countUnit: string; searchPlaceholder: string }> = {
     ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점', searchPlaceholder: '작품, 작가, 미술관 검색' },
@@ -244,7 +243,7 @@ export default function ArtworksPage() {
             sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
             sessionStorage.setItem('artwork-list-return', window.location.pathname + window.location.search);
         } catch { }
-        navigateWithPending(`/artworks/${encodeURIComponent(artworkId)}`, locale);
+        window.location.assign(`/artworks/${artworkId}`);
     };
 
     const openMuseumFromArtwork = async (museum: any) => {
@@ -254,7 +253,7 @@ export default function ArtworksPage() {
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('navigating-forward', String(Date.now()));
         }
-        navigateWithPending(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork-list`, locale);
+        window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork-list`);
     };
 
     // Filter artworks by debounced search query — memoized

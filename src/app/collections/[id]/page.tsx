@@ -12,7 +12,7 @@ import { buildShareUrl } from '@/lib/utm';
 import { getMuseumImageSrc, getMuseumImageFallback } from '@/lib/getMuseumImage';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
-import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
+import { backWithFallback } from '@/lib/route-pending';
 
 const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 
@@ -68,7 +68,7 @@ export default function CollectionDetailPage() {
             return;
         }
         const museumIds = collection.items.map((i: any) => i.museumId).join(',');
-        navigateWithPending(`/plans/new?museums=${encodeURIComponent(museumIds)}`, locale);
+        window.location.assign(`/plans/new?museums=${museumIds}`);
     };
 
     const handleShareCollection = () => {
@@ -163,7 +163,7 @@ export default function CollectionDetailPage() {
                                         try {
                                             sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
                                         } catch { }
-                                        navigateWithPending(`/blog/${encodeURIComponent(story.id)}`, locale);
+                                        window.location.assign(`/blog/${story.id}`);
                                     }}
                                     className="mm-card group flex active:scale-[0.99] cursor-pointer"
                                 >
@@ -210,7 +210,7 @@ export default function CollectionDetailPage() {
                         <div
                             key={item.id}
                             className="mm-collection-card2 overflow-hidden group cursor-pointer hover:-translate-y-0.5 transition-all duration-200 active:scale-[0.98]"
-                            onClick={() => navigateWithPending(`/museums/${encodeURIComponent(item.museum.id)}`, locale)}
+                            onClick={() => window.location.assign(`/museums/${item.museum.id}`)}
                         >
                             <div className="h-40 relative overflow-hidden" style={{ background: 'var(--mm-surface-secondary)' }}>
                                 {(() => {
