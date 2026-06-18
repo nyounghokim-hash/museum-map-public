@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
-import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
+import { clearRoutePending, navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; artworks: string; story: string; collection: string; compare: string }> = {
     ko: { map: '홈', saved: '내 픽', plans: '내 여행', artworks: '작품', story: 'MM스토리', collection: '컬렉션', compare: '비교' },
@@ -84,6 +84,12 @@ const styles = {
         color: '#fff',
         background: 'linear-gradient(180deg, #2563eb 0%, #123fbd 100%)',
         boxShadow: '0 14px 28px rgba(37,99,235,.24), inset 0 1px 0 rgba(255,255,255,.28)',
+    } satisfies CSSProperties,
+    tabPending: {
+        color: '#2563eb',
+        background: 'rgba(239,246,255,.94)',
+        transform: 'translateY(2px) scale(0.96)',
+        boxShadow: 'inset 0 0 0 1px rgba(37,99,235,.14)',
     } satisfies CSSProperties,
     label: {
         maxWidth: '100%',
@@ -286,12 +292,24 @@ export default function MobileBottomNav() {
         setPendingHref(null);
     }, [pathname]);
 
+    useEffect(() => {
+        if (typeof window === 'undefined' || !pendingHref) return;
+        const expectedPath = pendingHref.split('?')[0] || pendingHref;
+        const timer = window.setTimeout(() => {
+            if (window.location.pathname === pathname && pathname !== expectedPath) {
+                setPendingHref(null);
+                clearRoutePending();
+            }
+        }, 1400);
+        return () => window.clearTimeout(timer);
+    }, [pathname, pendingHref]);
+
     const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
     if (!isMobile || !showNavPages.includes(pathname) || detailOpen) return null;
 
     const labels = NAV_LABELS[locale] || NAV_LABELS.en;
-    const optimisticPath = pendingHref || pathname;
-    const isCenterActive = optimisticPath === '/plans' || optimisticPath.startsWith('/collections') || optimisticPath === '/compare';
+    const currentPath = pathname;
+    const isCenterActive = currentPath === '/plans' || currentPath.startsWith('/collections') || currentPath === '/compare';
     const themedShellStyle = darkMode ? {
         background: 'rgba(7,20,38,.94)',
         borderTop: '1px solid rgba(96,165,250,.22)',
@@ -354,24 +372,24 @@ export default function MobileBottomNav() {
     };
 
     const tabsLeft = [
-        { href: '/', key: 'map' as const, label: labels.map, active: optimisticPath === '/' },
-        { href: '/saved', key: 'saved' as const, label: labels.saved, active: optimisticPath.startsWith('/saved'), auth: true },
+        { href: '/', key: 'map' as const, label: labels.map, active: currentPath === '/' },
+        { href: '/saved', key: 'saved' as const, label: labels.saved, active: currentPath.startsWith('/saved'), auth: true },
     ];
     const tabsRight = [
-        { href: '/blog', key: 'story' as const, label: labels.story, active: optimisticPath.startsWith('/blog') },
-        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: optimisticPath.startsWith('/artworks') },
+        { href: '/blog', key: 'story' as const, label: labels.story, active: currentPath.startsWith('/blog') },
+        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: currentPath.startsWith('/artworks') },
     ];
 
     const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
+        event.preventDefault();
         if ('auth' in tab && tab.auth && isGuest) {
-            event.preventDefault();
             setLoginCallbackUrl(tab.href);
             setLoginModalOpen(true);
             return;
         }
         if (tab.href !== pathname) {
             setPendingHref(tab.href);
-            startRoutePending(locale);
+            navigateNative(tab.href, locale);
         }
     };
 
@@ -379,15 +397,27 @@ export default function MobileBottomNav() {
         <a
             key={tab.href}
             href={tab.href}
-            onPointerDown={() => {
+            onPointerDown={(event) => {
                 if (tab.href === pathname) return;
-                if ('auth' in tab && tab.auth && isGuest) return;
+                if ('auth' in tab && tab.auth && isGuest) {
+                    if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                        event.preventDefault();
+                        setLoginCallbackUrl(tab.href);
+                        setLoginModalOpen(true);
+                    }
+                    return;
+                }
                 setPendingHref(tab.href);
+                if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                    event.preventDefault();
+                    navigateNative(tab.href, locale);
+                    return;
+                }
                 startRoutePending(locale);
             }}
             onClick={handleTabClick(tab)}
             className={`mm-nav-original-tab ${tab.active && !menuOpen ? 'is-active' : ''} ${pendingHref === tab.href ? 'is-pending' : ''}`}
-            style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(tab.active && !menuOpen ? styles.tabActive : null), ...(pendingHref === tab.href ? styles.centerPressed : null) }}
+            style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(tab.active && !menuOpen ? styles.tabActive : null), ...(pendingHref === tab.href && !tab.active ? styles.tabPending : null) }}
         >
             <TabIcon name={tab.key} active={tab.active && !menuOpen} />
             <span style={{ ...styles.label, fontWeight: tab.active && !menuOpen ? 850 : 600 }}>{tab.label}</span>
@@ -400,17 +430,38 @@ export default function MobileBottomNav() {
                 <>
                     <div className={`mobile-nav-menu-overlay ${menuClosing ? 'is-closing' : ''}`} style={styles.overlay} onClick={closeMenu} />
                     <div className={`mobile-nav-center-menu ${menuClosing ? 'is-closing' : ''}`} style={{ ...styles.menu, ...themedMenuStyle }}>
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={() => primeMenuNavigation('/plans', true)} onClick={() => goProtected('/plans')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={(event) => {
+                            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                                event.preventDefault();
+                                goProtected('/plans');
+                                return;
+                            }
+                            primeMenuNavigation('/plans', true);
+                        }} onClick={() => goProtected('/plans')}>
                             <MenuIcon name="plans" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.plans}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={() => primeMenuNavigation('/collections')} onClick={() => goPublic('/collections')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={(event) => {
+                            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                                event.preventDefault();
+                                goPublic('/collections');
+                                return;
+                            }
+                            primeMenuNavigation('/collections');
+                        }} onClick={() => goPublic('/collections')}>
                             <MenuIcon name="collection" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.collection}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={() => primeMenuNavigation('/compare', true)} onClick={() => goProtected('/compare')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={(event) => {
+                            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                                event.preventDefault();
+                                goProtected('/compare');
+                                return;
+                            }
+                            primeMenuNavigation('/compare', true);
+                        }} onClick={() => goProtected('/compare')}>
                             <MenuIcon name="compare" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.compare}</span>
                         </button>
