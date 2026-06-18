@@ -2711,29 +2711,28 @@ export default function MainPage() {
                 )}
 
                 {mapPrefs.location && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
-                      className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${locationPickMode ? 'is-active' : ''}`}
-                      style={{ ...mm2.toolPill, ...(locationPickMode ? mm2.activePill : null) }}
-                      aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
-                    >
-                      {locationSource === 'manual' ? (
-                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                        </svg>
-                      )}
-                    </button>
-                    {renderMapZoomControl('mobile')}
-                  </>
+                  <button
+                    type="button"
+                    onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
+                    className={`mm-map2-tool-pill mm-map2-tool-pill-icon ${locationPickMode ? 'is-active' : ''}`}
+                    style={{ ...mm2.toolPill, ...(locationPickMode ? mm2.activePill : null) }}
+                    aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
+                  >
+                    {locationSource === 'manual' ? (
+                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.65}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                      </svg>
+                    )}
+                  </button>
                 )}
+
+                {renderMapZoomControl('mobile')}
               </div>
             </div>
           </div>
@@ -3266,27 +3265,26 @@ export default function MainPage() {
 
               {/* My Location — Mobile */}
               {mapPrefs.location && (
-                <>
-                  <button
-                    onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
-                    className={`mm-map2-pc-control mm-map2-pc-location-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 shrink-0 ${locationPickMode ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
-                    aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
-                  >
-                    {locationSource === 'manual' ? (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-                      </svg>
-                    )}
-                  </button>
-                  {renderMapZoomControl('pc')}
-                </>
+                <button
+                  onClick={locationSource === 'manual' ? startManualLocationPick : handleCurrentLocationPress}
+                  className={`mm-map2-pc-control mm-map2-pc-location-control w-10 h-10 flex items-center justify-center rounded-2xl shadow-lg border transition-all active:scale-95 shrink-0 ${locationPickMode ? 'is-active bg-blue-600 text-white border-blue-600' : 'bg-white/92 dark:bg-neutral-900/92 backdrop-blur-xl border-gray-100/50 dark:border-neutral-800/50 text-blue-500'}`}
+                  aria-label={locationSource === 'manual' ? mapLocationLabels.pickButton : mobileToolLabels.currentLocation}
+                >
+                  {locationSource === 'manual' ? (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.1 6-10a6 6 0 1 0-12 0c0 4.9 6 10 6 10Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 11h4.5M12 8.75v4.5" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+                    </svg>
+                  )}
+                </button>
               )}
+
+              {renderMapZoomControl('pc')}
 
               {/* Nearby Museums (PC filter overlay) */}
               {mapPrefs.nearby && <div className="mm-map2-pc-nearby-anchor relative shrink-0">

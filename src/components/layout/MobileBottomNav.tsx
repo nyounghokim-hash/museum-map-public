@@ -281,10 +281,10 @@ export default function MobileBottomNav() {
     const [menuClosing, setMenuClosing] = useState(false);
     const [pendingHref, setPendingHref] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const [loginCallbackUrl, setLoginCallbackUrl] = useState('');
     const menuRef = useRef<HTMLDivElement>(null);
+    const centerTouchHandledRef = useRef(false);
 
     useEffect(() => {
         const observer = new MutationObserver(() => {
@@ -296,28 +296,16 @@ export default function MobileBottomNav() {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const update = () => setIsMobile(window.innerWidth < 768);
-        update();
-        window.addEventListener('resize', update, { passive: true });
-        window.addEventListener('orientationchange', update, { passive: true });
-        return () => {
-            window.removeEventListener('resize', update);
-            window.removeEventListener('orientationchange', update);
-        };
-    }, []);
-
-    useEffect(() => {
-        if (!isMobile || typeof window === 'undefined') return;
         const navWindow = window as RoutePrefetchIdleWindow;
         const routes = isGuest ? PUBLIC_PREFETCH_ROUTES : [...PUBLIC_PREFETCH_ROUTES, ...ACCOUNT_PREFETCH_ROUTES];
         const run = () => routes.forEach(prefetchRouteDocument);
         if (navWindow.requestIdleCallback) {
-            const idleId = navWindow.requestIdleCallback(run, { timeout: 1800 });
+            const idleId = navWindow.requestIdleCallback(run, { timeout: 900 });
             return () => navWindow.cancelIdleCallback?.(idleId);
         }
-        const timer = navWindow.setTimeout(run, 500);
+        const timer = navWindow.setTimeout(run, 250);
         return () => navWindow.clearTimeout(timer);
-    }, [isGuest, isMobile]);
+    }, [isGuest]);
 
     useEffect(() => {
         setMenuOpen(false);
@@ -515,7 +503,19 @@ export default function MobileBottomNav() {
                                 aria-label={labels.plans}
                                 className="mobile-nav-center-button"
                                 style={{ ...styles.centerButton, ...(!isCenterActive ? styles.centerInactive : null), ...(!isCenterActive ? themedCenterInactiveStyle : null), ...(menuOpen ? styles.centerPressed : null) }}
-                                onClick={toggleMenu}
+                                onPointerDown={(event) => {
+                                    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+                                    event.preventDefault();
+                                    centerTouchHandledRef.current = true;
+                                    toggleMenu();
+                                }}
+                                onClick={() => {
+                                    if (centerTouchHandledRef.current) {
+                                        centerTouchHandledRef.current = false;
+                                        return;
+                                    }
+                                    toggleMenu();
+                                }}
                             >
                                 <CenterMuseumIcon active={isCenterActive || menuOpen} />
                             </button>

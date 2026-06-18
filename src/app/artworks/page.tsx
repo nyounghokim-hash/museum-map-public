@@ -126,6 +126,7 @@ export default function ArtworksPage() {
     const sentinelRef = useRef<HTMLDivElement>(null);
     const restoredRef = useRef(false);
     const searchScrollLockRef = useRef(0);
+    const randomSeedRef = useRef(`artworks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
     // Keep search responsive while still avoiding a full filter pass on every keystroke.
     useEffect(() => {
@@ -165,13 +166,13 @@ export default function ArtworksPage() {
             let url: string;
             if (nextCursor && nextCursor.startsWith('offset:')) {
                 const offset = nextCursor.replace('offset:', '');
-                url = `/api/artworks?limit=24&random=true&offset=${offset}`;
+                url = `/api/artworks?limit=24&random=true&offset=${offset}&seed=${encodeURIComponent(randomSeedRef.current)}`;
             } else if (nextCursor) {
                 url = `/api/artworks?limit=24&cursor=${nextCursor}${museumIdFilter ? `&museumId=${encodeURIComponent(museumIdFilter)}` : ''}`;
             } else if (museumIdFilter) {
                 url = `/api/artworks?limit=24&museumId=${encodeURIComponent(museumIdFilter)}`;
             } else {
-                url = '/api/artworks?limit=48&random=true';
+                url = `/api/artworks?limit=48&random=true&seed=${encodeURIComponent(randomSeedRef.current)}`;
             }
             const res = await fetch(url);
             const data = await res.json();
@@ -180,7 +181,7 @@ export default function ArtworksPage() {
             const newCursor = nextCursorValue && url.includes('random=true') ? `offset:${nextCursorValue}` : nextCursorValue;
             setArtworks(prev => {
                 const result = nextCursor ? [...prev, ...items] : items;
-                try { sessionStorage.setItem(cacheKey, JSON.stringify({ items: result, hasMore: data.data?.hasMore ?? false, cursor: newCursor })); } catch { }
+                try { sessionStorage.setItem(cacheKey, JSON.stringify({ items: result, hasMore: data.data?.hasMore ?? false, cursor: newCursor, seed: randomSeedRef.current })); } catch { }
                 return result;
             });
             setHasMore(data.data?.hasMore ?? false);
@@ -199,8 +200,9 @@ export default function ArtworksPage() {
             const cached = sessionStorage.getItem(cacheKey);
             const savedScroll = sessionStorage.getItem(SCROLL_KEY);
             if (cached && savedScroll) {
-                const { items, hasMore: hm, cursor: c } = JSON.parse(cached);
+                const { items, hasMore: hm, cursor: c, seed } = JSON.parse(cached);
                 if (items?.length > 0) {
+                    if (typeof seed === 'string' && seed) randomSeedRef.current = seed;
                     setArtworks(items);
                     setHasMore(hm);
                     setCursor(c);
@@ -309,8 +311,9 @@ export default function ArtworksPage() {
     const reshuffleArtworks = async () => {
         setShuffleSpinning(true);
         setShuffleKey(k => k + 1);
+        randomSeedRef.current = `artworks-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         try {
-            const res = await fetch('/api/artworks?limit=48&random=true');
+            const res = await fetch(`/api/artworks?limit=48&random=true&seed=${encodeURIComponent(randomSeedRef.current)}`);
             const data = await res.json();
             const items = data.data?.artworks || [];
             const rawCursor = data.data?.nextCursor ?? null;
@@ -318,7 +321,7 @@ export default function ArtworksPage() {
             setArtworks(items);
             setHasMore(data.data?.hasMore ?? false);
             setCursor(newCursor);
-            try { sessionStorage.setItem(cacheKey, JSON.stringify({ items, hasMore: data.data?.hasMore ?? false, cursor: newCursor })); } catch { }
+            try { sessionStorage.setItem(cacheKey, JSON.stringify({ items, hasMore: data.data?.hasMore ?? false, cursor: newCursor, seed: randomSeedRef.current })); } catch { }
         } catch { }
         setTimeout(() => setShuffleSpinning(false), 500);
         window.scrollTo({ top: 0, behavior: 'smooth' });
