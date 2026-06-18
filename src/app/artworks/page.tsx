@@ -127,9 +127,9 @@ export default function ArtworksPage() {
     const restoredRef = useRef(false);
     const searchScrollLockRef = useRef(0);
 
-    // Debounce search query (1000ms — 입력 완료 후 1초 뒤 결과 표시)
+    // Keep search responsive while still avoiding a full filter pass on every keystroke.
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedQuery(searchQuery), 1000);
+        const timer = setTimeout(() => setDebouncedQuery(searchQuery), 250);
         return () => clearTimeout(timer);
     }, [searchQuery]);
 

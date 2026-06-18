@@ -468,11 +468,10 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
     );
 }
 
-function BlogPageSkeleton({ locale }: { locale: Locale }) {
-    const sectionLabels = STORY_SECTION_LABELS[locale] || STORY_SECTION_LABELS.en;
+function BlogPageSkeleton() {
     return (
         <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
-            <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
+            <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 <div className="mm-skel-line w-20 mb-4 opacity-40" />
                 <div className="mm-skel-line h-8 w-52 mb-3 opacity-50" />
                 <div className="mm-skel-line w-64 opacity-40" />
@@ -481,9 +480,13 @@ function BlogPageSkeleton({ locale }: { locale: Locale }) {
                 </div>
             </div>
 
+            <div className="mb-5">
+                <div className="mm-skel-pill h-12 w-full" />
+            </div>
+
             <div className="mm-section-heading">
-                <h2>{sectionLabels.curated}</h2>
-                <span>{sectionLabels.loading}</span>
+                <div className="mm-skel-line h-5 w-28" />
+                <div className="mm-skel-line w-16" />
             </div>
             <div className="mm-rail-scroll flex gap-3">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -500,7 +503,7 @@ function BlogPageSkeleton({ locale }: { locale: Locale }) {
             </div>
 
             <div className="mm-section-heading">
-                <h2>{sectionLabels.fresh}</h2>
+                <div className="mm-skel-line h-5 w-24" />
             </div>
             <div className="mm-list-surface">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -731,7 +734,7 @@ export default function BlogListPage() {
         .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 4);
 
-    if (loading) return <BlogPageSkeleton locale={locale} />;
+    if (loading) return <BlogPageSkeleton />;
 
     return (
         <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">

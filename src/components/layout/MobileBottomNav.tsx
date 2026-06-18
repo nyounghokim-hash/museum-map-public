@@ -29,6 +29,26 @@ function navigateNative(href: string, locale?: string | null) {
     navigateWithPending(href, locale);
 }
 
+const PUBLIC_PREFETCH_ROUTES = ['/', '/blog', '/artworks', '/collections'];
+const ACCOUNT_PREFETCH_ROUTES = ['/saved', '/plans', '/compare'];
+const prefetchedRoutes = new Set<string>();
+
+type RoutePrefetchIdleDeadline = { didTimeout: boolean; timeRemaining: () => number };
+type RoutePrefetchIdleWindow = Window & typeof globalThis & {
+    requestIdleCallback?: (callback: (deadline: RoutePrefetchIdleDeadline) => void, options?: { timeout?: number }) => number;
+    cancelIdleCallback?: (handle: number) => void;
+};
+
+function prefetchRouteDocument(href: string) {
+    if (typeof document === 'undefined' || prefetchedRoutes.has(href)) return;
+    prefetchedRoutes.add(href);
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = href;
+    link.as = 'document';
+    document.head.appendChild(link);
+}
+
 const styles = {
     root: {
         position: 'fixed',
@@ -285,6 +305,19 @@ export default function MobileBottomNav() {
             window.removeEventListener('orientationchange', update);
         };
     }, []);
+
+    useEffect(() => {
+        if (!isMobile || typeof window === 'undefined') return;
+        const navWindow = window as RoutePrefetchIdleWindow;
+        const routes = isGuest ? PUBLIC_PREFETCH_ROUTES : [...PUBLIC_PREFETCH_ROUTES, ...ACCOUNT_PREFETCH_ROUTES];
+        const run = () => routes.forEach(prefetchRouteDocument);
+        if (navWindow.requestIdleCallback) {
+            const idleId = navWindow.requestIdleCallback(run, { timeout: 1800 });
+            return () => navWindow.cancelIdleCallback?.(idleId);
+        }
+        const timer = navWindow.setTimeout(run, 500);
+        return () => navWindow.clearTimeout(timer);
+    }, [isGuest, isMobile]);
 
     useEffect(() => {
         setMenuOpen(false);
