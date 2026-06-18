@@ -338,7 +338,7 @@ export default function MobileBottomNav() {
     }, [pathname, pendingHref]);
 
     const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
-    if (!isMobile || !showNavPages.includes(pathname) || detailOpen) return null;
+    if (!showNavPages.includes(pathname) || detailOpen) return null;
 
     const labels = NAV_LABELS[locale] || NAV_LABELS.en;
     const currentPath = pathname;
