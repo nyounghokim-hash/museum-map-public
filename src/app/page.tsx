@@ -20,6 +20,7 @@ import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
+import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
 import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
@@ -2104,7 +2105,7 @@ export default function MainPage() {
       bodyWidth: body.style.width,
     };
 
-    html.classList.add('mm-search-locking');
+    const restoreSearchChrome = lockMobileSearchChrome();
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
     body.style.position = 'fixed';
@@ -2114,7 +2115,7 @@ export default function MainPage() {
     body.style.width = '100%';
 
     return () => {
-      html.classList.remove('mm-search-locking');
+      restoreSearchChrome();
       html.style.overflow = previous.htmlOverflow;
       body.style.overflow = previous.bodyOverflow;
       body.style.position = previous.bodyPosition;

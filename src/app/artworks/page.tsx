@@ -9,6 +9,7 @@ import { buildShareUrl } from '@/lib/utm';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
+import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
@@ -155,6 +156,7 @@ export default function ArtworksPage() {
 
     useEffect(() => {
         if (!isSearchFocused) return;
+        const restoreSearchChrome = lockMobileSearchChrome();
         searchScrollLockRef.current = window.scrollY;
         const originalBodyPosition = document.body.style.position;
         const originalBodyTop = document.body.style.top;
@@ -166,14 +168,13 @@ export default function ArtworksPage() {
         document.body.style.width = '100%';
         document.body.style.overflow = 'hidden';
         document.documentElement.style.overscrollBehavior = 'none';
-        document.body.classList.add('mm-search-locking');
         return () => {
+            restoreSearchChrome();
             document.body.style.position = originalBodyPosition;
             document.body.style.top = originalBodyTop;
             document.body.style.width = originalBodyWidth;
             document.body.style.overflow = originalBodyOverflow;
             document.documentElement.style.overscrollBehavior = originalHtmlOverscroll;
-            document.body.classList.remove('mm-search-locking');
             window.scrollTo(0, searchScrollLockRef.current);
         };
     }, [isSearchFocused]);

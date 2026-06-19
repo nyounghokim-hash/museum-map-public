@@ -6,6 +6,7 @@ import { useCachedTranslation } from '@/hooks/useCachedTranslation';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import { getMuseumImageSrc, isRenderableUrl } from '@/lib/getMuseumImage';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
+import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import * as gtag from '@/lib/gtag';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
@@ -595,6 +596,11 @@ export default function BlogListPage() {
     const PAGE_KEY = 'blog_page';
     const CAT_KEY = 'blog_category';
     const SORT_KEY = 'blog_sort';
+
+    useEffect(() => {
+        if (!isSearchFocused) return;
+        return lockMobileSearchChrome();
+    }, [isSearchFocused]);
 
     const handleNavigate = (id: string) => {
         gtag.event('view_blog_post', { category: 'blog', label: id, value: 1 });
