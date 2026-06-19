@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useDeferredValue, type CSSProperties } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue, useRef, type CSSProperties } from 'react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -563,10 +563,24 @@ const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
 const BLOG_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
 
+function readBlogListCache(): any[] | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(BLOG_LIST_CACHE_KEY) || 'null');
+        if (cached && Date.now() - cached.ts < BLOG_LIST_CACHE_TTL_MS && Array.isArray(cached.posts)) {
+            return cached.posts;
+        }
+    } catch { }
+    return null;
+}
+
 export default function BlogListPage() {
     const { locale } = useApp();
-    const [posts, setPosts] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const initialPostsRef = useRef<any[] | null | undefined>(undefined);
+    if (initialPostsRef.current === undefined) initialPostsRef.current = readBlogListCache();
+    const initialPosts = initialPostsRef.current;
+    const [posts, setPosts] = useState<any[]>(() => initialPosts || []);
+    const [loading, setLoading] = useState(() => !initialPosts);
     const [page, setPage] = useState(1);
     const [activeCategory, setActiveCategory] = useState<string>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('random');
@@ -614,6 +628,11 @@ export default function BlogListPage() {
                 if (savedSort) { setSortMode(savedSort as SortMode); sessionStorage.removeItem(SORT_KEY); }
             } catch { }
         };
+
+        if (initialPosts && initialPosts.length > 0) {
+            restoreListState();
+            return;
+        }
 
         try {
             const cached = JSON.parse(sessionStorage.getItem(BLOG_LIST_CACHE_KEY) || 'null');

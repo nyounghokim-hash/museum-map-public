@@ -15,6 +15,20 @@ const PUBLIC_COLLECTIONS_INCREMENT = 40;
 const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v1';
 const COLLECTIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
+type PublicCollectionsCache = {
+    ts?: number;
+    data?: any[];
+};
+
+function readPublicCollectionsCache(): PublicCollectionsCache | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(COLLECTIONS_PUBLIC_CACHE_KEY) || 'null') as PublicCollectionsCache | null;
+        if (cached?.data && Date.now() - (cached.ts || 0) < COLLECTIONS_CACHE_TTL_MS) return cached;
+    } catch { }
+    return null;
+}
+
 const SHOW_MORE_LABELS: Record<string, string> = {
     ko: '더 보기',
     en: 'Show more',
@@ -38,11 +52,14 @@ function TranslatedTitle({ text, locale }: { text: string; locale: string }) {
 }
 
 export default function CollectionsPage() {
+    const initialPublicCollectionsRef = useRef<PublicCollectionsCache | null | undefined>(undefined);
+    if (initialPublicCollectionsRef.current === undefined) initialPublicCollectionsRef.current = readPublicCollectionsCache();
+    const initialPublicCollections = initialPublicCollectionsRef.current;
     const [tab, setTab] = useState<'my' | 'public'>('public');
     const [myCollections, setMyCollections] = useState<any[]>([]);
-    const [publicCollections, setPublicCollections] = useState<any[]>([]);
+    const [publicCollections, setPublicCollections] = useState<any[]>(() => initialPublicCollections?.data || []);
     const [loadingMy, setLoadingMy] = useState(true);
-    const [loadingPublic, setLoadingPublic] = useState(true);
+    const [loadingPublic, setLoadingPublic] = useState(() => !(initialPublicCollections?.data?.length));
     const [visiblePublicCount, setVisiblePublicCount] = useState(INITIAL_PUBLIC_COLLECTIONS);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const { locale } = useApp();
@@ -52,6 +69,7 @@ export default function CollectionsPage() {
     const isSignedInUser = status === 'authenticated' && !!session?.user && !session.user.name?.startsWith('guest_');
 
     useEffect(() => {
+        if (initialPublicCollections?.data?.length) return;
         try {
             const cached = JSON.parse(sessionStorage.getItem(COLLECTIONS_PUBLIC_CACHE_KEY) || 'null') as { ts?: number; data?: any[] } | null;
             if (cached?.data && Date.now() - (cached.ts || 0) < COLLECTIONS_CACHE_TTL_MS) {
@@ -72,6 +90,10 @@ export default function CollectionsPage() {
     }, []);
 
     useEffect(() => {
+        if (tab !== 'my') {
+            setLoadingMy(false);
+            return;
+        }
         if (status === 'loading') return;
         if (!isSignedInUser) {
             setMyCollections([]);
@@ -84,7 +106,7 @@ export default function CollectionsPage() {
             .then(r => r.json())
             .then(res => { setMyCollections(res.data || []); setLoadingMy(false); })
             .catch(() => setLoadingMy(false));
-    }, [status, isSignedInUser]);
+    }, [status, isSignedInUser, tab]);
 
     const handleDelete = (id: string) => {
         showConfirm(t('modal.deleteCollection', locale), async () => {

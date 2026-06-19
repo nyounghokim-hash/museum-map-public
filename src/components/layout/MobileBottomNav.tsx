@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
@@ -31,25 +31,13 @@ function navigateNative(href: string, locale?: string | null) {
 
 const PUBLIC_PREFETCH_ROUTES = ['/', '/blog', '/artworks', '/collections'];
 const ACCOUNT_PREFETCH_ROUTES = ['/saved', '/plans', '/compare'];
-const PUBLIC_CLIENT_NAV_ROUTES = new Set(['/blog', '/artworks', '/collections']);
-const PUBLIC_CLIENT_ROUTE_MARKERS: Record<string, string> = {
-    '/blog': 'blog',
-    '/artworks': 'artworks',
-    '/collections': 'collections',
-};
-const CLIENT_NAV_FALLBACK_MS = 720;
+const MAP_OVERLAY_DISMISS_EVENT = 'mm:map-overlays-dismiss';
 const NAV_CACHE_TTL_MS = 5 * 60 * 1000;
 const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
 const ARTWORKS_CACHE_KEY = 'artworks_cache';
 const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v1';
 const prefetchedRoutes = new Set<string>();
 let navDataPrefetchStarted = false;
-
-type RoutePrefetchIdleDeadline = { didTimeout: boolean; timeRemaining: () => number };
-type RoutePrefetchIdleWindow = Window & typeof globalThis & {
-    requestIdleCallback?: (callback: (deadline: RoutePrefetchIdleDeadline) => void, options?: { timeout?: number }) => number;
-    cancelIdleCallback?: (handle: number) => void;
-};
 
 function prefetchRouteDocument(href: string) {
     if (typeof document === 'undefined' || prefetchedRoutes.has(href)) return;
@@ -69,14 +57,20 @@ function normalizeRoutePath(href: string) {
     }
 }
 
-function canUseClientNavigation(currentPath: string, href: string) {
-    const nextPath = normalizeRoutePath(href);
-    return PUBLIC_CLIENT_NAV_ROUTES.has(currentPath) && PUBLIC_CLIENT_NAV_ROUTES.has(nextPath);
+function routeTabKey(path: string) {
+    if (path === '/') return 'map';
+    if (path.startsWith('/saved')) return 'saved';
+    if (path.startsWith('/blog')) return 'story';
+    if (path.startsWith('/artworks')) return 'artworks';
+    if (path.startsWith('/plans')) return 'plans';
+    if (path.startsWith('/collections')) return 'collection';
+    if (path.startsWith('/compare')) return 'compare';
+    return null;
 }
 
-function hasRouteMarker(path: string) {
-    const marker = PUBLIC_CLIENT_ROUTE_MARKERS[path];
-    return marker ? !!document.querySelector(`[data-mm-page="${marker}"]`) : false;
+function dismissMapOverlays() {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new Event(MAP_OVERLAY_DISMISS_EVENT));
 }
 
 function hasFreshCache(key: string) {
@@ -303,19 +297,20 @@ const styles = {
     } satisfies CSSProperties,
 };
 
-function TabIcon({ name, active }: { name: 'map' | 'saved' | 'story' | 'artworks'; active: boolean }) {
+function TabIcon({ name, active, pending }: { name: 'map' | 'saved' | 'story' | 'artworks'; active: boolean; pending?: boolean }) {
     const className = `w-6 h-6 ${active ? 'text-white' : 'text-slate-500 dark:text-slate-300'}`;
+    const iconStyle = active && pending ? { color: 'rgba(255,255,255,.5)' } : undefined;
     const inactiveStrokeWidth = 1.45;
     if (name === 'map') {
-        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+        return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
     }
     if (name === 'saved') {
-        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>;
+        return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>;
     }
     if (name === 'story') {
-        return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 16h6M7 8h6v4H7V8z" /></svg>;
+        return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 16h6M7 8h6v4H7V8z" /></svg>;
     }
-    return <svg className={className} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+    return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
 }
 
 function MenuIcon({ name }: { name: 'plans' | 'collection' | 'compare' }) {
@@ -329,10 +324,11 @@ function MenuIcon({ name }: { name: 'plans' | 'collection' | 'compare' }) {
     return <svg className="w-5 h-5" style={{ color }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5 5 0 006 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5 5 0 006 0M18 7l3 9m-3-9l-6-2m0-2v18m0 0H9m3 0h3" /></svg>;
 }
 
-function CenterMuseumIcon({ active }: { active: boolean }) {
+function CenterMuseumIcon({ active, pending }: { active: boolean; pending?: boolean }) {
+    const iconStyle = active && pending ? { color: 'rgba(255,255,255,.5)' } : undefined;
     if (active) {
         return (
-            <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="w-7 h-7 text-white" style={iconStyle} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 2.4 3.8 6.8v1.7h16.4V6.8L12 2.4Z" />
                 <path d="M5.2 10h2.5v7.2H5.2V10Zm5.6 0h2.4v7.2h-2.4V10Zm5.5 0h2.5v7.2h-2.5V10Z" />
                 <path d="M4.2 18.5h15.6v2.2H4.2v-2.2Z" />
@@ -352,88 +348,8 @@ function CenterMuseumIcon({ active }: { active: boolean }) {
     );
 }
 
-function MobileTabRoutePreview({ path }: { path: string }) {
-    const skeletonCards = path === '/artworks' ? 8 : 4;
-    const isCollections = path === '/collections';
-    return (
-        <div
-            data-mm-route-preview={path}
-            className="fixed inset-x-0 top-0 bottom-[calc(82px+env(safe-area-inset-bottom,0px))] z-[80] overflow-hidden bg-slate-50 dark:bg-[#020817] md:hidden"
-            aria-hidden="true"
-        >
-            <div className={`no-back-swipe mm-editorial-page2 ${isCollections ? 'mm-travel-page2' : 'mm-library-page2'} w-full max-w-[960px] mx-auto px-4 pt-4 pb-8`}>
-                <div className="mm-gallery-hero p-5 mb-5">
-                    <div className="mm-skel-line w-24 mb-4 opacity-40" />
-                    <div className="mm-skel-line h-8 w-44 mb-3 opacity-50" />
-                    <div className="mm-skel-line w-64 opacity-40" />
-                    {path === '/blog' && (
-                        <div className="flex mt-5 gap-2 overflow-hidden">
-                            {Array.from({ length: 5 }).map((_, index) => (
-                                <div key={index} className="mm-skel-pill h-8 w-20 shrink-0" />
-                            ))}
-                        </div>
-                    )}
-                </div>
-                {!isCollections && (
-                    <div className="mb-5">
-                        <div className="mm-skel-pill h-[58px] w-full" />
-                    </div>
-                )}
-                {isCollections ? (
-                    <>
-                        <div className="flex gap-2 mb-6">
-                            <div className="mm-skel-pill h-10 flex-1" />
-                            <div className="mm-skel-pill h-10 flex-1" />
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            {Array.from({ length: 4 }).map((_, index) => (
-                                <div key={index} className="mm-actual-skeleton p-5">
-                                    <div className="mm-skel-line h-6 w-3/5 mb-3" />
-                                    <div className="flex items-center gap-3 mt-2">
-                                        <div className="flex -space-x-2">
-                                            {Array.from({ length: 4 }).map((__, thumbIndex) => (
-                                                <div key={thumbIndex} className="mm-skel-circle w-7 h-7 border-2 border-white dark:border-neutral-900" />
-                                            ))}
-                                        </div>
-                                        <div className="mm-skel-line w-20" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div className="mm-section-heading">
-                            <div className="mm-skel-line h-5 w-28" />
-                            {path === '/artworks' && (
-                                <div className="flex items-center gap-2">
-                                    <div className="mm-skel-line w-12" />
-                                    <div className="mm-skel-pill w-24" />
-                                </div>
-                            )}
-                        </div>
-                        <div className={path === '/artworks' ? 'mm-artwork-grid2' : 'flex gap-4 overflow-hidden pb-2'}>
-                            {Array.from({ length: skeletonCards }).map((_, index) => (
-                                <div key={index} className={`${path === '/blog' ? 'w-[220px] shrink-0 ' : ''}mm-actual-skeleton overflow-hidden`}>
-                                    <div className={`${path === '/artworks' ? 'aspect-[4/3]' : 'h-32'} mm-skel-block`} style={{ borderRadius: 0 }} />
-                                    <div className="space-y-2 p-3.5">
-                                        <div className="mm-skel-line w-16" />
-                                        <div className="mm-skel-line h-5 w-32" />
-                                        <div className="mm-skel-line w-24" />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                )}
-            </div>
-        </div>
-    );
-}
-
 export default function MobileBottomNav() {
     const pathname = usePathname();
-    const router = useRouter();
     const { locale, darkMode } = useApp();
     const { data: session } = useSession();
     const isGuest = !session || session.user?.name?.startsWith('guest_');
@@ -441,12 +357,10 @@ export default function MobileBottomNav() {
     const [menuClosing, setMenuClosing] = useState(false);
     const [pendingHref, setPendingHref] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
-    const [previewPath, setPreviewPath] = useState<string | null>(null);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const [loginCallbackUrl, setLoginCallbackUrl] = useState('');
     const menuRef = useRef<HTMLDivElement>(null);
     const centerTouchHandledRef = useRef(false);
-    const clientNavFallbackRef = useRef<number | null>(null);
     const recentNavigationRef = useRef<{ href: string; ts: number } | null>(null);
 
     useEffect(() => {
@@ -459,35 +373,24 @@ export default function MobileBottomNav() {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const navWindow = window as RoutePrefetchIdleWindow;
         const routes = isGuest ? PUBLIC_PREFETCH_ROUTES : [...PUBLIC_PREFETCH_ROUTES, ...ACCOUNT_PREFETCH_ROUTES];
-        const run = () => {
+        const warmDocuments = () => {
             routes.forEach(prefetchRouteDocument);
-            PUBLIC_CLIENT_NAV_ROUTES.forEach(route => router.prefetch(route));
-            prefetchNavDataCaches();
         };
-        if (navWindow.requestIdleCallback) {
-            const idleId = navWindow.requestIdleCallback(run, { timeout: 900 });
-            return () => navWindow.cancelIdleCallback?.(idleId);
-        }
-        const timer = navWindow.setTimeout(run, 250);
-        return () => navWindow.clearTimeout(timer);
-    }, [isGuest, router]);
+        const warmData = () => prefetchNavDataCaches();
+        const documentTimer = window.setTimeout(warmDocuments, 80);
+        const dataTimer = window.setTimeout(warmData, pathname === '/' ? 360 : 120);
+        return () => {
+            window.clearTimeout(documentTimer);
+            window.clearTimeout(dataTimer);
+        };
+    }, [isGuest, pathname]);
 
     useEffect(() => {
         setMenuOpen(false);
         setMenuClosing(false);
         setPendingHref(null);
-        setPreviewPath(null);
-        if (clientNavFallbackRef.current) {
-            window.clearTimeout(clientNavFallbackRef.current);
-            clientNavFallbackRef.current = null;
-        }
     }, [pathname]);
-
-    useEffect(() => () => {
-        if (clientNavFallbackRef.current) window.clearTimeout(clientNavFallbackRef.current);
-    }, []);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !pendingHref) return;
@@ -506,7 +409,14 @@ export default function MobileBottomNav() {
 
     const labels = NAV_LABELS[locale] || NAV_LABELS.en;
     const currentPath = pathname;
-    const isCenterActive = currentPath === '/plans' || currentPath.startsWith('/collections') || currentPath === '/compare';
+    const visualPath = pendingHref ? normalizeRoutePath(pendingHref) : currentPath;
+    const visualTabKey = routeTabKey(visualPath);
+    const pendingTargetPath = pendingHref ? normalizeRoutePath(pendingHref) : null;
+    const pendingTabKey = pendingTargetPath ? routeTabKey(pendingTargetPath) : null;
+    const isVisuallyActive = (key: 'map' | 'saved' | 'story' | 'artworks' | 'plans' | 'collection' | 'compare') => visualTabKey === key;
+    const isLoadingActive = (key: 'map' | 'saved' | 'story' | 'artworks' | 'plans' | 'collection' | 'compare') => pendingTabKey === key && pendingTargetPath !== currentPath;
+    const isCenterActive = isVisuallyActive('plans') || isVisuallyActive('collection') || isVisuallyActive('compare');
+    const isCenterLoadingActive = isLoadingActive('plans') || isLoadingActive('collection') || isLoadingActive('compare');
     const themedShellStyle = darkMode ? {
         background: 'rgba(7,20,38,.94)',
         borderTop: '1px solid rgba(96,165,250,.22)',
@@ -537,6 +447,7 @@ export default function MobileBottomNav() {
     };
 
     const toggleMenu = () => {
+        dismissMapOverlays();
         if (menuOpen) {
             closeMenu();
             return;
@@ -546,6 +457,7 @@ export default function MobileBottomNav() {
     };
 
     const goProtected = (href: string) => {
+        dismissMapOverlays();
         closeMenu();
         if (isGuest) {
             setLoginCallbackUrl(href);
@@ -553,30 +465,19 @@ export default function MobileBottomNav() {
             return;
         }
         setPendingHref(href);
+        startRoutePending(locale);
         navigateNative(href, locale);
     };
 
     const goRoute = (href: string) => {
+        dismissMapOverlays();
         if (href === pathname) return;
         const now = Date.now();
         const recent = recentNavigationRef.current;
         if (recent?.href === href && now - recent.ts < 650) return;
         recentNavigationRef.current = { href, ts: now };
         setPendingHref(href);
-        if (canUseClientNavigation(pathname, href)) {
-            const nextPath = normalizeRoutePath(href);
-            setPreviewPath(nextPath);
-            startRoutePending(locale);
-            router.prefetch(nextPath);
-            router.push(href);
-            if (clientNavFallbackRef.current) window.clearTimeout(clientNavFallbackRef.current);
-            clientNavFallbackRef.current = window.setTimeout(() => {
-                if (!hasRouteMarker(nextPath)) {
-                    navigateNative(href, locale);
-                }
-            }, CLIENT_NAV_FALLBACK_MS);
-            return;
-        }
+        startRoutePending(locale);
         navigateNative(href, locale);
     };
 
@@ -587,17 +488,18 @@ export default function MobileBottomNav() {
 
     const primeMenuNavigation = (href: string, protectedRoute = false) => {
         if (protectedRoute && isGuest) return;
+        dismissMapOverlays();
         setPendingHref(href);
         startRoutePending(locale);
     };
 
     const tabsLeft = [
-        { href: '/', key: 'map' as const, label: labels.map, active: currentPath === '/' },
-        { href: '/saved', key: 'saved' as const, label: labels.saved, active: currentPath.startsWith('/saved'), auth: true },
+        { href: '/', key: 'map' as const, label: labels.map, active: isVisuallyActive('map') },
+        { href: '/saved', key: 'saved' as const, label: labels.saved, active: isVisuallyActive('saved'), auth: true },
     ];
     const tabsRight = [
-        { href: '/blog', key: 'story' as const, label: labels.story, active: currentPath.startsWith('/blog') },
-        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: currentPath.startsWith('/artworks') },
+        { href: '/blog', key: 'story' as const, label: labels.story, active: isVisuallyActive('story') },
+        { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: isVisuallyActive('artworks') },
     ];
 
     const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -612,11 +514,15 @@ export default function MobileBottomNav() {
         }
     };
 
-    const renderTab = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (
+    const renderTab = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => {
+        const active = tab.active && !menuOpen;
+        const loadingActive = active && isLoadingActive(tab.key);
+        return (
         <a
             key={tab.href}
             href={tab.href}
             onPointerDown={(event) => {
+                dismissMapOverlays();
                 if (tab.href === pathname) return;
                 if ('auth' in tab && tab.auth && isGuest) {
                     if (event.pointerType === 'touch' || event.pointerType === 'pen') {
@@ -635,13 +541,14 @@ export default function MobileBottomNav() {
                 startRoutePending(locale);
             }}
             onClick={handleTabClick(tab)}
-            className={`mm-nav-original-tab ${tab.active && !menuOpen ? 'is-active' : ''} ${pendingHref === tab.href ? 'is-pending' : ''}`}
-            style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(tab.active && !menuOpen ? styles.tabActive : null), ...(pendingHref === tab.href && !tab.active ? styles.tabPending : null) }}
+            className={`mm-nav-original-tab ${active ? 'is-active' : ''} ${pendingHref === tab.href ? 'is-pending' : ''}`}
+            style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(active ? styles.tabActive : null), ...(pendingHref === tab.href && !tab.active ? styles.tabPending : null) }}
         >
-            <TabIcon name={tab.key} active={tab.active && !menuOpen} />
-            <span style={{ ...styles.label, fontWeight: tab.active && !menuOpen ? 850 : 600 }}>{tab.label}</span>
+            <TabIcon name={tab.key} active={active} pending={loadingActive} />
+            <span style={{ ...styles.label, fontWeight: active ? 850 : 600, color: loadingActive ? 'rgba(255,255,255,.5)' : 'currentColor' }}>{tab.label}</span>
         </a>
-    );
+        );
+    };
 
     return (
         <>
@@ -688,8 +595,6 @@ export default function MobileBottomNav() {
                 </>
             )}
 
-            {previewPath && <MobileTabRoutePreview path={previewPath} />}
-
             <nav className="mobile-bottom-nav md:hidden" style={styles.root}>
                 <div style={{ ...styles.shell, ...themedShellStyle }}>
                     <div id="nav-toolbar" style={styles.toolbar} />
@@ -717,7 +622,7 @@ export default function MobileBottomNav() {
                                     toggleMenu();
                                 }}
                             >
-                                <CenterMuseumIcon active={isCenterActive || menuOpen} />
+                                <CenterMuseumIcon active={isCenterActive || menuOpen} pending={isCenterLoadingActive && !menuOpen} />
                             </button>
                         </div>
 

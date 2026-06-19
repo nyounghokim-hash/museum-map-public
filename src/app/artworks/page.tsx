@@ -77,6 +77,22 @@ function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
 const SCROLL_KEY = 'artworks_scroll_pos';
 const CACHE_KEY = 'artworks_cache';
 
+type ArtworkCachePayload = {
+    items?: any[];
+    hasMore?: boolean;
+    cursor?: string | null;
+    seed?: string;
+};
+
+function readArtworkCache(cacheKey: string): ArtworkCachePayload | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null') as ArtworkCachePayload | null;
+        if (cached?.items?.length) return cached;
+    } catch { }
+    return null;
+}
+
 // Fisher-Yates (Knuth) shuffle — true uniform random, no bias
 function fisherYatesShuffle<T>(arr: T[]): T[] {
     const a = [...arr];
@@ -98,11 +114,15 @@ export default function ArtworksPage() {
     const searchParams = useSearchParams();
     const museumIdFilter = searchParams.get('museumId') || '';
     const museumNameFilter = searchParams.get('museumName') || '';
-    const [artworks, setArtworks] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const cacheKey = museumIdFilter ? `${CACHE_KEY}_${museumIdFilter}` : CACHE_KEY;
+    const initialCacheRef = useRef<ArtworkCachePayload | null | undefined>(undefined);
+    if (initialCacheRef.current === undefined) initialCacheRef.current = readArtworkCache(cacheKey);
+    const initialCache = initialCacheRef.current;
+    const [artworks, setArtworks] = useState<any[]>(() => initialCache?.items || []);
+    const [loading, setLoading] = useState(() => !(initialCache?.items?.length));
     const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
-    const [cursor, setCursor] = useState<string | null>(null);
+    const [hasMore, setHasMore] = useState(() => initialCache?.hasMore ?? true);
+    const [cursor, setCursor] = useState<string | null>(() => initialCache?.cursor ?? null);
     const [selected, setSelected] = useState<any>(null);
     const [sheetClosing, setSheetClosing] = useState(false);
     const closeSheet = () => {
@@ -117,7 +137,6 @@ export default function ArtworksPage() {
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const labels = PAGE_LABELS[locale] || PAGE_LABELS.en;
-    const cacheKey = museumIdFilter ? `${CACHE_KEY}_${museumIdFilter}` : CACHE_KEY;
     const selectedDescriptionSource = selected?.descriptionKo || selected?.description || '';
     const selectedTranslatedDescription = useTranslatedText(selectedDescriptionSource, locale as Locale);
     const selectedDisplayDescription = locale === 'ko'
@@ -126,7 +145,7 @@ export default function ArtworksPage() {
     const sentinelRef = useRef<HTMLDivElement>(null);
     const restoredRef = useRef(false);
     const searchScrollLockRef = useRef(0);
-    const randomSeedRef = useRef(`artworks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const randomSeedRef = useRef(initialCache?.seed || `artworks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
     // Keep search responsive while still avoiding a full filter pass on every keystroke.
     useEffect(() => {
