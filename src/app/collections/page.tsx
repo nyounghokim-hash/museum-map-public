@@ -12,6 +12,8 @@ import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 
 const INITIAL_PUBLIC_COLLECTIONS = 40;
 const PUBLIC_COLLECTIONS_INCREMENT = 40;
+const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v1';
+const COLLECTIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const SHOW_MORE_LABELS: Record<string, string> = {
     ko: '더 보기',
@@ -50,9 +52,22 @@ export default function CollectionsPage() {
     const isSignedInUser = status === 'authenticated' && !!session?.user && !session.user.name?.startsWith('guest_');
 
     useEffect(() => {
+        try {
+            const cached = JSON.parse(sessionStorage.getItem(COLLECTIONS_PUBLIC_CACHE_KEY) || 'null') as { ts?: number; data?: any[] } | null;
+            if (cached?.data && Date.now() - (cached.ts || 0) < COLLECTIONS_CACHE_TTL_MS) {
+                setPublicCollections(cached.data);
+                setLoadingPublic(false);
+                return;
+            }
+        } catch { }
         fetch('/api/collections?public=true')
             .then(r => r.json())
-            .then(res => { setPublicCollections(res.data || []); setLoadingPublic(false); })
+            .then(res => {
+                const data = res.data || [];
+                setPublicCollections(data);
+                try { sessionStorage.setItem(COLLECTIONS_PUBLIC_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch { }
+                setLoadingPublic(false);
+            })
             .catch(() => setLoadingPublic(false));
     }, []);
 
@@ -117,6 +132,7 @@ export default function CollectionsPage() {
 
     return (
         <div
+            data-mm-page="collections"
             className="no-back-swipe mm-editorial-page2 mm-travel-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10"
             onTouchStart={handleSwipeStart}
             onTouchEnd={handleSwipeEnd}

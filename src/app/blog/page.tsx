@@ -470,7 +470,7 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
 
 function BlogPageSkeleton() {
     return (
-        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
+        <div data-mm-page="blog" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 <div className="mm-skel-line w-20 mb-4 opacity-40" />
                 <div className="mm-skel-line h-8 w-52 mb-3 opacity-50" />
@@ -737,7 +737,7 @@ export default function BlogListPage() {
     if (loading) return <BlogPageSkeleton />;
 
     return (
-        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div data-mm-page="blog" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6 animate-fadeInUp">
                 <div className="mm-gallery-kicker mb-3">{locale === 'ko' ? 'Curated' : 'Curated'}</div>
                 <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">

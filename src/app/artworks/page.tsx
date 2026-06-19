@@ -51,7 +51,7 @@ function SkeletonCard() {
 
 function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
     return (
-        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div data-mm-page="artworks" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 <div className="mm-skel-line w-20 mb-4 opacity-40" />
                 <div className="mm-skel-line h-8 w-40 mb-3 opacity-50" />
@@ -199,7 +199,7 @@ export default function ArtworksPage() {
         try {
             const cached = sessionStorage.getItem(cacheKey);
             const savedScroll = sessionStorage.getItem(SCROLL_KEY);
-            if (cached && savedScroll) {
+            if (cached) {
                 const { items, hasMore: hm, cursor: c, seed } = JSON.parse(cached);
                 if (items?.length > 0) {
                     if (typeof seed === 'string' && seed) randomSeedRef.current = seed;
@@ -208,11 +208,13 @@ export default function ArtworksPage() {
                     setCursor(c);
                     setLoading(false);
                     restoredRef.current = true;
-                    // Restore scroll position after render
-                    requestAnimationFrame(() => {
-                        setTimeout(() => { window.scrollTo(0, parseInt(savedScroll, 10)); }, 50);
-                    });
-                    sessionStorage.removeItem(SCROLL_KEY);
+                    if (savedScroll) {
+                        // Restore scroll position after render
+                        requestAnimationFrame(() => {
+                            setTimeout(() => { window.scrollTo(0, parseInt(savedScroll, 10)); }, 50);
+                        });
+                        sessionStorage.removeItem(SCROLL_KEY);
+                    }
                     return;
                 }
             }
@@ -359,7 +361,7 @@ export default function ArtworksPage() {
     }
 
     return (
-        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10" style={{ scrollbarGutter: 'stable' }}>
+        <div data-mm-page="artworks" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10" style={{ scrollbarGutter: 'stable' }}>
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 {loading ? (
                     <>

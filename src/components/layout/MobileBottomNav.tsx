@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
@@ -31,7 +31,19 @@ function navigateNative(href: string, locale?: string | null) {
 
 const PUBLIC_PREFETCH_ROUTES = ['/', '/blog', '/artworks', '/collections'];
 const ACCOUNT_PREFETCH_ROUTES = ['/saved', '/plans', '/compare'];
+const PUBLIC_CLIENT_NAV_ROUTES = new Set(['/blog', '/artworks', '/collections']);
+const PUBLIC_CLIENT_ROUTE_MARKERS: Record<string, string> = {
+    '/blog': 'blog',
+    '/artworks': 'artworks',
+    '/collections': 'collections',
+};
+const CLIENT_NAV_FALLBACK_MS = 720;
+const NAV_CACHE_TTL_MS = 5 * 60 * 1000;
+const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
+const ARTWORKS_CACHE_KEY = 'artworks_cache';
+const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v1';
 const prefetchedRoutes = new Set<string>();
+let navDataPrefetchStarted = false;
 
 type RoutePrefetchIdleDeadline = { didTimeout: boolean; timeRemaining: () => number };
 type RoutePrefetchIdleWindow = Window & typeof globalThis & {
@@ -47,6 +59,74 @@ function prefetchRouteDocument(href: string) {
     link.href = href;
     link.as = 'document';
     document.head.appendChild(link);
+}
+
+function normalizeRoutePath(href: string) {
+    try {
+        return new URL(href, window.location.origin).pathname;
+    } catch {
+        return href.split('?')[0] || href;
+    }
+}
+
+function canUseClientNavigation(currentPath: string, href: string) {
+    const nextPath = normalizeRoutePath(href);
+    return PUBLIC_CLIENT_NAV_ROUTES.has(currentPath) && PUBLIC_CLIENT_NAV_ROUTES.has(nextPath);
+}
+
+function hasRouteMarker(path: string) {
+    const marker = PUBLIC_CLIENT_ROUTE_MARKERS[path];
+    return marker ? !!document.querySelector(`[data-mm-page="${marker}"]`) : false;
+}
+
+function hasFreshCache(key: string) {
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(key) || 'null') as { ts?: number; items?: unknown[]; posts?: unknown[]; data?: unknown[] } | null;
+        if (!cached) return false;
+        const hasItems = Array.isArray(cached.items) || Array.isArray(cached.posts) || Array.isArray(cached.data);
+        if (!hasItems) return false;
+        return typeof cached.ts !== 'number' || Date.now() - cached.ts < NAV_CACHE_TTL_MS;
+    } catch {
+        return false;
+    }
+}
+
+function prefetchNavDataCaches() {
+    if (typeof window === 'undefined' || navDataPrefetchStarted) return;
+    navDataPrefetchStarted = true;
+
+    if (!hasFreshCache(BLOG_LIST_CACHE_KEY)) {
+        fetch('/api/blog?view=list', { cache: 'force-cache' })
+            .then(res => res.ok ? res.json() : null)
+            .then((json: { data?: Array<{ status?: string }> } | null) => {
+                const posts = json?.data?.filter(post => post.status === 'PUBLISHED') || [];
+                if (posts.length > 0) sessionStorage.setItem(BLOG_LIST_CACHE_KEY, JSON.stringify({ ts: Date.now(), posts }));
+            })
+            .catch(() => { });
+    }
+
+    if (!hasFreshCache(ARTWORKS_CACHE_KEY)) {
+        const seed = `nav-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        fetch(`/api/artworks?limit=48&random=true&seed=${encodeURIComponent(seed)}`)
+            .then(res => res.ok ? res.json() : null)
+            .then((json: { data?: { artworks?: unknown[]; hasMore?: boolean; nextCursor?: string | null } } | null) => {
+                const items = json?.data?.artworks || [];
+                if (items.length === 0) return;
+                const cursor = json?.data?.nextCursor ? `offset:${json.data.nextCursor}` : null;
+                sessionStorage.setItem(ARTWORKS_CACHE_KEY, JSON.stringify({ ts: Date.now(), items, hasMore: json?.data?.hasMore ?? false, cursor, seed }));
+            })
+            .catch(() => { });
+    }
+
+    if (!hasFreshCache(COLLECTIONS_PUBLIC_CACHE_KEY)) {
+        fetch('/api/collections?public=true')
+            .then(res => res.ok ? res.json() : null)
+            .then((json: { data?: unknown[] } | null) => {
+                const data = json?.data || [];
+                if (data.length > 0) sessionStorage.setItem(COLLECTIONS_PUBLIC_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+            })
+            .catch(() => { });
+    }
 }
 
 const styles = {
@@ -272,8 +352,88 @@ function CenterMuseumIcon({ active }: { active: boolean }) {
     );
 }
 
+function MobileTabRoutePreview({ path }: { path: string }) {
+    const skeletonCards = path === '/artworks' ? 8 : 4;
+    const isCollections = path === '/collections';
+    return (
+        <div
+            data-mm-route-preview={path}
+            className="fixed inset-x-0 top-0 bottom-[calc(82px+env(safe-area-inset-bottom,0px))] z-[80] overflow-hidden bg-slate-50 dark:bg-[#020817] md:hidden"
+            aria-hidden="true"
+        >
+            <div className={`no-back-swipe mm-editorial-page2 ${isCollections ? 'mm-travel-page2' : 'mm-library-page2'} w-full max-w-[960px] mx-auto px-4 pt-4 pb-8`}>
+                <div className="mm-gallery-hero p-5 mb-5">
+                    <div className="mm-skel-line w-24 mb-4 opacity-40" />
+                    <div className="mm-skel-line h-8 w-44 mb-3 opacity-50" />
+                    <div className="mm-skel-line w-64 opacity-40" />
+                    {path === '/blog' && (
+                        <div className="flex mt-5 gap-2 overflow-hidden">
+                            {Array.from({ length: 5 }).map((_, index) => (
+                                <div key={index} className="mm-skel-pill h-8 w-20 shrink-0" />
+                            ))}
+                        </div>
+                    )}
+                </div>
+                {!isCollections && (
+                    <div className="mb-5">
+                        <div className="mm-skel-pill h-[58px] w-full" />
+                    </div>
+                )}
+                {isCollections ? (
+                    <>
+                        <div className="flex gap-2 mb-6">
+                            <div className="mm-skel-pill h-10 flex-1" />
+                            <div className="mm-skel-pill h-10 flex-1" />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            {Array.from({ length: 4 }).map((_, index) => (
+                                <div key={index} className="mm-actual-skeleton p-5">
+                                    <div className="mm-skel-line h-6 w-3/5 mb-3" />
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <div className="flex -space-x-2">
+                                            {Array.from({ length: 4 }).map((__, thumbIndex) => (
+                                                <div key={thumbIndex} className="mm-skel-circle w-7 h-7 border-2 border-white dark:border-neutral-900" />
+                                            ))}
+                                        </div>
+                                        <div className="mm-skel-line w-20" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="mm-section-heading">
+                            <div className="mm-skel-line h-5 w-28" />
+                            {path === '/artworks' && (
+                                <div className="flex items-center gap-2">
+                                    <div className="mm-skel-line w-12" />
+                                    <div className="mm-skel-pill w-24" />
+                                </div>
+                            )}
+                        </div>
+                        <div className={path === '/artworks' ? 'mm-artwork-grid2' : 'flex gap-4 overflow-hidden pb-2'}>
+                            {Array.from({ length: skeletonCards }).map((_, index) => (
+                                <div key={index} className={`${path === '/blog' ? 'w-[220px] shrink-0 ' : ''}mm-actual-skeleton overflow-hidden`}>
+                                    <div className={`${path === '/artworks' ? 'aspect-[4/3]' : 'h-32'} mm-skel-block`} style={{ borderRadius: 0 }} />
+                                    <div className="space-y-2 p-3.5">
+                                        <div className="mm-skel-line w-16" />
+                                        <div className="mm-skel-line h-5 w-32" />
+                                        <div className="mm-skel-line w-24" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function MobileBottomNav() {
     const pathname = usePathname();
+    const router = useRouter();
     const { locale, darkMode } = useApp();
     const { data: session } = useSession();
     const isGuest = !session || session.user?.name?.startsWith('guest_');
@@ -281,10 +441,13 @@ export default function MobileBottomNav() {
     const [menuClosing, setMenuClosing] = useState(false);
     const [pendingHref, setPendingHref] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
+    const [previewPath, setPreviewPath] = useState<string | null>(null);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const [loginCallbackUrl, setLoginCallbackUrl] = useState('');
     const menuRef = useRef<HTMLDivElement>(null);
     const centerTouchHandledRef = useRef(false);
+    const clientNavFallbackRef = useRef<number | null>(null);
+    const recentNavigationRef = useRef<{ href: string; ts: number } | null>(null);
 
     useEffect(() => {
         const observer = new MutationObserver(() => {
@@ -298,20 +461,33 @@ export default function MobileBottomNav() {
         if (typeof window === 'undefined') return;
         const navWindow = window as RoutePrefetchIdleWindow;
         const routes = isGuest ? PUBLIC_PREFETCH_ROUTES : [...PUBLIC_PREFETCH_ROUTES, ...ACCOUNT_PREFETCH_ROUTES];
-        const run = () => routes.forEach(prefetchRouteDocument);
+        const run = () => {
+            routes.forEach(prefetchRouteDocument);
+            PUBLIC_CLIENT_NAV_ROUTES.forEach(route => router.prefetch(route));
+            prefetchNavDataCaches();
+        };
         if (navWindow.requestIdleCallback) {
             const idleId = navWindow.requestIdleCallback(run, { timeout: 900 });
             return () => navWindow.cancelIdleCallback?.(idleId);
         }
         const timer = navWindow.setTimeout(run, 250);
         return () => navWindow.clearTimeout(timer);
-    }, [isGuest]);
+    }, [isGuest, router]);
 
     useEffect(() => {
         setMenuOpen(false);
         setMenuClosing(false);
         setPendingHref(null);
+        setPreviewPath(null);
+        if (clientNavFallbackRef.current) {
+            window.clearTimeout(clientNavFallbackRef.current);
+            clientNavFallbackRef.current = null;
+        }
     }, [pathname]);
+
+    useEffect(() => () => {
+        if (clientNavFallbackRef.current) window.clearTimeout(clientNavFallbackRef.current);
+    }, []);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !pendingHref) return;
@@ -380,10 +556,33 @@ export default function MobileBottomNav() {
         navigateNative(href, locale);
     };
 
+    const goRoute = (href: string) => {
+        if (href === pathname) return;
+        const now = Date.now();
+        const recent = recentNavigationRef.current;
+        if (recent?.href === href && now - recent.ts < 650) return;
+        recentNavigationRef.current = { href, ts: now };
+        setPendingHref(href);
+        if (canUseClientNavigation(pathname, href)) {
+            const nextPath = normalizeRoutePath(href);
+            setPreviewPath(nextPath);
+            startRoutePending(locale);
+            router.prefetch(nextPath);
+            router.push(href);
+            if (clientNavFallbackRef.current) window.clearTimeout(clientNavFallbackRef.current);
+            clientNavFallbackRef.current = window.setTimeout(() => {
+                if (!hasRouteMarker(nextPath)) {
+                    navigateNative(href, locale);
+                }
+            }, CLIENT_NAV_FALLBACK_MS);
+            return;
+        }
+        navigateNative(href, locale);
+    };
+
     const goPublic = (href: string) => {
         closeMenu();
-        setPendingHref(href);
-        navigateNative(href, locale);
+        goRoute(href);
     };
 
     const primeMenuNavigation = (href: string, protectedRoute = false) => {
@@ -409,8 +608,7 @@ export default function MobileBottomNav() {
             return;
         }
         if (tab.href !== pathname) {
-            setPendingHref(tab.href);
-            navigateNative(tab.href, locale);
+            goRoute(tab.href);
         }
     };
 
@@ -431,7 +629,7 @@ export default function MobileBottomNav() {
                 setPendingHref(tab.href);
                 if (event.pointerType === 'touch' || event.pointerType === 'pen') {
                     event.preventDefault();
-                    navigateNative(tab.href, locale);
+                    goRoute(tab.href);
                     return;
                 }
                 startRoutePending(locale);
@@ -489,6 +687,8 @@ export default function MobileBottomNav() {
                     </div>
                 </>
             )}
+
+            {previewPath && <MobileTabRoutePreview path={previewPath} />}
 
             <nav className="mobile-bottom-nav md:hidden" style={styles.root}>
                 <div style={{ ...styles.shell, ...themedShellStyle }}>
