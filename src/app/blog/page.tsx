@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useDeferredValue, useRef, type CSSProperties } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue, type CSSProperties } from 'react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -563,6 +563,33 @@ const SORT_LABELS: Record<SortMode, Record<string, string>> = {
 const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
 const BLOG_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
+const STORY_RANDOM_SEED = 'mm-story-list-v1';
+
+function hashString(value: string): number {
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i++) {
+        hash ^= value.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+}
+
+function getRecordValue(value: unknown, key: string): unknown {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined;
+}
+
+function stableStoryKey(post: unknown): string {
+    return String(getRecordValue(post, 'id') || getRecordValue(post, 'slug') || getRecordValue(post, 'title') || '');
+}
+
+function deterministicShuffle<T>(items: T[], seed: string, keyFn: (item: T) => string): T[] {
+    return [...items].sort((a, b) => {
+        const aHash = hashString(`${seed}:${keyFn(a)}`);
+        const bHash = hashString(`${seed}:${keyFn(b)}`);
+        if (aHash !== bHash) return aHash - bHash;
+        return keyFn(a).localeCompare(keyFn(b));
+    });
+}
 
 function readBlogListCache(): any[] | null {
     if (typeof window === 'undefined') return null;
@@ -577,11 +604,8 @@ function readBlogListCache(): any[] | null {
 
 export default function BlogListPage() {
     const { locale } = useApp();
-    const initialPostsRef = useRef<any[] | null | undefined>(undefined);
-    if (initialPostsRef.current === undefined) initialPostsRef.current = readBlogListCache();
-    const initialPosts = initialPostsRef.current;
-    const [posts, setPosts] = useState<any[]>(() => initialPosts || []);
-    const [loading, setLoading] = useState(() => !initialPosts);
+    const [posts, setPosts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [activeCategory, setActiveCategory] = useState<string>('ALL');
     const [sortMode, setSortMode] = useState<SortMode>('random');
@@ -635,20 +659,13 @@ export default function BlogListPage() {
             } catch { }
         };
 
-        if (initialPosts && initialPosts.length > 0) {
+        const cachedPosts = readBlogListCache();
+        if (cachedPosts && cachedPosts.length > 0) {
+            setPosts(cachedPosts);
+            setLoading(false);
             restoreListState();
             return;
         }
-
-        try {
-            const cached = JSON.parse(sessionStorage.getItem(BLOG_LIST_CACHE_KEY) || 'null');
-            if (cached && Date.now() - cached.ts < BLOG_LIST_CACHE_TTL_MS && Array.isArray(cached.posts)) {
-                setPosts(cached.posts);
-                setLoading(false);
-                restoreListState();
-                return;
-            }
-        } catch { }
 
         fetch('/api/blog?view=list', { cache: 'force-cache' })
             .then(res => res.json())
@@ -697,12 +714,7 @@ export default function BlogListPage() {
         const arr = [...filteredPosts];
         switch (sortMode) {
             case 'random':
-                // Fisher-Yates shuffle
-                for (let i = arr.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [arr[i], arr[j]] = [arr[j], arr[i]];
-                }
-                return arr;
+                return deterministicShuffle(arr, `${STORY_RANDOM_SEED}:list:${activeCategory}:${normalizedSearchQuery}`, stableStoryKey);
             case 'newest':
                 return arr.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             case 'oldest':
@@ -725,7 +737,7 @@ export default function BlogListPage() {
             default:
                 return arr;
         }
-    }, [filteredPosts, sortMode, userLocation]);
+    }, [activeCategory, filteredPosts, normalizedSearchQuery, sortMode, userLocation]);
 
     const totalPages = Math.ceil(sortedPosts.length / PER_PAGE);
     const paginatedPosts = sortedPosts.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -746,18 +758,19 @@ export default function BlogListPage() {
     };
 
     const curatedPosts = useMemo(() => {
-        const arr = [...filteredPosts];
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr.slice(0, 5);
-    }, [filteredPosts]);
-    const curatedIds = new Set(curatedPosts.map((post: any) => post.id));
-    const freshPosts = [...filteredPosts]
-        .filter((post: any) => !curatedIds.has(post.id))
-        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        .slice(0, 4);
+        return deterministicShuffle(
+            filteredPosts,
+            `${STORY_RANDOM_SEED}:curated:${activeCategory}:${normalizedSearchQuery}`,
+            stableStoryKey,
+        ).slice(0, 5);
+    }, [activeCategory, filteredPosts, normalizedSearchQuery]);
+    const curatedIds = useMemo(() => new Set(curatedPosts.map((post: any) => post.id)), [curatedPosts]);
+    const freshPosts = useMemo(() => (
+        [...filteredPosts]
+            .filter((post: any) => !curatedIds.has(post.id))
+            .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 4)
+    ), [curatedIds, filteredPosts]);
 
     if (loading) return <BlogPageSkeleton />;
 

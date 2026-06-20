@@ -363,7 +363,7 @@ function addUserLocationLayers(map: maplibregl.Map, darkMode: boolean, location?
 }
 
 // ── Locale → OpenMapTiles name field mapping ──
-function getLocalizedTextField(locale: string): any {
+function getLocalizedTextField(locale: string): unknown[] {
   // Map app locale to OpenMapTiles name:XX field
   const LOCALE_NAME_MAP: Record<string, string> = {
     'ko': 'name:ko', 'ja': 'name:ja', 'de': 'name:de', 'fr': 'name:fr',
@@ -377,16 +377,59 @@ function getLocalizedTextField(locale: string): any {
   return ['coalesce', ['get', nameField], ['get', underscoreField], ['get', 'name:en'], ['get', 'name_en'], ['get', 'name']];
 }
 
+const NORTH_KOREA_LABEL_CLIP: GeoJSON.Feature<GeoJSON.Polygon> = {
+  type: 'Feature',
+  properties: {},
+  geometry: {
+    type: 'Polygon',
+    coordinates: [[
+      [124.1, 37.72],
+      [124.1, 43.08],
+      [130.92, 43.08],
+      [130.92, 42.28],
+      [130.4, 41.92],
+      [129.72, 41.45],
+      [129.46, 40.72],
+      [128.82, 39.5],
+      [128.34, 38.56],
+      [127.88, 38.36],
+      [127.08, 38.3],
+      [126.28, 37.82],
+      [125.45, 37.72],
+      [124.7, 37.84],
+      [124.1, 37.72],
+    ]],
+  },
+};
+
+function shouldHideNorthKoreaLabels(locale: string) {
+  return locale === 'ko';
+}
+
+function getNorthKoreaHiddenTextField(textField: unknown[]): unknown[] {
+  return [
+    'case',
+    ['any', ['==', ['get', 'iso_a2'], 'KP'], ['within', NORTH_KOREA_LABEL_CLIP]],
+    '',
+    textField,
+  ];
+}
+
 function applyMapLocale(map: maplibregl.Map, locale: string) {
   const textField = getLocalizedTextField(locale);
   const style = map.getStyle();
   if (!style?.layers) return;
   for (const layer of style.layers) {
-    if (layer.type === 'symbol' && (layer as any).layout?.['text-field']) {
+    const layout = (layer as { layout?: Record<string, unknown> }).layout;
+    if (layer.type === 'symbol' && layout?.['text-field']) {
       // Skip our own museum layers
       if (layer.id === 'cluster-count') continue;
+      const sourceLayer = (layer as { 'source-layer'?: string })['source-layer'];
+      const nextTextField = sourceLayer === 'place' && shouldHideNorthKoreaLabels(locale)
+        ? getNorthKoreaHiddenTextField(textField)
+        : textField;
       try {
-        map.setLayoutProperty(layer.id, 'text-field', textField);
+        map.setLayoutProperty(layer.id, 'text-field', nextTextField);
       } catch { /* some layers may not support this */ }
     }
   }
@@ -587,6 +630,15 @@ export default function MapLibreViewer({
     activePopupRef.current = null;
   }, [popupDismissKey]);
   useEffect(() => {
+    const handleOverlayDismiss = () => {
+      if (!activePopupRef.current) return;
+      activePopupRef.current.remove();
+      activePopupRef.current = null;
+    };
+    window.addEventListener('mm:map-overlays-dismiss', handleOverlayDismiss);
+    return () => window.removeEventListener('mm:map-overlays-dismiss', handleOverlayDismiss);
+  }, []);
+  useEffect(() => {
     savedIdsRef.current = savedIds;
     syncMuseumSourceData();
   }, [savedIds, syncMuseumSourceData]);
@@ -741,9 +793,6 @@ export default function MapLibreViewer({
       for (const id of waterLabelIds) {
         if (map.getLayer(id)) try { map.removeLayer(id); } catch { }
       }
-
-      // Hide North Korea labels (country name + place names within DPRK bounds)
-      // hideNorthKoreaLabels(map);
 
       // Apply locale to map labels
       applyMapLocale(map, localeRef.current);
@@ -1127,9 +1176,6 @@ export default function MapLibreViewer({
       for (const id of waterLabelIds) {
         if (map.getLayer(id)) try { map.removeLayer(id); } catch { }
       }
-
-      // Hide North Korea labels
-      // hideNorthKoreaLabels(map);
 
       // Apply locale to map labels
       applyMapLocale(map, localeRef.current);

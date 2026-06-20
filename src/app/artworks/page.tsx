@@ -467,11 +467,16 @@ export default function ArtworksPage() {
                         {filteredArtworks.map((aw: any, idx: number) => {
                             const museums = getMuseums(aw);
                             return (
-                                <div
+                                <a
                                     key={`${shuffleKey}-${aw.id}`}
-                                    className="mm-artwork-card2 group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.98]"
+                                    href={`/artworks/${encodeURIComponent(aw.id)}`}
+                                    className="mm-artwork-card2 block no-underline text-inherit group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.98]"
                                     style={{ animation: `fadeInUp 0.4s ${Math.min(idx, 11) * 50}ms both` }}
-                                    onClick={() => openArtworkDetail(aw.id, aw.title || aw.id)}
+                                    onClick={(event) => {
+                                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+                                        event.preventDefault();
+                                        openArtworkDetail(aw.id, aw.title || aw.id);
+                                    }}
                                 >
                                     <div className="aspect-[4/3] relative overflow-hidden bg-gray-100 dark:bg-neutral-800">
                                         {aw.image ? (
@@ -498,7 +503,7 @@ export default function ArtworksPage() {
                                             </p>
                                         )}
                                     </div>
-                                </div>
+                                </a>
                             );
                         })}
 

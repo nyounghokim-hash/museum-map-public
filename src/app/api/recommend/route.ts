@@ -457,9 +457,9 @@ Reply JSON only: {"1":"reason","2":"reason",...}`;
     const CATEGORY_KO: Record<string, string> = {
         'Contemporary Art': '현대미술', 'Modern Art': '모던아트', 'Fine Arts': '순수미술',
         'Art Gallery': '미술관', 'Science Museum': '과학관', 'Natural History': '자연사',
-        'History Museum': '역사관', 'Design Museum': '디자인', 'Architecture Museum': '건축박물관', 'Photography Museum': '사진',
-        'Archaeological Museum': '고고학', 'General Museum': '박물관', 'Cultural Center': '문화센터',
-        'Maritime Museum': '해양박물관', 'Unusual Museum': '이색박물관',
+        'History Museum': '역사', 'Design Museum': '디자인', 'Architecture Museum': '건축', 'Photography Museum': '사진',
+        'Archaeological Museum': '고고학', 'General Museum': '종합', 'Cultural Center': '문화센터',
+        'Maritime Museum': '해양', 'Unusual Museum': '이색',
     };
     const CATEGORY_JA: Record<string, string> = {
         'Contemporary Art': '現代美術', 'Modern Art': 'モダンアート', 'Fine Arts': '美術',

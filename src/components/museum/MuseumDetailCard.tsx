@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { GlassPanel } from '@/components/ui/glass';
 import PhotoCarousel from '@/components/ui/PhotoCarousel';
-import { buildMapLinks, isAppleDevice } from '@/lib/mapLinks';
+import { buildMapLinks, isAndroidDevice, isAppleDevice, isKoreanMapTarget } from '@/lib/mapLinks';
 import { buildShareUrl } from '@/lib/utm';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
@@ -24,11 +24,29 @@ import { translateViLabel, translateViValue, getWebsiteLabels, getFeaturedWorksT
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { findVisitorHoursItem, openingHoursToDisplaySource } from '@/lib/openingHoursTemplate';
 import { resolveMuseumOpenStatus } from '@/lib/openStatus';
+import { ACTIVE_TRIP_CHANGE_EVENT, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
+import { findTripStopForMuseum, isStopVisited, updateTripStopVisitState } from '@/lib/tripStatus';
 
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 
 const RETURN_TO_MUSEUM_DETAIL_KEY = 'mm-return-to-museum-detail';
 const FEATURED_ARTWORK_PREVIEW_LIMIT = 20;
+
+const DETAIL_TRIP_VISIT_LABELS: Record<string, { title: string; mark: string; unmark: string; saved: string; failed: string; pending: string }> = {
+    ko: { title: '이번 여행', mark: '다녀간 곳으로 표시', unmark: '다녀감 취소', saved: '방문 기록을 저장했어요', failed: '방문 기록을 저장하지 못했어요', pending: '여행 시작 후 체크할 수 있어요' },
+    en: { title: 'This trip', mark: 'Mark as visited', unmark: 'Undo visit', saved: 'Visit saved', failed: 'Could not save visit', pending: 'Available when the trip starts' },
+    ja: { title: 'この旅行', mark: '訪問済みにする', unmark: '訪問を取消', saved: '訪問記録を保存しました', failed: '訪問記録を保存できませんでした', pending: '旅行開始後にチェックできます' },
+    de: { title: 'Diese Reise', mark: 'Als besucht markieren', unmark: 'Besuch entfernen', saved: 'Besuch gespeichert', failed: 'Besuch konnte nicht gespeichert werden', pending: 'Verfügbar, wenn die Reise beginnt' },
+    fr: { title: 'Ce voyage', mark: 'Marquer comme visité', unmark: 'Annuler la visite', saved: 'Visite enregistrée', failed: 'Impossible d’enregistrer la visite', pending: 'Disponible au début du voyage' },
+    es: { title: 'Este viaje', mark: 'Marcar como visitado', unmark: 'Deshacer visita', saved: 'Visita guardada', failed: 'No se pudo guardar la visita', pending: 'Disponible cuando empiece el viaje' },
+    pt: { title: 'Esta viagem', mark: 'Marcar como visitado', unmark: 'Desfazer visita', saved: 'Visita salva', failed: 'Não foi possível salvar a visita', pending: 'Disponível quando a viagem começar' },
+    'zh-CN': { title: '本次旅行', mark: '标记为已到访', unmark: '取消到访', saved: '到访记录已保存', failed: '无法保存到访记录', pending: '旅行开始后可勾选' },
+    'zh-TW': { title: '本次旅行', mark: '標記為已到訪', unmark: '取消到訪', saved: '到訪紀錄已儲存', failed: '無法儲存到訪紀錄', pending: '旅行開始後可勾選' },
+    da: { title: 'Denne rejse', mark: 'Markér som besøgt', unmark: 'Fortryd besøg', saved: 'Besøg gemt', failed: 'Kunne ikke gemme besøg', pending: 'Tilgængelig når rejsen starter' },
+    fi: { title: 'Tämä matka', mark: 'Merkitse käydyksi', unmark: 'Kumoa käynti', saved: 'Käynti tallennettu', failed: 'Käyntiä ei voitu tallentaa', pending: 'Käytössä matkan alettua' },
+    sv: { title: 'Den här resan', mark: 'Markera som besökt', unmark: 'Ångra besök', saved: 'Besök sparat', failed: 'Kunde inte spara besök', pending: 'Tillgängligt när resan startar' },
+    et: { title: 'See reis', mark: 'Märgi külastatuks', unmark: 'Võta külastus tagasi', saved: 'Külastus salvestatud', failed: 'Külastust ei saanud salvestada', pending: 'Saadaval reisi alguses' },
+};
 
 // Skeleton pulse component for translation loading
 function TextSkeleton({ lines = 1, className = '' }: { lines?: number; className?: string }) {
@@ -757,6 +775,8 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const { addToCompare, removeFromCompare, isInCompare } = useCompare();
     const { saves: accountSaves, loading: savesLoading, setCachedSaves } = useAccountSaves();
     const isSignedInUser = status === 'authenticated' && !session?.user?.name?.startsWith('guest_');
+    const [activeTrip, setActiveTrip] = useState<any>(null);
+    const [tripVisitSaving, setTripVisitSaving] = useState(false);
 
     const goLogin = useCallback(() => {
         if (typeof window === 'undefined') return;
@@ -828,10 +848,26 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const [compareToastShowAction, setCompareToastShowAction] = useState(false);
     const [scrollY, setScrollY] = useState(0);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const openStatusTipRef = useRef<HTMLSpanElement>(null);
 
     useEffect(() => {
         setPortalReady(true);
     }, []);
+
+    useEffect(() => {
+        if (status === 'loading') return;
+        const refreshTrip = (event?: Event) => {
+            const eventTrip = event instanceof CustomEvent ? event.detail : null;
+            setActiveTrip(eventTrip || getActiveTripForAccount(session?.user?.email));
+        };
+        refreshTrip();
+        window.addEventListener(ACTIVE_TRIP_CHANGE_EVENT, refreshTrip);
+        window.addEventListener('storage', refreshTrip);
+        return () => {
+            window.removeEventListener(ACTIVE_TRIP_CHANGE_EVENT, refreshTrip);
+            window.removeEventListener('storage', refreshTrip);
+        };
+    }, [session?.user?.email, status]);
 
     const openFullDescription = useCallback(() => {
         setFullDescriptionClosing(false);
@@ -871,6 +907,32 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             setDirectionsSheetClosing(false);
         }, 240);
     }, []);
+
+    useEffect(() => {
+        if (!openStatusTipOpen) return;
+
+        const handleOutsidePointer = (event: Event) => {
+            const target = event.target as Node | null;
+            if (!target) return;
+            if (openStatusTipRef.current?.contains(target)) return;
+            setOpenStatusTipOpen(false);
+        };
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOpenStatusTipOpen(false);
+        };
+
+        const usePointerEvent = typeof window !== 'undefined' && 'PointerEvent' in window;
+        const primaryEvent = usePointerEvent ? 'pointerdown' : 'touchstart';
+        document.addEventListener(primaryEvent, handleOutsidePointer, true);
+        if (!usePointerEvent) document.addEventListener('mousedown', handleOutsidePointer, true);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener(primaryEvent, handleOutsidePointer, true);
+            if (!usePointerEvent) document.removeEventListener('mousedown', handleOutsidePointer, true);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [openStatusTipOpen]);
 
     // Trigger save toast with auto-dismiss
     const triggerSaveToast = useCallback(() => {
@@ -960,7 +1022,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         const save = accountSaves.find(s => s.museumId === museumId || s.museum?.id === museumId);
         if (save) {
             setIsPicked(true);
-            setSaveId(save.id);
+            setSaveId(save.id ?? null);
         } else {
             setIsPicked(false);
             setSaveId(null);
@@ -985,8 +1047,15 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const featuredArtworks = shuffledArtworks.slice(0, FEATURED_ARTWORK_PREVIEW_LIMIT);
     const totalArtworkCount = Number(data?._count?.artworks) || Number(data?.artworkCount) || data?.artworks?.length || featuredArtworks.length;
     const hasMoreFeaturedArtworks = totalArtworkCount > featuredArtworks.length;
-    const mapLinks = buildMapLinks({ name: data.name, lat: data.latitude, lng: data.longitude });
+    const isKoreanDestination = isKoreanMapTarget(data.country);
+    const mapTargetName = isKoreanDestination
+        ? (data.nameKo || data.name || getLocalizedMuseumName(data, locale))
+        : (getLocalizedMuseumName(data, locale) || data.name);
+    const mapLinks = buildMapLinks({ name: mapTargetName, lat: data.latitude, lng: data.longitude });
     const appleFirst = typeof window !== 'undefined' && isAppleDevice();
+    const naverDirectionsHref = typeof window !== 'undefined' && isAndroidDevice()
+        ? mapLinks.naverDirectionsIntent
+        : mapLinks.naverDirections;
     const summaryLabel = ({
         ko: 'AI 요약',
         en: 'AI Summary',
@@ -1002,6 +1071,10 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         sv: 'AI-sammanfattning',
         et: 'AI kokkuvõte',
     } as Record<string, string>)[locale] || 'AI Summary';
+    const detailTripVisitLabels = DETAIL_TRIP_VISIT_LABELS[locale] || DETAIL_TRIP_VISIT_LABELS.en;
+    const activeTripStop = data?.id ? findTripStopForMuseum(activeTrip, data.id) : null;
+    const showTripVisitAction = !!activeTripStop;
+    const activeTripStopVisited = isStopVisited(activeTripStop);
 
     const handleCopyAddress = (address: string) => {
         navigator.clipboard.writeText(address).then(() => {
@@ -1028,6 +1101,51 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
             const added = addToCompare(data.id);
             if (added) triggerCompareToast(t('compare.added', locale), false);
             else triggerCompareToast(t('compare.full', locale), true);
+        }
+    };
+
+    const handleToggleTripVisit = async () => {
+        if (!activeTrip || !data?.id || tripVisitSaving) return;
+        const tripStop = findTripStopForMuseum(activeTrip, data.id);
+        if (!tripStop || activeTrip.pending) return;
+        const labels = DETAIL_TRIP_VISIT_LABELS[locale] || DETAIL_TRIP_VISIT_LABELS.en;
+        const wasVisited = isStopVisited(tripStop);
+        const nextVisited = wasVisited ? null : { visitedAt: new Date().toISOString(), reviewId: tripStop.reviewId || null };
+        const previousTrip = activeTrip;
+        const applyTrip = (trip: any) => {
+            setActiveTrip(trip);
+            setActiveTripForAccount(trip);
+        };
+
+        setTripVisitSaving(true);
+        applyTrip({
+            ...activeTrip,
+            stops: updateTripStopVisitState(activeTrip.stops || [], { id: tripStop.id, museumId: tripStop.museumId || data.id }, nextVisited),
+        });
+        try {
+            const response = await fetch('/api/visited', {
+                method: wasVisited ? 'DELETE' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ planStopId: tripStop.id, museumId: tripStop.museumId || data.id, reviewId: tripStop.reviewId }),
+            });
+            if (!response.ok) throw new Error('Failed to save visit');
+            if (!wasVisited) {
+                const result = await response.json();
+                const savedVisit = {
+                    visitedAt: result.data?.visitedAt || nextVisited?.visitedAt || new Date().toISOString(),
+                    reviewId: result.data?.id || result.data?.reviewId || tripStop.reviewId || null,
+                };
+                applyTrip({
+                    ...activeTrip,
+                    stops: updateTripStopVisitState(activeTrip.stops || [], { id: tripStop.id, museumId: tripStop.museumId || data.id }, savedVisit),
+                });
+            }
+            showAlert(labels.saved);
+        } catch {
+            applyTrip(previousTrip);
+            showAlert(labels.failed);
+        } finally {
+            setTripVisitSaving(false);
         }
     };
 
@@ -1193,25 +1311,43 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         et: 'Lahtiolekuajad võivad muutuda kohapealsete olude või ametlike teadete järgi.',
     } as Record<string, string>)[locale] || 'Hours may change depending on onsite conditions or official notices.';
     const directionsSheetLabels = ({
-        ko: { title: '지도 앱 선택', desc: '어떤 지도에서 길찾기를 볼까요?', apple: 'Apple 지도', google: 'Google 지도' },
-        en: { title: 'Choose a map app', desc: 'Which map would you like to use?', apple: 'Apple Maps', google: 'Google Maps' },
-        ja: { title: '地図アプリを選択', desc: 'どの地図で経路を確認しますか？', apple: 'Appleマップ', google: 'Googleマップ' },
-        de: { title: 'Karten-App wählen', desc: 'Welche Karte möchten Sie verwenden?', apple: 'Apple Karten', google: 'Google Maps' },
-        fr: { title: 'Choisir une carte', desc: 'Quelle carte souhaitez-vous utiliser ?', apple: 'Plans Apple', google: 'Google Maps' },
-        es: { title: 'Elige una app de mapas', desc: '¿Qué mapa quieres usar?', apple: 'Apple Maps', google: 'Google Maps' },
-        pt: { title: 'Escolha um app de mapas', desc: 'Qual mapa você quer usar?', apple: 'Apple Maps', google: 'Google Maps' },
-        'zh-CN': { title: '选择地图应用', desc: '你想用哪个地图查看路线？', apple: 'Apple 地图', google: 'Google 地图' },
-        'zh-TW': { title: '選擇地圖 App', desc: '你想用哪個地圖查看路線？', apple: 'Apple 地圖', google: 'Google 地圖' },
-        da: { title: 'Vælg kort-app', desc: 'Hvilket kort vil du bruge?', apple: 'Apple Kort', google: 'Google Maps' },
-        fi: { title: 'Valitse karttasovellus', desc: 'Millä kartalla haluat nähdä reitin?', apple: 'Apple Kartat', google: 'Google Maps' },
-        sv: { title: 'Välj kartapp', desc: 'Vilken karta vill du använda?', apple: 'Apple Kartor', google: 'Google Maps' },
-        et: { title: 'Vali kaardirakendus', desc: 'Millist kaarti soovid kasutada?', apple: 'Apple Maps', google: 'Google Maps' },
-    } as Record<string, { title: string; desc: string; apple: string; google: string }>)[locale] || {
+        ko: { title: '지도 앱 선택', desc: '어떤 지도에서 길찾기를 볼까요?', apple: 'Apple 지도', google: 'Google 지도', kakao: '카카오맵', naver: '네이버지도' },
+        en: { title: 'Choose a map app', desc: 'Which map would you like to use?', apple: 'Apple Maps', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        ja: { title: '地図アプリを選択', desc: 'どの地図で経路を確認しますか？', apple: 'Appleマップ', google: 'Googleマップ', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        de: { title: 'Karten-App wählen', desc: 'Welche Karte möchten Sie verwenden?', apple: 'Apple Karten', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        fr: { title: 'Choisir une carte', desc: 'Quelle carte souhaitez-vous utiliser ?', apple: 'Plans Apple', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        es: { title: 'Elige una app de mapas', desc: '¿Qué mapa quieres usar?', apple: 'Apple Maps', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        pt: { title: 'Escolha um app de mapas', desc: 'Qual mapa você quer usar?', apple: 'Apple Maps', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        'zh-CN': { title: '选择地图应用', desc: '你想用哪个地图查看路线？', apple: 'Apple 地图', google: 'Google 地图', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        'zh-TW': { title: '選擇地圖 App', desc: '你想用哪個地圖查看路線？', apple: 'Apple 地圖', google: 'Google 地圖', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        da: { title: 'Vælg kort-app', desc: 'Hvilket kort vil du bruge?', apple: 'Apple Kort', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        fi: { title: 'Valitse karttasovellus', desc: 'Millä kartalla haluat nähdä reitin?', apple: 'Apple Kartat', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        sv: { title: 'Välj kartapp', desc: 'Vilken karta vill du använda?', apple: 'Apple Kartor', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+        et: { title: 'Vali kaardirakendus', desc: 'Millist kaarti soovid kasutada?', apple: 'Apple Maps', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
+    } as Record<string, { title: string; desc: string; apple: string; google: string; kakao: string; naver: string }>)[locale] || {
         title: 'Choose a map app',
         desc: 'Which map would you like to use?',
         apple: 'Apple Maps',
         google: 'Google Maps',
+        kakao: 'Kakao Map',
+        naver: 'NAVER Map',
     };
+    const defaultDirectionOptions = appleFirst
+        ? [
+            { key: 'apple' as const, label: directionsSheetLabels.apple, href: mapLinks.appleDirections, analyticsLabel: 'Apple Maps' },
+            { key: 'google' as const, label: directionsSheetLabels.google, href: mapLinks.googleDirections, analyticsLabel: 'Google Maps' },
+        ]
+        : [
+            { key: 'google' as const, label: directionsSheetLabels.google, href: mapLinks.googleDirections, analyticsLabel: 'Google Maps' },
+            { key: 'apple' as const, label: directionsSheetLabels.apple, href: mapLinks.appleDirections, analyticsLabel: 'Apple Maps' },
+        ];
+    const directionOptions = isKoreanDestination
+        ? [
+            { key: 'kakao' as const, label: directionsSheetLabels.kakao, href: mapLinks.kakaoDirections, analyticsLabel: 'Kakao Map' },
+            { key: 'naver' as const, label: directionsSheetLabels.naver, href: naverDirectionsHref, analyticsLabel: 'NAVER Map' },
+            ...defaultDirectionOptions,
+        ]
+        : defaultDirectionOptions;
     const moveToLocationLabel = ({
         ko: '위치 이동하기',
         en: 'Move to location',
@@ -1441,7 +1577,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             <p className="mm-detail-card-title text-[13px] font-semibold tracking-[0.08em] text-blue-600 dark:text-blue-400">
                                 {decisionLabels.title}
                             </p>
-                            <span className="mm-detail-status-wrap">
+                            <span className="mm-detail-status-wrap" ref={openStatusTipRef}>
                                 <button
                                     type="button"
                                     className={`mm-open-status mm-open-status--${displayedOpenStatus.kind}`}
@@ -1531,6 +1667,25 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                 </svg>
                                 <span className="truncate">{moveToLocationLabel}</span>
                             </button>
+                        )}
+                        {showTripVisitAction && (
+                            <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 dark:border-emerald-500/15 dark:bg-emerald-950/20">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-700 dark:text-emerald-300">{detailTripVisitLabels.title}</p>
+                                        <p className="mt-0.5 truncate text-xs font-semibold text-emerald-900/75 dark:text-emerald-100/75">{activeTrip?.title}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={handleToggleTripVisit}
+                                        disabled={tripVisitSaving || activeTrip?.pending}
+                                        className={`shrink-0 rounded-full px-3.5 py-2 text-xs font-bold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${activeTripStopVisited ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20' : 'bg-white text-emerald-700 shadow-sm dark:bg-emerald-950/50 dark:text-emerald-200'}`}
+                                        aria-pressed={activeTripStopVisited}
+                                    >
+                                        {activeTrip?.pending ? detailTripVisitLabels.pending : activeTripStopVisited ? detailTripVisitLabels.unmark : detailTripVisitLabels.mark}
+                                    </button>
+                                </div>
+                            </div>
                         )}
                     </div>
 
@@ -1847,39 +2002,48 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             </button>
                         </div>
                         <div className="mm-directions-sheet-options">
-                            {(appleFirst
-                                ? [
-                                    { key: 'apple', label: directionsSheetLabels.apple, href: mapLinks.appleDirections },
-                                    { key: 'google', label: directionsSheetLabels.google, href: mapLinks.googleDirections },
-                                ]
-                                : [
-                                    { key: 'google', label: directionsSheetLabels.google, href: mapLinks.googleDirections },
-                                    { key: 'apple', label: directionsSheetLabels.apple, href: mapLinks.appleDirections },
-                                ]
-                            ).map(option => (
+                            {directionOptions.map(option => (
                                 <a
                                     key={option.key}
                                     href={option.href}
-                                    target="_blank"
-                                    rel="noreferrer"
+                                    target={option.href.startsWith('http') ? '_blank' : undefined}
+                                    rel={option.href.startsWith('http') ? 'noreferrer' : undefined}
                                     className="mm-directions-option"
                                     onClick={() => {
-                                        gtag.event('get_directions', { category: 'navigation', label: option.key === 'apple' ? 'Apple Maps' : 'Google Maps', value: 1 });
+                                        gtag.event('get_directions', { category: 'navigation', label: option.analyticsLabel, value: 1 });
                                         closeDirectionsSheet();
                                     }}
                                 >
-                                    <span className="mm-directions-option-icon">
+                                    <span className={`mm-directions-option-icon mm-directions-option-icon--${option.key}`}>
                                         {option.key === 'apple' ? (
                                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                                 <path d="M7 4.8 12 3l5 1.8 4-1.45v15.85l-4 1.45-5-1.8-5 1.8-4-1.45V4.15l4 1.65Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
                                                 <path d="M7 5v15M12 3.2v15.6M17 4.9v15.1" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
                                             </svg>
-                                        ) : (
+                                        ) : option.key === 'google' ? (
                                             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                                 <path d="M12 21s7-5.38 7-12A7 7 0 0 0 5 9c0 6.62 7 12 7 12Z" stroke="currentColor" strokeWidth="1.8" />
                                                 <path d="M12 12.2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="1.8" />
                                             </svg>
-                                        )}
+                                        ) : option.key === 'kakao' ? (
+                                            <svg className="mm-directions-brand-logo" viewBox="0 0 28 28" aria-hidden="true">
+                                                <rect x="2.2" y="2.2" width="23.6" height="23.6" rx="7.2" fill="#FFE500" />
+                                                <path d="M14 5.9c-4.27 0-7.72 3.39-7.72 7.58 0 5.53 7.72 11.3 7.72 11.3s7.72-5.77 7.72-11.3C21.72 9.29 18.27 5.9 14 5.9Z" fill="#1D9BF0" />
+                                                <path d="M14 8.35c-2.9 0-5.25 2.3-5.25 5.15 0 3.33 3.35 7.13 5.25 8.95 1.9-1.82 5.25-5.62 5.25-8.95 0-2.85-2.35-5.15-5.25-5.15Z" fill="#28A8F5" />
+                                                <circle cx="14" cy="13.45" r="2.55" fill="#FFE500" />
+                                            </svg>
+                                        ) : option.key === 'naver' ? (
+                                            <svg className="mm-directions-brand-logo" viewBox="0 0 28 28" aria-hidden="true">
+                                                <defs>
+                                                    <linearGradient id="naverMapPinGradient" x1="14" x2="14" y1="2.4" y2="26.2" gradientUnits="userSpaceOnUse">
+                                                        <stop stopColor="#168CFF" />
+                                                        <stop offset="1" stopColor="#03C75A" />
+                                                    </linearGradient>
+                                                </defs>
+                                                <path d="M14 2.65c5.7 0 10.32 4.46 10.32 9.95 0 7.08-10.32 12.75-10.32 12.75S3.68 19.68 3.68 12.6C3.68 7.11 8.3 2.65 14 2.65Z" fill="url(#naverMapPinGradient)" />
+                                                <path d="M9.8 8.9h3.08l3.64 5.16V8.9h3.08v10.22h-3.08l-3.64-5.14v5.14H9.8V8.9Z" fill="white" />
+                                            </svg>
+                                        ) : null}
                                     </span>
                                     <span>{option.label}</span>
                                     <svg className="h-4 w-4 text-slate-300 dark:text-blue-200/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

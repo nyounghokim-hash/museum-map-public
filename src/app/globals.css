@@ -2105,17 +2105,18 @@ body .login-2-shell .mm-login-brand-title {
 }
 .mm-search-locking {
   overscroll-behavior: contain;
-  background: #fff;
 }
 
 html.mm-search-locking[data-search-chrome="light"],
 html.mm-search-locking[data-search-chrome="light"] body {
   background: #fff !important;
+  color-scheme: light !important;
 }
 
 html.mm-search-locking[data-search-chrome="dark"],
 html.mm-search-locking[data-search-chrome="dark"] body {
   background: #020617 !important;
+  color-scheme: dark !important;
 }
 .mm-detail-hero2 {
   position: relative;
@@ -4621,8 +4622,8 @@ img:not(.no-dissolve):not([data-loaded]) {
 }
 
 .mm-nearby-popup2-status.is-preparing {
-  color: #2563eb;
-  background: rgba(219, 234, 254, 0.96);
+  color: #7c3aed;
+  background: rgba(237, 233, 254, 0.96);
 }
 
 .mm-nearby-popup2-status.is-ended {
@@ -4989,8 +4990,8 @@ img:not(.no-dissolve):not([data-loaded]) {
 }
 
 :is(.dark, [data-theme="dark"]) .mm-nearby-popup2-status.is-preparing {
-  color: #93c5fd;
-  background: rgba(30, 64, 175, 0.42);
+  color: #c4b5fd;
+  background: rgba(91, 33, 182, 0.38);
 }
 
 :is(.dark, [data-theme="dark"]) .mm-nearby-popup2-status.is-ended {
@@ -6106,6 +6107,28 @@ html.is-inapp-browser::after {
   pointer-events: auto !important;
 }
 
+.mm-map2-top.is-left-handed .mm-map2-pill-row {
+  left: 18px !important;
+  right: auto !important;
+}
+
+.mm-map2-top.is-left-handed .mm-map2-tool-stack {
+  align-items: flex-start !important;
+  justify-self: start !important;
+}
+
+.mm-map2-top.is-left-handed .mm-map2-trip-anchor {
+  left: auto !important;
+  right: 18px !important;
+  justify-content: flex-end !important;
+}
+
+.mm-map2-top.is-left-handed .mm-map2-trip-anchor.has-new-museums {
+  left: auto !important;
+  right: 82px !important;
+  width: calc(100vw - 100px) !important;
+}
+
 .mm-map2-tool-pill,
 .mm-map2-icon-pill {
   background: rgba(255, 255, 255, 0.94) !important;
@@ -6160,6 +6183,13 @@ html.is-inapp-browser::after {
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
+}
+
+.mm-map2-category-menu.is-left-handed {
+  left: 80px !important;
+  right: auto !important;
+  width: min(300px, calc(100vw - 104px)) !important;
+  max-width: calc(100vw - 104px) !important;
 }
 
 .mm-map2-category-menu-grid button {
@@ -7094,8 +7124,8 @@ html.is-inapp-browser::after {
 }
 
 .mm-open-status--preparing {
-  color: #2563eb;
-  background: rgba(219, 234, 254, 0.92);
+  color: #7c3aed;
+  background: rgba(237, 233, 254, 0.92);
 }
 
 .mm-open-status--ended {
@@ -7124,8 +7154,8 @@ html.is-inapp-browser::after {
 }
 
 .dark .mm-open-status--preparing {
-  color: #93c5fd;
-  background: rgba(37, 99, 235, 0.24);
+  color: #c4b5fd;
+  background: rgba(91, 33, 182, 0.34);
 }
 
 .dark .mm-open-status--ended {
@@ -7660,6 +7690,25 @@ html.is-inapp-browser::after {
 .mm-directions-option-icon svg {
   width: 19px;
   height: 19px;
+}
+
+.mm-directions-option-icon--kakao,
+.mm-directions-option-icon--naver {
+  background: transparent;
+  color: inherit;
+}
+
+.mm-directions-option-icon--kakao .mm-directions-brand-logo,
+.mm-directions-option-icon--naver .mm-directions-brand-logo {
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.14));
+}
+
+.mm-directions-option-icon strong {
+  font-size: 15px;
+  font-weight: 820;
+  line-height: 1;
 }
 
 @keyframes mm-backdrop-fade-in {
@@ -10578,6 +10627,17 @@ html.is-inapp-browser::after {
 
 .mm-map2-new-museums-mobile.has-trip {
   top: 74px;
+}
+
+.mm-map2-top.is-left-handed .mm-map2-new-museums-mobile {
+  left: auto;
+  right: 18px;
+  flex-direction: row-reverse;
+}
+
+.mm-map2-top.is-left-handed .mm-map2-new-museums-popover {
+  left: auto;
+  right: 0;
 }
 
 .mm-map2-new-museums-chip {

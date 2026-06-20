@@ -44,6 +44,16 @@ const EN_DAY_INDEX: Record<string, number> = {
     saturday: 5, sat: 5,
     sunday: 6, sun: 6,
 };
+const FI_DAY_INDEX: Record<string, number> = {
+    maanantai: 0,
+    tiistai: 1,
+    keskiviikko: 2,
+    torstai: 3,
+    perjantai: 4,
+    lauantai: 5,
+    sunnuntai: 6,
+};
+const DAY_PATTERN = String.raw`(?:maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun|월요일|화요일|수요일|목요일|금요일|토요일|일요일|매일|연중무휴|[월화수목금토일])`;
 
 function emptyWeekly(): OpeningDayTemplate[] {
     return DAY_KEYS.map(day => ({ day, open: null, ranges: [] }));
@@ -69,7 +79,7 @@ function parseClock(raw: string, endHint?: string) {
         }
     }
     const meridiem = /\bPM\b|오후/i.test(source) ? 'pm' : /\bAM\b|오전/i.test(source) ? 'am' : null;
-    const match = source.match(/(\d{1,2})(?:(?::(\d{2})(?::\d{2})?)|(?:\s*시\s*(\d{1,2})?\s*분?)?)?/);
+    const match = source.match(/(\d{1,2})(?:(?:[:.](\d{2})(?::\d{2})?)|(?:\s*시\s*(\d{1,2})?\s*분?)?)?/);
     if (!match) return null;
     let hour = Number(match[1]);
     const minute = Number(match[2] || match[3] || 0);
@@ -80,14 +90,28 @@ function parseClock(raw: string, endHint?: string) {
     return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
+function inferEndClockMeridiem(startRaw: string, endRaw: string) {
+    if (/\b(?:AM|PM)\b|오전|오후/i.test(endRaw)) return endRaw;
+    const start = cleanText(startRaw);
+    const end = cleanText(endRaw);
+    const startHour = Number(start.match(/(\d{1,2})/)?.[1] || NaN);
+    const endHour = Number(end.match(/(\d{1,2})/)?.[1] || NaN);
+    if (Number.isNaN(endHour)) return endRaw;
+    if (/\bPM\b|오후/i.test(start)) return `${endRaw} PM`;
+    if (/\bAM\b|오전/i.test(start)) {
+        return `${endRaw} ${!Number.isNaN(startHour) && (endHour < startHour || endHour === 12) ? 'PM' : 'AM'}`;
+    }
+    return endRaw;
+}
+
 function parseRanges(value: string): OpeningRange[] {
     const ranges: OpeningRange[] = [];
-    const pattern = /((?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?::\d{2}(?::\d{2})?)|(?:\s*시\s*(?:\d{1,2}\s*분?)?))?\s*(?:AM|PM|오전|오후)?)\s*[-~]\s*((?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?::\d{2}(?::\d{2})?)|(?:\s*시\s*(?:\d{1,2}\s*분?)?))?\s*(?:AM|PM|오전|오후)?)/gi;
+    const pattern = /((?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?:[:.]\d{2}(?::\d{2})?)|(?:\s*시\s*(?:\d{1,2}\s*분?)?))?\s*(?:AM|PM|오전|오후)?)\s*[-~]\s*((?:AM|PM|오전|오후)?\s*\d{1,2}(?:(?:[:.]\d{2}(?::\d{2})?)|(?:\s*시\s*(?:\d{1,2}\s*분?)?))?\s*(?:AM|PM|오전|오후)?)/gi;
     for (const match of value.matchAll(pattern)) {
         const afterEnd = value.slice((match.index || 0) + match[0].length, (match.index || 0) + match[0].length + 3);
         if (/^\s*월/.test(afterEnd)) continue;
         const start = parseClock(match[1], match[2]);
-        const end = parseClock(match[2]);
+        const end = parseClock(inferEndClockMeridiem(match[1], match[2]));
         if (start && end) ranges.push({ start, end });
     }
     return ranges;
@@ -117,6 +141,19 @@ function expandEnDays(raw: string): number[] {
     return single === undefined ? [] : [single];
 }
 
+function expandFiDays(raw: string): number[] {
+    const source = cleanText(raw).toLowerCase();
+    const range = source.match(/^(maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai)\s*[-~]\s*(maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai)$/i);
+    if (range) return expandIndexRange(FI_DAY_INDEX[range[1].toLowerCase()], FI_DAY_INDEX[range[2].toLowerCase()]);
+    const indexes = source
+        .split(/[·,\/]/)
+        .map(day => FI_DAY_INDEX[day.trim()])
+        .filter(index => index !== undefined);
+    if (indexes.length) return indexes;
+    const single = FI_DAY_INDEX[source];
+    return single === undefined ? [] : [single];
+}
+
 function expandIndexRange(start: number, end: number): number[] {
     if (start === undefined || end === undefined) return [];
     const result: number[] = [];
@@ -133,12 +170,13 @@ function expandIndexRange(start: number, end: number): number[] {
 function parseDayToken(raw: string): number[] {
     const source = cleanText(raw);
     if (/[월화수목금토일]|매일|연중무휴/.test(source)) return expandKoDays(source);
+    if (/maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai/i.test(source)) return expandFiDays(source);
     return expandEnDays(source);
 }
 
 function closedIndexesFromRows(rows: string[]): Set<number> {
     const closed = new Set<number>();
-    const koDayToken = /((?:[월화수목금토일](?:요일)?)(?:\s*[·,\/~-]\s*[월화수목금토일](?:요일)?)*)\s*(?:정기\s*)?(?:휴관|휴무|休館|閉館)/g;
+    const koDayToken = /((?:(?<![0-9당])[월화수목금토일](?:요일)?)(?:\s*[·,\/~-]\s*(?:(?<![0-9당])[월화수목금토일](?:요일)?))*)\s*(?:정기\s*)?(?:휴관|휴무|휴무일|休館|閉館)/g;
     const enDayToken = /((?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)(?:\s*[·,\/~-]\s*(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday))*)\s*(?:Closed|closed)/g;
     for (const row of rows) {
         const text = cleanText(row);
@@ -228,10 +266,16 @@ export function isOpeningHoursTemplate(value: unknown): value is OpeningHoursTem
 
 function hasSuspiciousMidnightRange(template: OpeningHoursTemplate) {
     return template.weekly.some(day => day.ranges.some(range => (
-        range.start === '00:00'
-        && range.end !== '00:00'
-        && range.end !== '23:59'
-        && !/12:00\s*AM|오전\s*12/i.test(day.note || '')
+        (
+            range.start === '00:00'
+            && range.end !== '00:00'
+            && range.end !== '23:59'
+            && !/12:00\s*AM|오전\s*12/i.test(day.note || '')
+        )
+        || (
+            range.end < range.start
+            && !/\b12:00\s*AM\b|midnight|자정|00:00/i.test(day.note || '')
+        )
     )));
 }
 
@@ -308,12 +352,12 @@ export function normalizeMuseumOpeningHours(input: {
 
     for (const rawRow of rows) {
         const row = cleanText(rawRow);
-        const match = row.match(/^((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun|월요일|화요일|수요일|목요일|금요일|토요일|일요일|매일|연중무휴|[월화수목금토일])(?:\s*[·,\/~-]\s*(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sun|월요일|화요일|수요일|목요일|금요일|토요일|일요일|[월화수목금토일]))*)\s*[:：]?\s*(.+)$/i);
+        const match = row.match(new RegExp(String.raw`^(${DAY_PATTERN}(?:\s*[·,\/~-]\s*${DAY_PATTERN})*)\s*[:：]?\s*(.+)$`, 'i'));
         if (!match) continue;
         const indexes = parseDayToken(match[1]);
         if (indexes.length === 0) continue;
         const value = match[2];
-        const rowIsClosedOnly = /^(?:closed|휴관|휴무|休館|闭馆|閉館)$/i.test(cleanText(value));
+        const rowIsClosedOnly = /^(?:closed|suljettu|휴관|휴관일|휴무|휴무일|休館|闭馆|閉館)$/i.test(cleanText(value));
         const openTwentyFourHours = /open\s*24\s*hours|24\s*hours|24시간|全天|終日|종일/i.test(value);
         const ranges = rowIsClosedOnly ? [] : openTwentyFourHours ? [{ start: '00:00', end: '00:00' }] : parseRanges(value);
         const overrides = parentheticalEndOverrides(value, indexes, ranges);

@@ -1,12 +1,22 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAuth } from '@/lib/auth';
+import { getSessionUser, requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
 import { transformNestedPhotos } from '@/lib/photo-proxy';
+
+async function getCollectionTripCount(userId: string | undefined, museumIds: string[]) {
+    if (!userId || museumIds.length === 0) return 0;
+    const plans = await prisma.plan.findMany({
+        where: { userId, stops: { some: { museumId: { in: museumIds } } } },
+        select: { id: true },
+    });
+    return plans.length;
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params;
+        const sessionUser = await getSessionUser();
         const collection = await prisma.collection.findUnique({
             where: { id },
             include: {
@@ -29,9 +39,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         if (!collection) return errorResponse('NOT_FOUND', 'Collection not found', 404);
 
         const items = collection.items || [];
+        const tripCount = await getCollectionTripCount(sessionUser?.id, items.map((item: any) => item.museumId).filter(Boolean));
         return successResponse(transformNestedPhotos({
             ...collection,
             isVisitedCollection: items.length > 0 && items.every((item: any) => !!item.reviewId),
+            tripCount,
         }));
     } catch (err) {
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch collection', 500);

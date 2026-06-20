@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
 import { transformNestedPhotos } from '@/lib/photo-proxy';
+import { isTripEnded } from '@/lib/tripStatus';
 
 async function attachVisitRecordsToPlans(plans: any[], userId: string) {
     const museumIds = Array.from(new Set(
@@ -92,7 +93,19 @@ export async function GET(req: NextRequest) {
             include: { stops: { include: { museum: { select: { name: true, nameKo: true, nameEn: true, nameTranslations: true, imageUrl: true, cachedPhotoUrls: true, city: true, cityKo: true, cityTranslations: true, country: true } } } } },
             orderBy: { createdAt: 'desc' }
         });
-        const enriched = await attachVisitRecordsToPlans(plans, user.id);
+        const expiredActivePlanIds = plans
+            .filter((plan: any) => plan.isActive && isTripEnded(plan))
+            .map((plan: any) => plan.id);
+        if (expiredActivePlanIds.length > 0) {
+            await prisma.plan.updateMany({
+                where: { id: { in: expiredActivePlanIds }, userId: user.id },
+                data: { isActive: false },
+            });
+        }
+        const normalizedPlans = expiredActivePlanIds.length > 0
+            ? plans.map((plan: any) => expiredActivePlanIds.includes(plan.id) ? { ...plan, isActive: false } : plan)
+            : plans;
+        const enriched = await attachVisitRecordsToPlans(normalizedPlans, user.id);
         return successResponse(enriched.map(transformNestedPhotos));
     } catch (err: any) {
         if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Auth required', 401);

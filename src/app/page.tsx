@@ -22,6 +22,7 @@ import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
 import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
 import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
+import { getTripVisitStats, isStopVisited, isTripEnded, updateTripStopVisitState } from '@/lib/tripStatus';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
@@ -29,7 +30,7 @@ const NearbyPopup = dynamic(() => import('@/components/map/NearbyPopup'), { ssr:
 const WeatherPopup = dynamic(() => import('@/components/map/WeatherPopup'), { ssr: false });
 const RETURN_TO_MUSEUM_DETAIL_KEY = 'mm-return-to-museum-detail';
 type MapSettingKey = 'location' | 'nearby' | 'weather';
-type MapPrefs = Record<MapSettingKey, boolean>;
+type MapPrefs = Record<MapSettingKey, boolean> & { leftHanded: boolean };
 type MapLocationSource = 'current' | 'manual';
 type MapLocation = { lat: number; lng: number };
 const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
@@ -40,11 +41,13 @@ const MAP_PREF_KEYS: Record<MapSettingKey, string> = {
 const MAP_LOCATION_SOURCE_KEY = 'mm_map_location_source';
 const MAP_MANUAL_LOCATION_KEY = 'mm_map_manual_location';
 const MAP_LOCATION_PICK_MODE_KEY = 'mm_map_location_pick_mode';
+const MAP_LEFT_HANDED_MODE_KEY = 'mm_map_left_handed_mode';
 const MAP_CATEGORY_FILTER_KEY = 'mm_map_category_filter';
 const MUSEUMS_CACHE_PREFIX = 'museums_cache_v8_map_minimal';
+const MUSEUMS_SERVER_REFRESH_TTL_MS = 30 * 60 * 1000;
 const WEATHER_CACHE_PREFIX = 'mm_weather_cache_v1';
 const WEATHER_CACHE_TTL_MS = 10 * 60 * 1000;
-const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true };
+const DEFAULT_MAP_PREFS: MapPrefs = { location: true, nearby: true, weather: true, leftHanded: false };
 const MAP_ZOOM_MIN = 2;
 const MAP_ZOOM_MAX = 18;
 const MAP_ZOOM_LEVELS = [2, 4.5, 7, 9.5, 12, 15, 18] as const;
@@ -116,6 +119,18 @@ function removeSessionValue(key: string) {
   try {
     window.sessionStorage.removeItem(key);
   } catch { }
+}
+
+function getSessionTimestamp(key: string) {
+  const raw = getSessionValue(key);
+  if (!raw) return 0;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function hasFreshSessionTimestamp(key: string, ttl: number) {
+  const ts = getSessionTimestamp(key);
+  return ts > 0 && Date.now() - ts < ttl;
 }
 
 function scheduleSessionJsonCache(key: string, data: unknown) {
@@ -258,6 +273,7 @@ function readMapPrefs(): MapPrefs {
     location: getLocalValue(MAP_PREF_KEYS.location) !== 'false',
     nearby: getLocalValue(MAP_PREF_KEYS.nearby) !== 'false',
     weather: getLocalValue(MAP_PREF_KEYS.weather) !== 'false',
+    leftHanded: getLocalValue(MAP_LEFT_HANDED_MODE_KEY) === 'true',
   };
 }
 
@@ -380,6 +396,22 @@ const TRIP_REORDER_LABELS: Record<Locale, { title: string; message: string; save
   fi: { title: 'Päivitetäänkö järjestys?', message: 'Uusi järjestys tallennetaan myös Omiin matkoihin.', saved: 'Järjestys tallennettu', failed: 'Järjestystä ei voitu tallentaa' },
   sv: { title: 'Uppdatera ordningen?', message: 'Den nya ordningen sparas också i Mina resor.', saved: 'Reseordning sparad', failed: 'Kunde inte spara ordningen' },
   et: { title: 'Kas muuta järjekorda?', message: 'Uus järjekord salvestatakse ka Minu reisidesse.', saved: 'Reisi järjekord salvestatud', failed: 'Järjekorda ei saanud salvestada' },
+};
+
+const TRIP_VISIT_LABELS: Record<Locale, { progress: string; mark: string; unmark: string; saved: string; failed: string }> = {
+  ko: { progress: '다녀감', mark: '다녀감', unmark: '취소', saved: '방문 기록을 저장했어요', failed: '방문 기록을 저장하지 못했어요' },
+  en: { progress: 'Visited', mark: 'Visited', unmark: 'Undo', saved: 'Visit saved', failed: 'Could not save visit' },
+  ja: { progress: '訪問済み', mark: '訪問済み', unmark: '取消', saved: '訪問記録を保存しました', failed: '訪問記録を保存できませんでした' },
+  de: { progress: 'Besucht', mark: 'Besucht', unmark: 'Zurück', saved: 'Besuch gespeichert', failed: 'Besuch konnte nicht gespeichert werden' },
+  fr: { progress: 'Visité', mark: 'Visité', unmark: 'Annuler', saved: 'Visite enregistrée', failed: 'Impossible d’enregistrer la visite' },
+  es: { progress: 'Visitado', mark: 'Visitado', unmark: 'Deshacer', saved: 'Visita guardada', failed: 'No se pudo guardar la visita' },
+  pt: { progress: 'Visitado', mark: 'Visitado', unmark: 'Desfazer', saved: 'Visita salva', failed: 'Não foi possível salvar a visita' },
+  'zh-CN': { progress: '已到访', mark: '已到访', unmark: '取消', saved: '到访记录已保存', failed: '无法保存到访记录' },
+  'zh-TW': { progress: '已到訪', mark: '已到訪', unmark: '取消', saved: '到訪紀錄已儲存', failed: '無法儲存到訪紀錄' },
+  da: { progress: 'Besøgt', mark: 'Besøgt', unmark: 'Fortryd', saved: 'Besøg gemt', failed: 'Kunne ikke gemme besøg' },
+  fi: { progress: 'Käyty', mark: 'Käyty', unmark: 'Kumoa', saved: 'Käynti tallennettu', failed: 'Käyntiä ei voitu tallentaa' },
+  sv: { progress: 'Besökt', mark: 'Besökt', unmark: 'Ångra', saved: 'Besök sparat', failed: 'Kunde inte spara besök' },
+  et: { progress: 'Külastatud', mark: 'Külastatud', unmark: 'Võta tagasi', saved: 'Külastus salvestatud', failed: 'Külastust ei saanud salvestada' },
 };
 
 type CurrentWeather = { temp: number; code: number; cityName?: string };
@@ -1065,6 +1097,15 @@ export default function MainPage() {
     dismissClusterPopup();
   }, [closeSearchMode, dismissClusterPopup]);
 
+  useEffect(() => {
+    const handleMapOverlayDismiss = () => {
+      closeSearchAndClusterPopup();
+      closeAllPopups();
+    };
+    window.addEventListener('mm:map-overlays-dismiss', handleMapOverlayDismiss);
+    return () => window.removeEventListener('mm:map-overlays-dismiss', handleMapOverlayDismiss);
+  }, [closeAllPopups, closeSearchAndClusterPopup]);
+
   const openCategoryDropdown = useCallback(() => {
     if (categoryCloseTimerRef.current) {
       clearTimeout(categoryCloseTimerRef.current);
@@ -1294,9 +1335,9 @@ export default function MainPage() {
     const maxRetries = 5;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelCacheWrite: (() => void) | undefined;
-    let cancelServerRefresh: (() => void) | undefined;
     let serverFetchStarted = false;
     const museumsCacheKey = getMuseumsCacheKey(locale);
+    const museumsRefreshKey = `${museumsCacheKey}_server_ts`;
 
     const fetchMuseums = () => {
       fetch(`/api/museums?limit=5000&view=map&locale=${encodeURIComponent(locale)}`)
@@ -1310,6 +1351,7 @@ export default function MainPage() {
           const data = res?.data?.data || res?.data || [];
           if (Array.isArray(data) && data.length > 0) {
             setMuseums(data);
+            setSessionValue(museumsRefreshKey, String(Date.now()));
             if (isUsableMuseumsCache(data)) {
               cancelCacheWrite?.();
               cancelCacheWrite = scheduleSessionJsonCache(museumsCacheKey, data);
@@ -1359,8 +1401,13 @@ export default function MainPage() {
       }
     } catch { }
 
-    cancelServerRefresh = hasCachedSnapshot
-      ? scheduleIdleTask(startFetchMuseums, 3200)
+    const refreshMuseumsIfStale = () => {
+      if (hasFreshSessionTimestamp(museumsRefreshKey, MUSEUMS_SERVER_REFRESH_TTL_MS)) return;
+      startFetchMuseums();
+    };
+
+    const cancelServerRefresh = hasCachedSnapshot
+      ? scheduleIdleTask(refreshMuseumsIfStale, 12000)
       : undefined;
     if (!cancelServerRefresh) startFetchMuseums();
 
@@ -1472,14 +1519,10 @@ export default function MainPage() {
       try {
         if (parsed?.planId) {
           // Auto-expire: if endDate has passed, end the trip
-          if (parsed.endDate) {
-            const endDate = new Date(parsed.endDate);
-            endDate.setHours(23, 59, 59, 999); // End of day
-            if (new Date() > endDate) {
-              clearActiveTripForAccount();
-              try { fetch(`/api/plans/${parsed.planId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: false }) }); } catch { }
-              return;
-            }
+          if (isTripEnded(parsed)) {
+            clearActiveTripForAccount();
+            try { fetch(`/api/plans/${parsed.planId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isActive: false }) }); } catch { }
+            return;
           }
           setActiveTrip(parsed);
 
@@ -2081,6 +2124,55 @@ export default function MainPage() {
   }, [closeAllPopups, closeSearchAndClusterPopup, fetchCurrentWeather]);
 
   useEffect(() => {
+    const hasOpenPopover = categoryDropdownOpen || newMuseumsOpen || chipOpen || aiOpen || nearbyOpen || weatherOpen || mapSideMenuOpen;
+    if (!hasOpenPopover) return;
+
+    const interactiveSelector = [
+      '.mm-map2-category-menu',
+      '.mm-map2-pc-category-anchor',
+      '.mm-map2-tool-stack',
+      '.mm-map2-new-museums-mobile',
+      '.mm-map2-new-museums-popover',
+      '.mm-map2-new-museums-pc-action',
+      '.mm-map2-pc-trip-new-museums',
+      '.mm-map2-pc-count-layer',
+      '.mm-map2-side-menu',
+      '.mm-map2-floating-list',
+      '.mm-map2-place-sheet',
+      '.mm-weather-popup2',
+      '.mm-nearby-popup2',
+      '.mm-map2-search',
+      '.mm-map2-pc-search-wrap',
+      '.mm-map-location-confirm',
+    ].join(',');
+
+    const handleOutsidePointer = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(interactiveSelector)) return;
+      closeAllPopups();
+    };
+
+    const usePointerEvent = typeof window !== 'undefined' && 'PointerEvent' in window;
+    const primaryEvent = usePointerEvent ? 'pointerdown' : 'touchstart';
+    document.addEventListener(primaryEvent, handleOutsidePointer, true);
+    if (!usePointerEvent) document.addEventListener('mousedown', handleOutsidePointer, true);
+    return () => {
+      document.removeEventListener(primaryEvent, handleOutsidePointer, true);
+      if (!usePointerEvent) document.removeEventListener('mousedown', handleOutsidePointer, true);
+    };
+  }, [
+    aiOpen,
+    categoryDropdownOpen,
+    chipOpen,
+    closeAllPopups,
+    mapSideMenuOpen,
+    nearbyOpen,
+    newMuseumsOpen,
+    weatherOpen,
+  ]);
+
+  useEffect(() => {
     if (isLgViewport) return;
     if (!mapPrefs.weather) return;
     const cancelIdle = scheduleIdleTask(() => fetchCurrentWeather(), 4200);
@@ -2177,6 +2269,45 @@ export default function MainPage() {
   const tripOverIndex = tripDrag.overIndex;
   const tripIsDragging = tripDrag.isDragging;
 
+  const handleToggleTripStopVisited = useCallback(async (stop: any, e?: React.MouseEvent<HTMLButtonElement>) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (!activeTrip || (!stop?.id && !stop?.museumId)) return;
+    const wasVisited = isStopVisited(stop);
+    const previousStops = tripStopsLocal.length > 0 ? tripStopsLocal : (activeTrip.stops || []);
+    const nextVisited = wasVisited ? null : { visitedAt: new Date().toISOString(), reviewId: stop.reviewId || null };
+    const labels = TRIP_VISIT_LABELS[locale] || TRIP_VISIT_LABELS.en;
+
+    const applyStops = (stops: any[]) => {
+      setTripStopsLocal(stops);
+      setActiveTrip((prev: any) => prev ? { ...prev, stops } : prev);
+      const parsed = getActiveTripForAccount();
+      if (parsed) setActiveTripForAccount({ ...parsed, stops });
+    };
+
+    applyStops(updateTripStopVisitState(previousStops, { id: stop.id, museumId: stop.museumId }, nextVisited));
+    try {
+      const response = await fetch('/api/visited', {
+        method: wasVisited ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planStopId: stop.id, museumId: stop.museumId, reviewId: stop.reviewId }),
+      });
+      if (!response.ok) throw new Error('Failed to save visit');
+      if (!wasVisited) {
+        const result = await response.json();
+        const savedVisit = {
+          visitedAt: result.data?.visitedAt || nextVisited?.visitedAt || new Date().toISOString(),
+          reviewId: result.data?.id || result.data?.reviewId || stop.reviewId || null,
+        };
+        applyStops(updateTripStopVisitState(previousStops, { id: stop.id, museumId: stop.museumId }, savedVisit));
+      }
+      showAlert(labels.saved);
+    } catch {
+      applyStops(previousStops);
+      showAlert(labels.failed);
+    }
+  }, [activeTrip, locale, showAlert, tripStopsLocal]);
+
   // Dynamic map padding for mobile active-trip view so route isn't hidden by the top drawer
   const [tripViewportH, setTripViewportH] = useState(0);
   useEffect(() => {
@@ -2229,6 +2360,8 @@ export default function MainPage() {
   // When viewing active route, render plans/[id]-style layout
   if (isViewingActiveRoute && activeTrip) {
     const tripStops = tripStopsLocal.length > 0 ? tripStopsLocal : (activeTrip.stops || []);
+    const tripVisitLabels = TRIP_VISIT_LABELS[locale] || TRIP_VISIT_LABELS.en;
+    const tripVisitStats = getTripVisitStats(tripStops);
     const handleEndTrip = () => setShowEndConfirm(true);
     const confirmEndTrip = async () => {
       setShowEndConfirm(false);
@@ -2276,6 +2409,11 @@ export default function MainPage() {
                   {tripDateRange && <p className="text-sm text-gray-400 dark:text-gray-500 font-medium mb-4">📅 {tripDateRange}</p>}
                 </>
               )}
+              {tripVisitStats.total > 0 && (
+                <span className="mb-4 inline-flex w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/35 dark:text-emerald-300">
+                  {tripVisitLabels.progress} {tripVisitStats.visited}/{tripVisitStats.total}
+                </span>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto px-6 pb-4">
               <div className="space-y-3 relative">
@@ -2304,6 +2442,15 @@ export default function MainPage() {
                           {fmtDur(getVisitDuration(stop.type), locale)}
                         </p>
                       </div>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => handleToggleTripStopVisited(stop, e)}
+                        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${isStopVisited(stop) ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20' : 'bg-gray-100 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 dark:bg-blue-950/50 dark:text-blue-200/70 dark:hover:bg-emerald-950/35 dark:hover:text-emerald-300'}`}
+                        aria-pressed={isStopVisited(stop)}
+                      >
+                        {isStopVisited(stop) ? tripVisitLabels.unmark : tripVisitLabels.mark}
+                      </button>
                     </div>
                   );
                 })}
@@ -2361,6 +2508,15 @@ export default function MainPage() {
                           {fmtDur(getVisitDuration(stop.type), locale)}
                         </p>
                       </div>
+                      <button
+                        type="button"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => handleToggleTripStopVisited(stop, e)}
+                        className={`shrink-0 self-center rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all active:scale-95 ${isStopVisited(stop) ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20' : 'bg-gray-100 text-gray-500 dark:bg-blue-950/50 dark:text-blue-200/70'}`}
+                        aria-pressed={isStopVisited(stop)}
+                      >
+                        {isStopVisited(stop) ? tripVisitLabels.unmark : tripVisitLabels.mark}
+                      </button>
                     </div>
                   );
                 })}
@@ -2374,7 +2530,7 @@ export default function MainPage() {
             {/* Drawer handle — at bottom */}
             <button onClick={() => setTripSheetOpen(prev => !prev)} className="flex flex-col items-center w-full pt-2 pb-3 shrink-0">
               <span className="text-xs font-bold mb-1.5 text-blue-600 dark:text-blue-400">
-                {isPendingTrip && dDayText ? `${dDayText} • ` : ''}{activeTrip.title} • {tripStops.length} {t('plans.stops', locale)}{tripDateRange ? ` • 📅 ${tripDateRange}` : ''}
+                {isPendingTrip && dDayText ? `${dDayText} • ` : ''}{activeTrip.title} • {tripStops.length} {t('plans.stops', locale)} • {tripVisitLabels.progress} {tripVisitStats.visited}/{tripVisitStats.total}{tripDateRange ? ` • 📅 ${tripDateRange}` : ''}
               </span>
               <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-neutral-600" />
             </button>
@@ -2486,6 +2642,7 @@ export default function MainPage() {
 
   return (
     <div
+      data-mm-page="home"
       className="mm-map-shell relative w-full flex overflow-hidden"
       style={{
         position: 'relative',
@@ -2523,7 +2680,7 @@ export default function MainPage() {
       {/* Mobile Map Discovery 2.0 */}
       {!isViewingActiveRoute && (
         <>
-          <div className={`mm-map2-top md:hidden ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
+          <div className={`mm-map2-top md:hidden ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${isPanelOpen ? 'hidden' : ''} ${returnFromDetail ? 'is-restoring' : ''}`} style={{ ...mm2.top, ...(isPanelOpen ? { display: 'none' } : null) }}>
             <div className="mm-map2-search-row" style={mm2.searchRow}>
               <div className={`mm-map2-search ${searchFocused ? 'is-focused' : ''}`} style={{ ...mm2.search, ...(searchFocused ? { borderColor: 'rgba(37,99,235,.34)', boxShadow: '0 16px 36px rgba(37,99,235,.16), inset 0 1px 0 rgba(255,255,255,.9)' } : null) }}>
                 <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2863,7 +3020,7 @@ export default function MainPage() {
 
           {(categoryDropdownOpen || categoryDropdownClosing) && !isPanelOpen && (
             <div
-              className={`mm-map2-category-menu mm-map-popover-motion md:hidden ${categoryDropdownClosing ? 'is-closing' : ''}`}
+              className={`mm-map2-category-menu mm-map-popover-motion md:hidden ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${categoryDropdownClosing ? 'is-closing' : ''}`}
               style={mm2.categoryMenu}
               role="dialog"
               aria-label={mobileToolLabels.categories}
@@ -3512,6 +3669,7 @@ export default function MainPage() {
         closing={nearbyClosing}
         onClose={closeNearbyPopup}
         museums={museums}
+        categoryFilter={activeFilter}
         onMuseumClick={handleMuseumClick}
         mode="popover"
         anchor="before"

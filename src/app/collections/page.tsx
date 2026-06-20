@@ -243,6 +243,11 @@ export default function CollectionsPage() {
                                                     {locale === 'ko' ? '다녀간 컬렉션' : 'Visited'}
                                                 </span>
                                             )}
+                                            {Number(col.tripCount) > 0 && (
+                                                <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                                    {locale === 'ko' ? `여행 ${col.tripCount}회` : `${col.tripCount} trips`}
+                                                </span>
+                                            )}
                                             <span className="shrink-0 text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
                                                 {col._count?.items || 0} {t('collections.items', locale)}
                                             </span>

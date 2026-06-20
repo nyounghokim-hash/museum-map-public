@@ -33,11 +33,57 @@ const PUBLIC_PREFETCH_ROUTES = ['/', '/blog', '/artworks', '/collections'];
 const ACCOUNT_PREFETCH_ROUTES = ['/saved', '/plans', '/compare'];
 const MAP_OVERLAY_DISMISS_EVENT = 'mm:map-overlays-dismiss';
 const NAV_CACHE_TTL_MS = 5 * 60 * 1000;
+const NAV_DOCUMENT_PREFETCH_KEY = 'mm-nav-document-prefetch-ts';
+const NAV_DATA_PREFETCH_KEY = 'mm-nav-data-prefetch-ts';
+const NAV_DOCUMENT_PREFETCH_TTL_MS = 5 * 60 * 1000;
+const NAV_DATA_PREFETCH_TTL_MS = 10 * 60 * 1000;
 const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
 const ARTWORKS_CACHE_KEY = 'artworks_cache';
 const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v1';
 const prefetchedRoutes = new Set<string>();
 let navDataPrefetchStarted = false;
+
+function hasRecentSessionStamp(key: string, ttl: number) {
+    if (typeof window === 'undefined') return false;
+    try {
+        const ts = Number(sessionStorage.getItem(key) || '0');
+        return Number.isFinite(ts) && ts > 0 && Date.now() - ts < ttl;
+    } catch {
+        return false;
+    }
+}
+
+function stampSession(key: string) {
+    if (typeof window === 'undefined') return;
+    try {
+        sessionStorage.setItem(key, String(Date.now()));
+    } catch { }
+}
+
+function scheduleIdleTask(callback: () => void, timeout = 2500) {
+    if (typeof window === 'undefined') {
+        callback();
+        return undefined;
+    }
+    const win = window as Window & typeof globalThis & {
+        requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+        cancelIdleCallback?: (handle: number) => void;
+    };
+    if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+        const idleId = win.requestIdleCallback(callback, { timeout });
+        return () => win.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(callback, timeout);
+    return () => window.clearTimeout(timer);
+}
+
+function shouldSkipEagerDataPrefetch() {
+    if (typeof navigator === 'undefined') return false;
+    const connection = (navigator as Navigator & {
+        connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    return !!connection?.saveData || connection?.effectiveType === '2g' || connection?.effectiveType === 'slow-2g';
+}
 
 function prefetchRouteDocument(href: string) {
     if (typeof document === 'undefined' || prefetchedRoutes.has(href)) return;
@@ -87,7 +133,10 @@ function hasFreshCache(key: string) {
 
 function prefetchNavDataCaches() {
     if (typeof window === 'undefined' || navDataPrefetchStarted) return;
+    if (hasRecentSessionStamp(NAV_DATA_PREFETCH_KEY, NAV_DATA_PREFETCH_TTL_MS)) return;
+    if (shouldSkipEagerDataPrefetch()) return;
     navDataPrefetchStarted = true;
+    stampSession(NAV_DATA_PREFETCH_KEY);
 
     if (!hasFreshCache(BLOG_LIST_CACHE_KEY)) {
         fetch('/api/blog?view=list', { cache: 'force-cache' })
@@ -375,14 +424,16 @@ export default function MobileBottomNav() {
         if (typeof window === 'undefined') return;
         const routes = isGuest ? PUBLIC_PREFETCH_ROUTES : [...PUBLIC_PREFETCH_ROUTES, ...ACCOUNT_PREFETCH_ROUTES];
         const warmDocuments = () => {
+            if (hasRecentSessionStamp(NAV_DOCUMENT_PREFETCH_KEY, NAV_DOCUMENT_PREFETCH_TTL_MS)) return;
             routes.forEach(prefetchRouteDocument);
+            stampSession(NAV_DOCUMENT_PREFETCH_KEY);
         };
         const warmData = () => prefetchNavDataCaches();
-        const documentTimer = window.setTimeout(warmDocuments, 80);
-        const dataTimer = window.setTimeout(warmData, pathname === '/' ? 360 : 120);
+        const cancelDocumentWarmup = scheduleIdleTask(warmDocuments, pathname === '/' ? 1800 : 900);
+        const cancelDataWarmup = scheduleIdleTask(warmData, pathname === '/' ? 9000 : 6000);
         return () => {
-            window.clearTimeout(documentTimer);
-            window.clearTimeout(dataTimer);
+            cancelDocumentWarmup?.();
+            cancelDataWarmup?.();
         };
     }, [isGuest, pathname]);
 
@@ -503,15 +554,21 @@ export default function MobileBottomNav() {
     ];
 
     const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
-        event.preventDefault();
+        dismissMapOverlays();
         if ('auth' in tab && tab.auth && isGuest) {
+            event.preventDefault();
             setLoginCallbackUrl(tab.href);
             setLoginModalOpen(true);
             return;
         }
-        if (tab.href !== pathname) {
-            goRoute(tab.href);
+        if (tab.href === pathname) {
+            event.preventDefault();
+            return;
         }
+        const now = Date.now();
+        recentNavigationRef.current = { href: tab.href, ts: now };
+        setPendingHref(tab.href);
+        startRoutePending(locale);
     };
 
     const renderTab = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => {
@@ -521,23 +578,11 @@ export default function MobileBottomNav() {
         <a
             key={tab.href}
             href={tab.href}
-            onPointerDown={(event) => {
+            onPointerDown={() => {
                 dismissMapOverlays();
                 if (tab.href === pathname) return;
-                if ('auth' in tab && tab.auth && isGuest) {
-                    if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-                        event.preventDefault();
-                        setLoginCallbackUrl(tab.href);
-                        setLoginModalOpen(true);
-                    }
-                    return;
-                }
+                if ('auth' in tab && tab.auth && isGuest) return;
                 setPendingHref(tab.href);
-                if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-                    event.preventDefault();
-                    goRoute(tab.href);
-                    return;
-                }
                 startRoutePending(locale);
             }}
             onClick={handleTabClick(tab)}

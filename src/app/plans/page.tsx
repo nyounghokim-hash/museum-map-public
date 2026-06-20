@@ -10,6 +10,7 @@ import * as gtag from '@/lib/gtag';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { ACTIVE_TRIP_CHANGE_EVENT, clearActiveTripForAccount, getActiveTripForAccount } from '@/lib/accountStorage';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
+import { getTripVisitStats, isTripEnded } from '@/lib/tripStatus';
 
 const EMPTY_ACTION_LABELS: Record<string, { primary: string; secondary: string }> = {
     ko: { primary: '내 픽에서 경로 만들기', secondary: '박물관 찾기' },
@@ -25,6 +26,22 @@ const EMPTY_ACTION_LABELS: Record<string, { primary: string; secondary: string }
     fi: { primary: 'Luo reitti valinnoista', secondary: 'Etsi museoita' },
     sv: { primary: 'Skapa från valda', secondary: 'Hitta museer' },
     et: { primary: 'Loo marsruut valikutest', secondary: 'Leia muuseume' },
+};
+
+const TRIP_STATUS_LABELS: Record<string, { ended: string; visited: string }> = {
+    ko: { ended: '끝난 여행', visited: '다녀감' },
+    en: { ended: 'Ended', visited: 'Visited' },
+    ja: { ended: '終了した旅行', visited: '訪問済み' },
+    de: { ended: 'Beendet', visited: 'Besucht' },
+    fr: { ended: 'Terminé', visited: 'Visité' },
+    es: { ended: 'Finalizado', visited: 'Visitado' },
+    pt: { ended: 'Encerrada', visited: 'Visitado' },
+    'zh-CN': { ended: '已结束', visited: '已到访' },
+    'zh-TW': { ended: '已結束', visited: '已到訪' },
+    da: { ended: 'Afsluttet', visited: 'Besøgt' },
+    fi: { ended: 'Päättynyt', visited: 'Käyty' },
+    sv: { ended: 'Avslutad', visited: 'Besökt' },
+    et: { ended: 'Lõppenud', visited: 'Külastatud' },
 };
 
 function reorderPlanStopsFromActiveTrip(planStops: any[] = [], activeStops: any[] = []) {
@@ -129,9 +146,10 @@ export default function MyPlansPage() {
     const handleEndTrip = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        showConfirm(t('plans.confirmEndTrip', locale), () => {
+        showConfirm(t('plans.confirmEndTrip', locale), async () => {
             clearActiveTripForAccount();
             setActiveTripId(null);
+            try { await fetch('/api/plans/active-trip', { method: 'DELETE' }); } catch { }
             showAlert(t('plans.tripEnded', locale));
         });
     };
@@ -208,6 +226,9 @@ export default function MyPlansPage() {
                         const dateStr = plan.date ? formatDate(plan.date, locale) : (locale === 'ko' ? '날짜 미설정' : 'No date set');
                         const isActive = activeTripId === plan.id;
                         const isPending = isActive && isPendingTrip;
+                        const isEnded = isTripEnded(plan);
+                        const visitStats = getTripVisitStats(plan.stops || []);
+                        const statusLabels = TRIP_STATUS_LABELS[locale] || TRIP_STATUS_LABELS.en;
                         const dDayNum = isPending && tripStartDate ? Math.ceil((new Date(tripStartDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000) : null;
                         const dDayText = dDayNum !== null ? (dDayNum > 0 ? `D-${dDayNum}` : dDayNum === 0 ? 'D-DAY' : '') : '';
 
@@ -246,6 +267,11 @@ export default function MyPlansPage() {
                                                     {({ ko: '여행 중', en: 'On Trip', ja: '旅行中', de: 'Auf Reise', fr: 'En voyage', es: 'De viaje', pt: 'Em viagem', zh: '旅行中', it: 'In viaggio', ru: 'В поездке', ar: 'في رحلة', hi: 'यात्रा पर', et: 'Reisil' } as Record<string, string>)[locale] || 'On Trip'}
                                                 </span>
                                             )}
+                                            {isEnded && !isActive && (
+                                                <span className="shrink-0 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/70 px-2 py-0.5 rounded-full">
+                                                    {statusLabels.ended}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2 mt-1.5">
                                             <span className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-blue-200/75 bg-blue-50/80 dark:bg-blue-900/25 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
@@ -256,6 +282,12 @@ export default function MyPlansPage() {
                                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                                 {stopCount} {stopCount === 1 ? t('plans.stop', locale) : t('plans.stops', locale)}
                                             </span>
+                                            {visitStats.total > 0 && (
+                                                <span className="text-[11px] sm:text-xs font-medium text-emerald-600 dark:text-emerald-300 bg-emerald-50/90 dark:bg-emerald-950/35 px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
+                                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                                    {statusLabels.visited} {visitStats.visited}/{visitStats.total}
+                                                </span>
+                                            )}
                                         </div>
                                         {museumNames.length > 0 && (
                                             <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2 truncate">

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
 import { transformNestedPhotos } from '@/lib/photo-proxy';
+import { isTripEnded } from '@/lib/tripStatus';
 
 async function attachVisitRecordsToPlan(plan: any, userId: string) {
     const museumIds = (plan.stops || []).map((stop: any) => stop.museumId).filter(Boolean);
@@ -41,7 +42,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             }
         });
         if (!plan || plan.userId !== user.id) return errorResponse('NOT_FOUND', 'Plan not found', 404);
-        const enriched = await attachVisitRecordsToPlan(plan, user.id);
+        const normalizedPlan = plan.isActive && isTripEnded(plan)
+            ? await prisma.plan.update({ where: { id }, data: { isActive: false }, include: {
+                stops: {
+                    include: { museum: { select: { id: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, imageUrl: true, city: true, cityKo: true, cityTranslations: true, country: true, type: true, latitude: true, longitude: true, website: true, description: true, descriptionKo: true, openingHours: true, visitorInfo: true } } },
+                    orderBy: { order: 'asc' }
+                }
+            } })
+            : plan;
+        const enriched = await attachVisitRecordsToPlan(normalizedPlan, user.id);
         return successResponse(transformNestedPhotos(enriched));
     } catch (err: any) {
         if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Auth required', 401);
@@ -57,14 +66,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         const plan = await prisma.plan.findUnique({ where: { id } });
         if (!plan || plan.userId !== user.id) return errorResponse('NOT_FOUND', 'Plan not found', 404);
 
+        const nextStatusPlan = {
+            ...plan,
+            date: body.date !== undefined ? new Date(body.date) : plan.date,
+            startDate: body.startDate !== undefined ? (body.startDate ? new Date(body.startDate) : null) : plan.startDate,
+            endDate: body.endDate !== undefined ? (body.endDate ? new Date(body.endDate) : null) : plan.endDate,
+            isActive: body.isActive !== undefined ? body.isActive : plan.isActive,
+        };
+
         const updated = await prisma.plan.update({
             where: { id },
             data: {
                 title: body.title !== undefined ? body.title : plan.title,
-                date: body.date !== undefined ? new Date(body.date) : plan.date,
-                startDate: body.startDate !== undefined ? (body.startDate ? new Date(body.startDate) : null) : plan.startDate,
-                endDate: body.endDate !== undefined ? (body.endDate ? new Date(body.endDate) : null) : plan.endDate,
-                isActive: body.isActive !== undefined ? body.isActive : plan.isActive,
+                date: nextStatusPlan.date,
+                startDate: nextStatusPlan.startDate,
+                endDate: nextStatusPlan.endDate,
+                isActive: isTripEnded(nextStatusPlan) ? false : nextStatusPlan.isActive,
             }
         });
 

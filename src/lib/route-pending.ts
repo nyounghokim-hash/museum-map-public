@@ -65,7 +65,6 @@ export function backWithFallback(
     if (typeof window === 'undefined') return;
     const timeoutMs = options.timeoutMs ?? 650;
     const currentPath = currentDocumentPath();
-    startRoutePending(locale);
     try {
         sessionStorage.setItem('navigating-back', String(Date.now()));
     } catch { }

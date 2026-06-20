@@ -113,6 +113,11 @@ export default function CollectionDetailPage() {
                                         {locale === 'ko' ? '다녀간 컬렉션' : 'Visited collection'}
                                     </span>
                                 )}
+                                {Number(collection.tripCount) > 0 && (
+                                    <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                        {locale === 'ko' ? `여행 ${collection.tripCount}회` : `${collection.tripCount} trips`}
+                                    </span>
+                                )}
                                 <p className="text-xs font-medium truncate" style={{ color: 'var(--mm-text-tertiary)' }}>
                                     {authorText} · {itemsCount} {t('collections.items', locale)}
                                 </p>

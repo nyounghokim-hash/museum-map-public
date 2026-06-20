@@ -215,14 +215,23 @@ export default function WeatherPopup({ isOpen, closing = false, onClose, anchor 
 
     useEffect(() => {
         if (!isOpen) return;
-        const handleClick = (e: MouseEvent) => {
+        const handleOutsidePress = (e: Event) => {
             const target = e.target as Node;
             if (panelRef.current?.contains(target)) return;
             if (triggerRef?.current?.contains(target)) return;
             onClose();
         };
-        const tid = setTimeout(() => document.addEventListener('mousedown', handleClick, true), 0);
-        return () => { clearTimeout(tid); document.removeEventListener('mousedown', handleClick, true); };
+        const usePointerEvent = typeof window !== 'undefined' && 'PointerEvent' in window;
+        const primaryEvent = usePointerEvent ? 'pointerdown' : 'touchstart';
+        const tid = setTimeout(() => {
+            document.addEventListener(primaryEvent, handleOutsidePress, true);
+            if (!usePointerEvent) document.addEventListener('mousedown', handleOutsidePress, true);
+        }, 0);
+        return () => {
+            clearTimeout(tid);
+            document.removeEventListener(primaryEvent, handleOutsidePress, true);
+            if (!usePointerEvent) document.removeEventListener('mousedown', handleOutsidePress, true);
+        };
     }, [isOpen, onClose, triggerRef]);
 
     useLayoutEffect(() => {

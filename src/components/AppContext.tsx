@@ -64,6 +64,7 @@ function applyEffectiveTheme(isDark: boolean) {
     const themeColor = isDark ? '#020617' : '#f8fbff';
     root.classList.toggle('dark', isDark);
     root.dataset.theme = isDark ? 'dark' : 'light';
+    if (root.classList.contains('mm-search-locking')) return;
     root.style.colorScheme = isDark ? 'dark' : 'light';
 
     const themeColorMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));

@@ -13,8 +13,107 @@ import { useModal } from '@/components/ui/Modal';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 import { navigateWithPending } from '@/lib/route-pending';
 
+const NOTIFICATIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+const NOTIFICATIONS_STORAGE_PREFIX = 'mm-notifications-cache-v1';
+
+type NotificationCacheEntry = {
+    ts: number;
+    items: NotificationItem[];
+};
+
+type NotificationItem = Record<string, unknown>;
+
+const notificationMemoryCache = new Map<string, NotificationCacheEntry>();
+const notificationInFlight = new Map<string, Promise<NotificationItem[]>>();
+
+function getNotificationCacheKey(session: unknown) {
+    const user = session && typeof session === 'object' && 'user' in session
+        ? (session as { user?: Record<string, unknown> }).user
+        : undefined;
+    const email = typeof user?.email === 'string' ? user.email : '';
+    const id = typeof user?.id === 'string' ? user.id : '';
+    const userKey = email || id || 'guest';
+    return `${NOTIFICATIONS_STORAGE_PREFIX}:${userKey}`;
+}
+
+function isNotificationCacheEntry(value: unknown): value is NotificationCacheEntry {
+    return !!value
+        && typeof value === 'object'
+        && typeof (value as NotificationCacheEntry).ts === 'number'
+        && Array.isArray((value as NotificationCacheEntry).items);
+}
+
+function readNotificationCache(cacheKey: string): NotificationCacheEntry | null {
+    const memory = notificationMemoryCache.get(cacheKey);
+    if (memory && Date.now() - memory.ts < NOTIFICATIONS_CACHE_TTL_MS) return memory;
+    if (typeof window === 'undefined') return null;
+    try {
+        const parsed = JSON.parse(sessionStorage.getItem(cacheKey) || 'null') as unknown;
+        if (isNotificationCacheEntry(parsed)) {
+            notificationMemoryCache.set(cacheKey, parsed);
+            return parsed;
+        }
+    } catch { }
+    return null;
+}
+
+function writeNotificationCache(cacheKey: string, items: NotificationItem[]) {
+    const entry = { ts: Date.now(), items };
+    notificationMemoryCache.set(cacheKey, entry);
+    if (typeof window === 'undefined') return;
+    try {
+        sessionStorage.setItem(cacheKey, JSON.stringify(entry));
+    } catch { }
+}
+
+function scheduleIdle(callback: () => void, timeout = 1200) {
+    if (typeof window === 'undefined') {
+        callback();
+        return undefined;
+    }
+    const win = window as Window & typeof globalThis & {
+        requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+        cancelIdleCallback?: (handle: number) => void;
+    };
+    if (typeof win.requestIdleCallback === 'function' && typeof win.cancelIdleCallback === 'function') {
+        const idleId = win.requestIdleCallback(callback, { timeout });
+        return () => win.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(callback, timeout);
+    return () => window.clearTimeout(timer);
+}
+
+function fetchNotificationsCached(cacheKey: string) {
+    const cached = readNotificationCache(cacheKey);
+    if (cached && Date.now() - cached.ts < NOTIFICATIONS_CACHE_TTL_MS) {
+        return Promise.resolve(cached.items);
+    }
+    const inFlight = notificationInFlight.get(cacheKey);
+    if (inFlight) return inFlight;
+
+    const request = fetch('/api/notifications')
+        .then(res => {
+            if (!res.ok) return [];
+            return res.text().then(text => text ? JSON.parse(text) : []);
+        })
+        .then((data: unknown) => {
+            const items = Array.isArray(data) ? data : [];
+            writeNotificationCache(cacheKey, items);
+            return items;
+        })
+        .catch(err => {
+            console.error('Failed to fetch notifications:', err);
+            return [];
+        })
+        .finally(() => {
+            notificationInFlight.delete(cacheKey);
+        });
+    notificationInFlight.set(cacheKey, request);
+    return request;
+}
+
 export default function NavHeader() {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const { showAlert, showConfirm } = useModal();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [mobileClosing, setMobileClosing] = useState(false);
@@ -220,25 +319,28 @@ export default function NavHeader() {
         };
     }, [userMenuOpen]);
 
-    // Fetch notifications (broadcast + user-specific, works for guests too)
+    // Fetch notifications once per settled session and reuse the result across document navigations.
     useEffect(() => {
-        fetch('/api/notifications')
-            .then(res => {
-                if (!res.ok) return [];
-                return res.text().then(text => text ? JSON.parse(text) : []);
-            })
-            .then(data => {
-                if (Array.isArray(data)) {
-                    setNotifications(data);
-                } else {
-                    setNotifications([]);
-                }
-            })
-            .catch(err => {
-                console.error('Failed to fetch notifications:', err);
-                setNotifications([]);
+        if (status === 'loading') return;
+        const cacheKey = getNotificationCacheKey(session);
+        const cached = readNotificationCache(cacheKey);
+        if (cached) {
+            setNotifications(cached.items);
+            if (Date.now() - cached.ts < NOTIFICATIONS_CACHE_TTL_MS) return;
+        }
+
+        let cancelled = false;
+        const load = () => {
+            fetchNotificationsCached(cacheKey).then(items => {
+                if (!cancelled) setNotifications(items);
             });
-    }, [session]);
+        };
+        const cancelIdle = scheduleIdle(load, status === 'authenticated' ? 800 : 2500);
+        return () => {
+            cancelled = true;
+            cancelIdle?.();
+        };
+    }, [session, status]);
 
     // Scroll direction: hide header on scroll down, show on scroll up
     // On detail pages (mobile/tablet only), header hides more aggressively

@@ -14,8 +14,25 @@ import { t, formatDate } from '@/lib/i18n';
 import { getCountryName, getCityName } from '@/lib/countries';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { clearActiveTripForAccount, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
+import { getTripVisitStats, isStopVisited, isTripEnded, isTripPending, updateTripStopVisitState } from '@/lib/tripStatus';
 
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
+
+const VISIT_LABELS: Record<string, { progress: string; mark: string; unmark: string; saved: string; failed: string; ended: string; pending: string }> = {
+    ko: { progress: '다녀감', mark: '다녀감', unmark: '취소', saved: '방문 기록을 저장했어요', failed: '방문 기록을 저장하지 못했어요', ended: '끝난 여행', pending: '여행 준비 중' },
+    en: { progress: 'Visited', mark: 'Visited', unmark: 'Undo', saved: 'Visit saved', failed: 'Could not save visit', ended: 'Ended', pending: 'Upcoming' },
+    ja: { progress: '訪問済み', mark: '訪問済み', unmark: '取消', saved: '訪問記録を保存しました', failed: '訪問記録を保存できませんでした', ended: '終了した旅行', pending: '旅行準備中' },
+    de: { progress: 'Besucht', mark: 'Besucht', unmark: 'Zurück', saved: 'Besuch gespeichert', failed: 'Besuch konnte nicht gespeichert werden', ended: 'Beendet', pending: 'Bevorstehend' },
+    fr: { progress: 'Visité', mark: 'Visité', unmark: 'Annuler', saved: 'Visite enregistrée', failed: 'Impossible d’enregistrer la visite', ended: 'Terminé', pending: 'À venir' },
+    es: { progress: 'Visitado', mark: 'Visitado', unmark: 'Deshacer', saved: 'Visita guardada', failed: 'No se pudo guardar la visita', ended: 'Finalizado', pending: 'Próximo' },
+    pt: { progress: 'Visitado', mark: 'Visitado', unmark: 'Desfazer', saved: 'Visita salva', failed: 'Não foi possível salvar a visita', ended: 'Encerrada', pending: 'Em breve' },
+    'zh-CN': { progress: '已到访', mark: '已到访', unmark: '取消', saved: '到访记录已保存', failed: '无法保存到访记录', ended: '已结束', pending: '即将出发' },
+    'zh-TW': { progress: '已到訪', mark: '已到訪', unmark: '取消', saved: '到訪紀錄已儲存', failed: '無法儲存到訪紀錄', ended: '已結束', pending: '即將出發' },
+    da: { progress: 'Besøgt', mark: 'Besøgt', unmark: 'Fortryd', saved: 'Besøg gemt', failed: 'Kunne ikke gemme besøg', ended: 'Afsluttet', pending: 'Kommende' },
+    fi: { progress: 'Käyty', mark: 'Käyty', unmark: 'Kumoa', saved: 'Käynti tallennettu', failed: 'Käyntiä ei voitu tallentaa', ended: 'Päättynyt', pending: 'Tulossa' },
+    sv: { progress: 'Besökt', mark: 'Besökt', unmark: 'Ångra', saved: 'Besök sparat', failed: 'Kunde inte spara besök', ended: 'Avslutad', pending: 'Kommande' },
+    et: { progress: 'Külastatud', mark: 'Külastatud', unmark: 'Võta tagasi', saved: 'Külastus salvestatud', failed: 'Külastust ei saanud salvestada', ended: 'Lõppenud', pending: 'Tulemas' },
+};
 
 export default function PlanDetailPage() {
     const { id } = useParams();
@@ -209,6 +226,10 @@ export default function PlanDetailPage() {
 
     const handleStartTrip = useCallback(async () => {
         if (!plan) return;
+        if (isTripEnded(plan)) {
+            showAlert((VISIT_LABELS[locale] || VISIT_LABELS.en).ended);
+            return;
+        }
         const startDate = plan.startDate || null;
         const endDate = plan.endDate || null;
         const now = new Date();
@@ -261,12 +282,60 @@ export default function PlanDetailPage() {
     }, [plan, routeStops, id, showAlert, locale, isAdmin]);
 
     const handleEndTrip = useCallback(() => {
-        showConfirm(t('plans.confirmEndTrip', locale), () => {
+        showConfirm(t('plans.confirmEndTrip', locale), async () => {
             clearActiveTripForAccount();
             setActiveTripId(null);
+            try { await fetch('/api/plans/active-trip', { method: 'DELETE' }); } catch { }
             showAlert(t('plans.tripEnded', locale));
         });
     }, [locale, showAlert, showConfirm]);
+
+    const handleToggleStopVisited = useCallback(async (stop: any, e?: React.MouseEvent<HTMLButtonElement>) => {
+        e?.preventDefault();
+        e?.stopPropagation();
+        if (!stop?.id && !stop?.museumId) return;
+        const wasVisited = isStopVisited(stop);
+        const previousStops = stops;
+        const nextVisited = wasVisited ? null : { visitedAt: new Date().toISOString(), reviewId: stop.reviewId || null };
+        const applyStops = (nextStops: any[]) => {
+            setStops(nextStops);
+            setPlan((prev: any) => prev ? { ...prev, stops: nextStops } : prev);
+            if (activeTripId === id) {
+                const parsed = getActiveTripForAccount();
+                if (parsed) {
+                    const nextActiveStops = updateTripStopVisitState(parsed.stops || [], { id: stop.id, museumId: stop.museumId }, nextVisited);
+                    setActiveTripForAccount({ ...parsed, stops: nextActiveStops });
+                }
+            }
+        };
+
+        applyStops(updateTripStopVisitState(stops, { id: stop.id, museumId: stop.museumId }, nextVisited));
+        try {
+            const response = await fetch('/api/visited', {
+                method: wasVisited ? 'DELETE' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ planStopId: stop.id, museumId: stop.museumId, reviewId: stop.reviewId }),
+            });
+            if (!response.ok) throw new Error('Failed to save visit');
+            if (!wasVisited) {
+                const result = await response.json();
+                const savedVisit = {
+                    visitedAt: result.data?.visitedAt || nextVisited?.visitedAt || new Date().toISOString(),
+                    reviewId: result.data?.id || result.data?.reviewId || stop.reviewId || null,
+                };
+                applyStops(updateTripStopVisitState(stops, { id: stop.id, museumId: stop.museumId }, savedVisit));
+            }
+            showAlert((VISIT_LABELS[locale] || VISIT_LABELS.en).saved);
+        } catch {
+            setStops(previousStops);
+            setPlan((prev: any) => prev ? { ...prev, stops: previousStops } : prev);
+            if (activeTripId === id) {
+                const parsed = getActiveTripForAccount();
+                if (parsed) setActiveTripForAccount({ ...parsed, stops: previousStops });
+            }
+            showAlert((VISIT_LABELS[locale] || VISIT_LABELS.en).failed);
+        }
+    }, [activeTripId, id, locale, showAlert, stops]);
 
     const handleStopClick = useCallback((stop: any) => {
         if (stop.museumId) {
@@ -300,6 +369,10 @@ export default function PlanDetailPage() {
 
     const dateStr = plan?.date ? formatDate(plan.date, locale) : '';
     const now = new Date();
+    const visitLabels = VISIT_LABELS[locale] || VISIT_LABELS.en;
+    const visitStats = getTripVisitStats(stops);
+    const planEnded = isTripEnded(plan);
+    const planPending = isTripPending(plan) && activeTripId !== plan?.id;
 
     return (
         <>
@@ -342,6 +415,19 @@ export default function PlanDetailPage() {
                             </svg>
                         </Link>
                         <h1 className="text-4xl font-extrabold mb-2 dark:text-white">{plan?.title || 'AutoRoute'}</h1>
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
+                            {planEnded && (
+                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800/70 dark:text-slate-300">{visitLabels.ended}</span>
+                            )}
+                            {planPending && (
+                                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-600 dark:bg-blue-950/35 dark:text-blue-300">{visitLabels.pending}</span>
+                            )}
+                            {visitStats.total > 0 && (
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/35 dark:text-emerald-300">
+                                    {visitLabels.progress} {visitStats.visited}/{visitStats.total}
+                                </span>
+                            )}
+                        </div>
                     </div>
 
                     {/* Scrollable stop list */}
@@ -375,6 +461,15 @@ export default function PlanDetailPage() {
                                                 {formatDuration(getVisitDuration(stop.museum?.type), locale)}
                                             </p>
                                         </div>
+                                        <button
+                                            type="button"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => handleToggleStopVisited(stop, e)}
+                                            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition-all active:scale-95 ${isStopVisited(stop) ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20' : 'bg-gray-100 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 dark:bg-blue-950/50 dark:text-blue-200/70 dark:hover:bg-emerald-950/35 dark:hover:text-emerald-300'}`}
+                                            aria-pressed={isStopVisited(stop)}
+                                        >
+                                            {isStopVisited(stop) ? visitLabels.unmark : visitLabels.mark}
+                                        </button>
                                         {isDragging && <div className="flex items-center text-gray-300 dark:text-gray-600"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" /></svg></div>}
                                     </div>
                                 );
@@ -486,7 +581,7 @@ export default function PlanDetailPage() {
                         {activeTripId === plan?.id ? (
                             <button onClick={handleEndTrip} className="w-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 py-3 rounded-xl font-bold hover:bg-red-100 dark:hover:bg-red-900/50 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">{t('plans.endTrip', locale)}</button>
                         ) : (
-                            <button onClick={handleStartTrip} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900">{t('plans.startTripButton', locale)}</button>
+                            <button onClick={handleStartTrip} disabled={planEnded} className={`w-full py-3 rounded-xl font-bold transition-all active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 ${planEnded ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-blue-950/50 dark:text-gray-500' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>{t('plans.startTripButton', locale)}</button>
                         )}
                     </div>
                 </div>
@@ -523,7 +618,7 @@ export default function PlanDetailPage() {
                         <div className="min-w-0 flex-1">
                             <h2 className="text-base font-extrabold dark:text-white truncate">{plan?.title || 'AutoRoute'}</h2>
                             <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium truncate">
-                                {stops.length} {t('plans.stops', locale)} {dateStr && `· ${dateStr}`}
+                                {stops.length} {t('plans.stops', locale)} · {visitLabels.progress} {visitStats.visited}/{visitStats.total}{dateStr && ` · ${dateStr}`}
                             </p>
                         </div>
                         <button onClick={() => setSidebarOpen(prev => !prev)} className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-blue-900/40 transition-colors">
@@ -541,7 +636,7 @@ export default function PlanDetailPage() {
                         {activeTripId === plan?.id ? (
                             <button onClick={handleEndTrip} className="flex-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98]">{t('plans.endTrip', locale)}</button>
                         ) : (
-                            <button onClick={handleStartTrip} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98]">{t('plans.startTripButton', locale)}</button>
+                            <button onClick={handleStartTrip} disabled={planEnded} className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors active:scale-[0.98] ${planEnded ? 'bg-gray-100 text-gray-400 dark:bg-blue-950/50 dark:text-gray-500' : 'bg-blue-600 text-white'}`}>{t('plans.startTripButton', locale)}</button>
                         )}
                     </div>
 
@@ -574,6 +669,15 @@ export default function PlanDetailPage() {
                                                 {formatDuration(getVisitDuration(stop.museum?.type), locale)}
                                             </p>
                                         </div>
+                                        <button
+                                            type="button"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => handleToggleStopVisited(stop, e)}
+                                            className={`shrink-0 self-center rounded-full px-2.5 py-1.5 text-[11px] font-bold transition-all active:scale-95 ${isStopVisited(stop) ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-500/20' : 'bg-gray-100 text-gray-500 dark:bg-blue-950/50 dark:text-blue-200/70'}`}
+                                            aria-pressed={isStopVisited(stop)}
+                                        >
+                                            {isStopVisited(stop) ? visitLabels.unmark : visitLabels.mark}
+                                        </button>
                                     </div>
                                 );
                             })}
