@@ -1,13 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useApp } from '@/components/AppContext';
 import { LOCALE_NAMES, type Locale } from '@/lib/i18n';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
-import { backWithFallback } from '@/lib/route-pending';
 
 type MapSettingKey = 'location' | 'nearby' | 'weather' | 'leftHanded';
 type MapPrefs = Record<MapSettingKey, boolean>;
@@ -276,7 +274,7 @@ function SettingsRow({ icon, label, description, value, href, onClick }: { icon:
       <Chevron />
     </>
   );
-  if (href) return <Link href={href} className="mm-settings-row">{inner}</Link>;
+  if (href) return <a href={href} className="mm-settings-row">{inner}</a>;
   return <button type="button" onClick={onClick} className="mm-settings-row w-full text-left">{inner}</button>;
 }
 
@@ -326,23 +324,10 @@ export default function SettingsPage() {
     window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source } }));
   };
 
-  const handleBack = () => {
-    if (typeof window === 'undefined') return;
-    const storedFallback = sessionStorage.getItem('mm_settings_return_to') || '/';
-    const fallbackTarget = storedFallback === '/settings' ? '/' : storedFallback;
-    backWithFallback(fallbackTarget, locale, { timeoutMs: 700 });
-  };
-
   return (
     <div className="mm-settings-page2 no-back-swipe mx-auto w-full max-w-[640px] px-5 pb-32 pt-[max(28px,env(safe-area-inset-top,0px))] lg:pb-12 mm-settings-page2--enter">
-      <div className="mm-settings-header2 mb-12">
-        <button type="button" className="mm-settings-back-button2" onClick={handleBack} aria-label={locale === 'ko' ? '뒤로가기' : 'Back'}>
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+      <div className="mb-12 flex items-center justify-center">
         <h1 className="mm-settings-title text-center text-2xl text-slate-900 dark:text-white">{labels.title}</h1>
-        <span className="mm-settings-header-spacer2" aria-hidden="true" />
       </div>
 
       {isGuest && (

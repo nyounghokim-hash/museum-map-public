@@ -543,6 +543,7 @@ export default function NavHeader() {
                         {/* Settings icon - PC only (gear) */}
                         <a
                             href="/settings"
+                            onPointerDown={rememberSettingsReturn}
                             onClick={rememberSettingsReturn}
                             className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             title={locale === 'ko' ? '설정' : 'Settings'}
@@ -688,7 +689,7 @@ export default function NavHeader() {
                         {/* Mobile profile/admin/settings */}
                         <div className="px-4 py-2">
                             {session && !session.user?.name?.startsWith('guest_') && (
-                                <Link
+                                <a
                                     href="/profile"
                                     onClick={() => setMobileOpen(false)}
                                     className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
@@ -699,7 +700,7 @@ export default function NavHeader() {
                                     <span className="min-w-0 flex-1 truncate">
                                         {session.user?.name || (locale === 'ko' ? '프로필' : 'Profile')}
                                     </span>
-                                </Link>
+                                </a>
                             )}
                             {(session?.user as any)?.role === 'ADMIN' && (
                                 <Link
@@ -713,6 +714,7 @@ export default function NavHeader() {
                             )}
                             <a
                                 href="/settings"
+                                onPointerDown={rememberSettingsReturn}
                                 onClick={() => { rememberSettingsReturn(); setMobileOpen(false); }}
                                 className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
                             >
@@ -876,12 +878,13 @@ export default function NavHeader() {
                         <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{session.user?.name}</p>
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{session.user?.email}</p>
                     </div>
-                    <Link
+                    <a
                         href="/profile"
+                        onClick={() => setUserMenuOpen(false)}
                         className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/25 transition-colors focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-900/25"
                     >
                         {locale === 'ko' ? '프로필' : 'Profile'}
-                    </Link>
+                    </a>
                     <button
                         onClick={() => {
                             clearClientAccountStateForLogout();

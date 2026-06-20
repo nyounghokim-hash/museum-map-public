@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
-import type { CircleLayerSpecification, ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { CircleLayerSpecification, ExpressionSpecification, LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -31,6 +31,7 @@ const VISITED_STOP_COLOR_DARK = '#34D399';
 const ROUTE_STOP_INTERACTIVE_LAYERS = ['route-stop-circles', 'route-stop-labels', 'route-stop-name'] as const;
 
 type CirclePaint = NonNullable<CircleLayerSpecification['paint']>;
+type LinePaint = NonNullable<LineLayerSpecification['paint']>;
 type RouteStopProperties = {
     order: number;
     name: string;
@@ -44,6 +45,28 @@ const visitedStopExpression = <T extends string | number>(visitedValue: T, defau
     visitedValue,
     defaultValue,
 ] as unknown as ExpressionSpecification);
+
+const currentSegmentGradient = (darkMode: boolean): ExpressionSpecification => ([
+    'interpolate',
+    ['linear'],
+    ['line-progress'],
+    0,
+    darkMode ? VISITED_STOP_COLOR_DARK : VISITED_STOP_COLOR,
+    1,
+    ROUTE_COLOR,
+] as unknown as ExpressionSpecification);
+
+function sortRouteStops(stops: RouteStop[]) {
+    return [...stops].sort((a, b) => a.order - b.order);
+}
+
+function stopCoordinate(stop: RouteStop): [number, number] {
+    return [Number(stop.longitude) || 0, Number(stop.latitude) || 0];
+}
+
+function hasVisitedStop(stop: RouteStop) {
+    return Boolean(stop.visitedAt || stop.reviewId);
+}
 
 export default function RouteMapViewer({ stops = [], onStopClick, darkMode = false, padding }: Props) {
     const validStops = Array.isArray(stops) ? stops : [];
@@ -62,11 +85,34 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         properties: {},
         geometry: {
             type: 'LineString' as const,
-            coordinates: [...s]
-                .sort((a, b) => a.order - b.order)
-                .map(st => [Number(st.longitude) || 0, Number(st.latitude) || 0] as [number, number]),
+            coordinates: sortRouteStops(s).map(stopCoordinate),
         },
     }), []);
+
+    const buildCurrentSegmentGeoJSON = useCallback((s: RouteStop[]): FeatureCollection<LineString> => {
+        const orderedStops = sortRouteStops(s);
+        const lastVisitedIndex = orderedStops.reduce((latestIndex, stop, index) => (
+            hasVisitedStop(stop) ? index : latestIndex
+        ), -1);
+        const fromStop = lastVisitedIndex >= 0 ? orderedStops[lastVisitedIndex] : null;
+        const toStop = lastVisitedIndex >= 0 ? orderedStops[lastVisitedIndex + 1] : null;
+
+        if (!fromStop || !toStop) {
+            return { type: 'FeatureCollection' as const, features: [] };
+        }
+
+        return {
+            type: 'FeatureCollection' as const,
+            features: [{
+                type: 'Feature' as const,
+                properties: {},
+                geometry: {
+                    type: 'LineString' as const,
+                    coordinates: [stopCoordinate(fromStop), stopCoordinate(toStop)],
+                },
+            }],
+        };
+    }, []);
 
     const buildStopsGeoJSON = useCallback((s: RouteStop[]): FeatureCollection<Point, RouteStopProperties> => ({
         type: 'FeatureCollection' as const,
@@ -77,7 +123,7 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
                 order: st.order + 1,
                 name: st.name,
                 museumId: st.museumId || '',
-                visited: Boolean(st.visitedAt || st.reviewId),
+                visited: hasVisitedStop(st),
             },
         })),
     }), []);
@@ -139,6 +185,29 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
             id: 'route-line-layer', type: 'line', source: 'route-line',
             layout: { 'line-join': 'round', 'line-cap': 'round' },
             paint: { 'line-color': ROUTE_COLOR, 'line-width': 3, 'line-opacity': 0.78 },
+        });
+        map.addSource('route-current-segment', {
+            type: 'geojson',
+            data: buildCurrentSegmentGeoJSON(stopsData),
+            lineMetrics: true,
+        });
+        map.addLayer({
+            id: 'route-current-segment-glow', type: 'line', source: 'route-current-segment',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+                'line-gradient': currentSegmentGradient(darkMode) as LinePaint['line-gradient'],
+                'line-width': 8,
+                'line-opacity': 0.2,
+            },
+        });
+        map.addLayer({
+            id: 'route-current-segment-layer', type: 'line', source: 'route-current-segment',
+            layout: { 'line-join': 'round', 'line-cap': 'round' },
+            paint: {
+                'line-gradient': currentSegmentGradient(darkMode) as LinePaint['line-gradient'],
+                'line-width': 4,
+                'line-opacity': 0.92,
+            },
         });
 
         // Stop markers
@@ -202,16 +271,18 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         const map = mapRef.current;
         map.setStyle(darkMode ? DARK_STYLE : LIGHT_STYLE);
         map.once('style.load', () => { addRouteLayers(map, validStops); });
-    }, [darkMode, buildLineGeoJSON, buildStopsGeoJSON, validStops]);
+    }, [darkMode, buildLineGeoJSON, buildCurrentSegmentGeoJSON, buildStopsGeoJSON, validStops]);
 
     useEffect(() => {
         const map = mapRef.current;
         if (!map || !initializedRef.current || validStops.length === 0) return;
         const lineSource = map.getSource('route-line') as maplibregl.GeoJSONSource | undefined;
+        const currentSegmentSource = map.getSource('route-current-segment') as maplibregl.GeoJSONSource | undefined;
         const stopsSource = map.getSource('route-stops') as maplibregl.GeoJSONSource | undefined;
         if (lineSource) lineSource.setData(buildLineGeoJSON(validStops));
+        if (currentSegmentSource) currentSegmentSource.setData(buildCurrentSegmentGeoJSON(validStops));
         if (stopsSource) stopsSource.setData(buildStopsGeoJSON(validStops));
-    }, [stops, buildLineGeoJSON, buildStopsGeoJSON]);
+    }, [stops, buildLineGeoJSON, buildCurrentSegmentGeoJSON, buildStopsGeoJSON]);
 
     // Refit bounds when padding changes (e.g., sheet expand/collapse) or stops change
     useEffect(() => {

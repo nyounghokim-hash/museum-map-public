@@ -1638,6 +1638,14 @@ export default function MainPage() {
     }
   };
 
+  const handleActiveRouteMuseumClick = (id?: string | null) => {
+    if (!id) return;
+    setTripExiting(false);
+    setIsViewingActiveRoute(false);
+    setReturnFromDetail(false);
+    void handleMuseumClick(id);
+  };
+
   // Listen for browser back (swipe/button) to close panel instead of navigating away
   // NOTE: No dependency on selectedMuseum — uses ref to avoid stale closure & handler recreation
   useEffect(() => {
@@ -2469,7 +2477,7 @@ export default function MainPage() {
                       onPointerLeave={tripDrag.cancelPress}
                     >
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isBeingDragged ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-500 text-white shadow-sm'}`}>{i + 1}</div>
-                      <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleMuseumClick(stop.museumId)}>
+                      <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleActiveRouteMuseumClick(stop.museumId)}>
                         <h3 className="font-bold text-base truncate dark:text-white">{(() => { const m = museums.find(x => x.id === stop.museumId); return m ? getLocalizedMuseumName(m, locale) : stop.name; })()}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -2504,13 +2512,13 @@ export default function MainPage() {
             </div>
           </div>
           <div className="flex-1 relative">
-            <RouteMapViewer stops={tripStops.map((s: any) => { const m = museums.find((x: any) => x.id === s.museumId); return m ? { ...s, name: getLocalizedMuseumName(m, locale) } : s; })} darkMode={isDarkMode} onStopClick={(stop) => { if (stop.museumId) handleMuseumClick(stop.museumId); }} padding={{ top: 80, bottom: 80, left: 80, right: 80 }} />
+            <RouteMapViewer stops={tripStops.map((s: any) => { const m = museums.find((x: any) => x.id === s.museumId); return m ? { ...s, name: getLocalizedMuseumName(m, locale) } : s; })} darkMode={isDarkMode} onStopClick={(stop) => { handleActiveRouteMuseumClick(stop.museumId); }} padding={{ top: 80, bottom: 80, left: 80, right: 80 }} />
           </div>
         </div>
         {/* Mobile: fullscreen map + top drawer */}
         <div className="sm:hidden relative h-[calc(100vh-3.5rem)]">
           <div className="absolute inset-0">
-            <RouteMapViewer stops={tripStops.map((s: any) => { const m = museums.find((x: any) => x.id === s.museumId); return m ? { ...s, name: getLocalizedMuseumName(m, locale) } : s; })} darkMode={isDarkMode} onStopClick={(stop) => { if (stop.museumId) handleMuseumClick(stop.museumId); }} padding={tripMobileMapPadding} />
+            <RouteMapViewer stops={tripStops.map((s: any) => { const m = museums.find((x: any) => x.id === s.museumId); return m ? { ...s, name: getLocalizedMuseumName(m, locale) } : s; })} darkMode={isDarkMode} onStopClick={(stop) => { handleActiveRouteMuseumClick(stop.museumId); }} padding={tripMobileMapPadding} />
           </div>
           {/* Top drawer — slides down from top */}
           <div className={`mm-active-trip-drawer2 absolute left-0 right-0 top-0 z-30 rounded-b-3xl shadow-[0_4px_20px_rgba(0,0,0,0.1)] flex flex-col transition-[max-height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden ${tripSheetOpen ? 'max-h-[55vh]' : 'max-h-[56px]'}`}>
@@ -2535,7 +2543,7 @@ export default function MainPage() {
                       onPointerLeave={tripDrag.cancelPress}
                     >
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${isBeingDragged ? 'bg-blue-600 text-white' : 'bg-blue-500 text-white'}`}>{i + 1}</div>
-                      <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleMuseumClick(stop.museumId)}>
+                      <div className="min-w-0 flex-1" onClick={() => !tripIsDragging && handleActiveRouteMuseumClick(stop.museumId)}>
                         <h3 className="font-bold text-sm truncate dark:text-white">{(() => { const m = museums.find(x => x.id === stop.museumId); return m ? getLocalizedMuseumName(m, locale) : stop.name; })()}</h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           <svg className="w-3 h-3 inline-block mr-0.5 -mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -2956,7 +2964,8 @@ export default function MainPage() {
                       onClick={() => {
                         closeSearchAndClusterPopup();
                         setMapSideMenuOpen(false);
-                        navigateWithPending('/login', locale);
+                        startRoutePending(locale);
+                        window.location.assign('/profile');
                       }}
                     >
                       <span className="h-6 w-6 overflow-hidden rounded-full bg-blue-100 text-xs font-semibold text-blue-700 flex items-center justify-center">
@@ -2986,7 +2995,8 @@ export default function MainPage() {
                       try {
                         sessionStorage.setItem('mm_settings_return_to', '/');
                       } catch {}
-                      navigateWithPending('/settings', locale);
+                      startRoutePending(locale);
+                      window.location.assign('/settings');
                     }}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -3113,7 +3123,7 @@ export default function MainPage() {
             stops={activeTrip.stops}
             darkMode={isDarkMode}
             onStopClick={(stop) => {
-              if (stop.museumId) handleMuseumClick(stop.museumId);
+              handleActiveRouteMuseumClick(stop.museumId);
             }}
           />
         ) : (
