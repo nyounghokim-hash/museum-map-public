@@ -413,6 +413,7 @@ export default function MobileBottomNav() {
     const recentNavigationRef = useRef<{ href: string; ts: number } | null>(null);
 
     useEffect(() => {
+        setDetailOpen(document.body.hasAttribute('data-detail-open'));
         const observer = new MutationObserver(() => {
             setDetailOpen(document.body.hasAttribute('data-detail-open'));
         });

@@ -1302,8 +1302,25 @@ export default function MainPage() {
 
   // Prevent body scroll on map page only
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    const applyMapBodyLock = () => {
+      document.body.style.overflow = 'hidden';
+    };
+    const reapplyMapBodyLock = () => {
+      if (document.hidden) return;
+      applyMapBodyLock();
+      window.requestAnimationFrame(applyMapBodyLock);
+    };
+
+    applyMapBodyLock();
+    window.addEventListener('pageshow', reapplyMapBodyLock);
+    window.addEventListener('focus', reapplyMapBodyLock);
+    document.addEventListener('visibilitychange', reapplyMapBodyLock);
+    return () => {
+      window.removeEventListener('pageshow', reapplyMapBodyLock);
+      window.removeEventListener('focus', reapplyMapBodyLock);
+      document.removeEventListener('visibilitychange', reapplyMapBodyLock);
+      document.body.style.overflow = '';
+    };
   }, []);
 
   // Show detailed panel if museum selected OR if viewing active route (and not seeing a specific museum)
@@ -1311,12 +1328,29 @@ export default function MainPage() {
 
   // Signal to MobileBottomNav to hide when detail panel is open
   useEffect(() => {
-    if (isPanelOpen) {
-      document.body.setAttribute('data-detail-open', 'true');
-    } else {
+    const syncDetailOpenAttribute = () => {
+      if (isPanelOpen) {
+        document.body.setAttribute('data-detail-open', 'true');
+      } else {
+        document.body.removeAttribute('data-detail-open');
+      }
+    };
+    const reapplyDetailOpenAttribute = () => {
+      if (document.hidden) return;
+      syncDetailOpenAttribute();
+      window.requestAnimationFrame(syncDetailOpenAttribute);
+    };
+
+    syncDetailOpenAttribute();
+    window.addEventListener('pageshow', reapplyDetailOpenAttribute);
+    window.addEventListener('focus', reapplyDetailOpenAttribute);
+    document.addEventListener('visibilitychange', reapplyDetailOpenAttribute);
+    return () => {
+      window.removeEventListener('pageshow', reapplyDetailOpenAttribute);
+      window.removeEventListener('focus', reapplyDetailOpenAttribute);
+      document.removeEventListener('visibilitychange', reapplyDetailOpenAttribute);
       document.body.removeAttribute('data-detail-open');
-    }
-    return () => document.body.removeAttribute('data-detail-open');
+    };
   }, [isPanelOpen]);
 
   // Trigger entrance animation when returning from detail panel

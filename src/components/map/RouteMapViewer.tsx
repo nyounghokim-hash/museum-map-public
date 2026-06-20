@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
+import type { CircleLayerSpecification, ExpressionSpecification } from '@maplibre/maplibre-gl-style-spec';
+import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 export interface RouteStop {
@@ -9,6 +11,8 @@ export interface RouteStop {
     longitude: number;
     order: number;
     museumId?: string;
+    visitedAt?: string | Date | null;
+    reviewId?: string | null;
 }
 
 interface Props {
@@ -22,6 +26,24 @@ interface Props {
 const LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
 const DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const ROUTE_COLOR = '#2563EB';
+const VISITED_STOP_COLOR = '#10B981';
+const VISITED_STOP_COLOR_DARK = '#34D399';
+const ROUTE_STOP_INTERACTIVE_LAYERS = ['route-stop-circles', 'route-stop-labels', 'route-stop-name'] as const;
+
+type CirclePaint = NonNullable<CircleLayerSpecification['paint']>;
+type RouteStopProperties = {
+    order: number;
+    name: string;
+    museumId: string;
+    visited: boolean;
+};
+
+const visitedStopExpression = <T extends string | number>(visitedValue: T, defaultValue: T): ExpressionSpecification => ([
+    'case',
+    ['boolean', ['get', 'visited'], false],
+    visitedValue,
+    defaultValue,
+] as unknown as ExpressionSpecification);
 
 export default function RouteMapViewer({ stops = [], onStopClick, darkMode = false, padding }: Props) {
     const validStops = Array.isArray(stops) ? stops : [];
@@ -35,7 +57,7 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         right: padding?.right ?? 60,
     };
 
-    const buildLineGeoJSON = useCallback((s: RouteStop[]) => ({
+    const buildLineGeoJSON = useCallback((s: RouteStop[]): Feature<LineString> => ({
         type: 'Feature' as const,
         properties: {},
         geometry: {
@@ -46,12 +68,17 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         },
     }), []);
 
-    const buildStopsGeoJSON = useCallback((s: RouteStop[]) => ({
+    const buildStopsGeoJSON = useCallback((s: RouteStop[]): FeatureCollection<Point, RouteStopProperties> => ({
         type: 'FeatureCollection' as const,
         features: s.map(st => ({
             type: 'Feature' as const,
             geometry: { type: 'Point' as const, coordinates: [Number(st.longitude) || 0, Number(st.latitude) || 0] },
-            properties: { order: st.order + 1, name: st.name, museumId: st.museumId || '' },
+            properties: {
+                order: st.order + 1,
+                name: st.name,
+                museumId: st.museumId || '',
+                visited: Boolean(st.visitedAt || st.reviewId),
+            },
         })),
     }), []);
 
@@ -81,13 +108,28 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         );
     }, []);
 
+    const handleRouteStopClick = useCallback((e: maplibregl.MapLayerMouseEvent) => {
+        const feature = e.features?.[0];
+        if (!feature || !onStopClick || feature.geometry.type !== 'Point') return;
+
+        const props = feature.properties || {};
+        const coordinates = feature.geometry.coordinates;
+        onStopClick({
+            name: String(props.name || ''),
+            latitude: Number(coordinates[1]) || 0,
+            longitude: Number(coordinates[0]) || 0,
+            order: (Number(props.order) || 1) - 1,
+            museumId: String(props.museumId || ''),
+        });
+    }, [onStopClick]);
+
     const addRouteLayers = (map: maplibregl.Map, stopsData: RouteStop[]) => {
         for (const id of ['watername_ocean', 'watername_sea']) {
             if (map.getLayer(id)) try { map.removeLayer(id); } catch { }
         }
 
         // Route line (solid)
-        map.addSource('route-line', { type: 'geojson', data: buildLineGeoJSON(stopsData) as any });
+        map.addSource('route-line', { type: 'geojson', data: buildLineGeoJSON(stopsData) });
         map.addLayer({
             id: 'route-line-bg', type: 'line', source: 'route-line',
             layout: { 'line-join': 'round', 'line-cap': 'round' },
@@ -100,10 +142,17 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         });
 
         // Stop markers
-        map.addSource('route-stops', { type: 'geojson', data: buildStopsGeoJSON(stopsData) as any });
+        map.addSource('route-stops', { type: 'geojson', data: buildStopsGeoJSON(stopsData) });
         map.addLayer({
             id: 'route-stop-circles', type: 'circle', source: 'route-stops',
-            paint: { 'circle-color': ROUTE_COLOR, 'circle-radius': 16, 'circle-stroke-width': 3, 'circle-stroke-color': '#ffffff' },
+            paint: {
+                'circle-color': visitedStopExpression(darkMode ? VISITED_STOP_COLOR_DARK : VISITED_STOP_COLOR, ROUTE_COLOR) as CirclePaint['circle-color'],
+                'circle-opacity': visitedStopExpression(0.72, 1) as CirclePaint['circle-opacity'],
+                'circle-radius': 16,
+                'circle-stroke-width': visitedStopExpression(4, 3) as CirclePaint['circle-stroke-width'],
+                'circle-stroke-color': '#ffffff',
+                'circle-stroke-opacity': visitedStopExpression(0.92, 1) as CirclePaint['circle-stroke-opacity'],
+            },
         });
         map.addLayer({
             id: 'route-stop-labels', type: 'symbol', source: 'route-stops',
@@ -133,16 +182,11 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
 
         map.on('load', () => {
             addRouteLayers(map, validStops);
-            map.on('click', 'route-stop-circles', (e) => {
-                const feature = e.features?.[0];
-                if (feature && onStopClick) {
-                    const props = feature.properties;
-                    const coords = (feature.geometry as any).coordinates;
-                    onStopClick({ name: props?.name || '', latitude: coords[1], longitude: coords[0], order: (props?.order || 1) - 1, museumId: props?.museumId || '' });
-                }
+            ROUTE_STOP_INTERACTIVE_LAYERS.forEach((layerId) => {
+                map.on('click', layerId, handleRouteStopClick);
+                map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
+                map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
             });
-            map.on('mouseenter', 'route-stop-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
-            map.on('mouseleave', 'route-stop-circles', () => { map.getCanvas().style.cursor = ''; });
             initializedRef.current = true;
         });
 
@@ -165,8 +209,8 @@ export default function RouteMapViewer({ stops = [], onStopClick, darkMode = fal
         if (!map || !initializedRef.current || validStops.length === 0) return;
         const lineSource = map.getSource('route-line') as maplibregl.GeoJSONSource | undefined;
         const stopsSource = map.getSource('route-stops') as maplibregl.GeoJSONSource | undefined;
-        if (lineSource) lineSource.setData(buildLineGeoJSON(validStops) as any);
-        if (stopsSource) stopsSource.setData(buildStopsGeoJSON(validStops) as any);
+        if (lineSource) lineSource.setData(buildLineGeoJSON(validStops));
+        if (stopsSource) stopsSource.setData(buildStopsGeoJSON(validStops));
     }, [stops, buildLineGeoJSON, buildStopsGeoJSON]);
 
     // Refit bounds when padding changes (e.g., sheet expand/collapse) or stops change

@@ -9,6 +9,7 @@ export default function MainContent({ children }: { children: React.ReactNode })
     // Listen for detail panel open signal from map page
     const [detailOpen, setDetailOpen] = useState(false);
     useEffect(() => {
+        setDetailOpen(document.body.hasAttribute('data-detail-open'));
         const observer = new MutationObserver(() => {
             setDetailOpen(document.body.hasAttribute('data-detail-open'));
         });
