@@ -53,7 +53,6 @@ export default function MuseumClient({ museumId, initialData }: { museumId: stri
         if (isBackingRef.current) return;
         isBackingRef.current = true;
         if (typeof window !== 'undefined') {
-            sessionStorage.setItem('navigating-back', String(Date.now()));
             const artworkReturn = sessionStorage.getItem('artwork-to-museum-return');
             if (artworkReturn && window.history.length <= 1) {
                 sessionStorage.removeItem('artwork-to-museum-return');

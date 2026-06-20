@@ -1,8 +1,8 @@
 'use client';
 import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { backWithFallback } from '@/lib/route-pending';
 
 const content: Record<string, { title: string; intro: string; sections: { heading: string; body: string }[] }> = {
     ko: {
@@ -69,13 +69,12 @@ const content: Record<string, { title: string; intro: string; sections: { headin
 
 export default function CookiePolicyPage() {
     const { locale } = useApp();
-    const router = useRouter();
     const t = content[locale] || content.en;
 
     return (
         <div className="mm-legal-page2 mm-library-page2 no-back-swipe w-full max-w-[640px] mx-auto px-4 py-6 sm:px-6 sm:py-10 mt-2 sm:mt-6 animate-fadeInUp">
             <div className="mb-6 sm:mb-8">
-                <button onClick={() => router.back()} className="hidden lg:flex w-9 h-9 items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-300 rounded-full mb-4 transition-colors active:scale-95">
+                <button onClick={() => backWithFallback('/info', locale)} className="hidden lg:flex w-9 h-9 items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-600 dark:text-gray-300 rounded-full mb-4 transition-colors active:scale-95">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <h1 className="text-xl sm:text-2xl font-bold dark:text-white">{t.title}</h1>
@@ -121,7 +120,7 @@ export default function CookiePolicyPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => router.back()}
+                        onClick={() => backWithFallback('/info', locale)}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                         aria-label="Back"
                     >

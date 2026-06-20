@@ -65,10 +65,6 @@ export function backWithFallback(
     if (typeof window === 'undefined') return;
     const timeoutMs = options.timeoutMs ?? 650;
     const currentPath = currentDocumentPath();
-    try {
-        sessionStorage.setItem('navigating-back', String(Date.now()));
-    } catch { }
-
     if (window.history.length > 1) {
         window.history.back();
         window.setTimeout(() => {

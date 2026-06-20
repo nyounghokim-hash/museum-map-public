@@ -3,15 +3,14 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { t } from '@/lib/i18n';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
+import { backWithFallback } from '@/lib/route-pending';
 
 export default function FeedbackPage() {
     const { locale } = useApp();
-    const router = useRouter();
     const { showAlert } = useModal();
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
@@ -28,7 +27,7 @@ export default function FeedbackPage() {
                 body: JSON.stringify({ content: message })
             });
             setSuccess(true);
-        } catch (err) {
+        } catch {
             showAlert(t('feedback.error', locale) || 'Error');
         } finally {
             setLoading(false);
@@ -130,7 +129,7 @@ export default function FeedbackPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => router.back()}
+                        onClick={() => backWithFallback('/info', locale)}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                         aria-label="Back"
                     >

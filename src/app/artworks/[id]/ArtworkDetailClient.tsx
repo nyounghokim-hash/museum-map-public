@@ -76,7 +76,6 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
         if (isBackingRef.current) return;
         isBackingRef.current = true;
         if (typeof window !== 'undefined') {
-            sessionStorage.setItem('navigating-back', String(Date.now()));
             const returnPath = sessionStorage.getItem('artwork-list-return');
             const historyState = window.history.state;
             if (returnPath && window.history.length <= 1) {

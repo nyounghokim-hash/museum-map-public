@@ -32,20 +32,20 @@ import LoadingAnimation from '@/components/ui/LoadingAnimation';
 const RETURN_TO_MUSEUM_DETAIL_KEY = 'mm-return-to-museum-detail';
 const FEATURED_ARTWORK_PREVIEW_LIMIT = 20;
 
-const DETAIL_TRIP_VISIT_LABELS: Record<string, { title: string; mark: string; unmark: string; saved: string; failed: string; pending: string }> = {
-    ko: { title: '이번 여행', mark: '다녀간 곳으로 표시', unmark: '다녀감 취소', saved: '방문 기록을 저장했어요', failed: '방문 기록을 저장하지 못했어요', pending: '여행 시작 후 체크할 수 있어요' },
-    en: { title: 'This trip', mark: 'Mark as visited', unmark: 'Undo visit', saved: 'Visit saved', failed: 'Could not save visit', pending: 'Available when the trip starts' },
-    ja: { title: 'この旅行', mark: '訪問済みにする', unmark: '訪問を取消', saved: '訪問記録を保存しました', failed: '訪問記録を保存できませんでした', pending: '旅行開始後にチェックできます' },
-    de: { title: 'Diese Reise', mark: 'Als besucht markieren', unmark: 'Besuch entfernen', saved: 'Besuch gespeichert', failed: 'Besuch konnte nicht gespeichert werden', pending: 'Verfügbar, wenn die Reise beginnt' },
-    fr: { title: 'Ce voyage', mark: 'Marquer comme visité', unmark: 'Annuler la visite', saved: 'Visite enregistrée', failed: 'Impossible d’enregistrer la visite', pending: 'Disponible au début du voyage' },
-    es: { title: 'Este viaje', mark: 'Marcar como visitado', unmark: 'Deshacer visita', saved: 'Visita guardada', failed: 'No se pudo guardar la visita', pending: 'Disponible cuando empiece el viaje' },
-    pt: { title: 'Esta viagem', mark: 'Marcar como visitado', unmark: 'Desfazer visita', saved: 'Visita salva', failed: 'Não foi possível salvar a visita', pending: 'Disponível quando a viagem começar' },
-    'zh-CN': { title: '本次旅行', mark: '标记为已到访', unmark: '取消到访', saved: '到访记录已保存', failed: '无法保存到访记录', pending: '旅行开始后可勾选' },
-    'zh-TW': { title: '本次旅行', mark: '標記為已到訪', unmark: '取消到訪', saved: '到訪紀錄已儲存', failed: '無法儲存到訪紀錄', pending: '旅行開始後可勾選' },
-    da: { title: 'Denne rejse', mark: 'Markér som besøgt', unmark: 'Fortryd besøg', saved: 'Besøg gemt', failed: 'Kunne ikke gemme besøg', pending: 'Tilgængelig når rejsen starter' },
-    fi: { title: 'Tämä matka', mark: 'Merkitse käydyksi', unmark: 'Kumoa käynti', saved: 'Käynti tallennettu', failed: 'Käyntiä ei voitu tallentaa', pending: 'Käytössä matkan alettua' },
-    sv: { title: 'Den här resan', mark: 'Markera som besökt', unmark: 'Ångra besök', saved: 'Besök sparat', failed: 'Kunde inte spara besök', pending: 'Tillgängligt när resan startar' },
-    et: { title: 'See reis', mark: 'Märgi külastatuks', unmark: 'Võta külastus tagasi', saved: 'Külastus salvestatud', failed: 'Külastust ei saanud salvestada', pending: 'Saadaval reisi alguses' },
+const DETAIL_TRIP_VISIT_LABELS: Record<string, { title: string; mark: string; unmark: string; saved: string; removed: string; failed: string; removeFailed: string; pending: string }> = {
+    ko: { title: '이번 여행', mark: '다녀간 곳으로 표시', unmark: '다녀감 취소', saved: '방문 기록을 저장했어요', removed: '다녀감 표시를 취소했어요', failed: '방문 기록을 저장하지 못했어요', removeFailed: '다녀감 표시를 취소하지 못했어요', pending: '여행 시작 후 체크할 수 있어요' },
+    en: { title: 'This trip', mark: 'Mark as visited', unmark: 'Undo visit', saved: 'Visit saved', removed: 'Visit mark removed', failed: 'Could not save visit', removeFailed: 'Could not remove visit mark', pending: 'Available when the trip starts' },
+    ja: { title: 'この旅行', mark: '訪問済みにする', unmark: '訪問を取消', saved: '訪問記録を保存しました', removed: '訪問済みを取り消しました', failed: '訪問記録を保存できませんでした', removeFailed: '訪問済みを取り消せませんでした', pending: '旅行開始後にチェックできます' },
+    de: { title: 'Diese Reise', mark: 'Als besucht markieren', unmark: 'Besuch entfernen', saved: 'Besuch gespeichert', removed: 'Besuchsmarkierung entfernt', failed: 'Besuch konnte nicht gespeichert werden', removeFailed: 'Besuchsmarkierung konnte nicht entfernt werden', pending: 'Verfügbar, wenn die Reise beginnt' },
+    fr: { title: 'Ce voyage', mark: 'Marquer comme visité', unmark: 'Annuler la visite', saved: 'Visite enregistrée', removed: 'Marque de visite retirée', failed: 'Impossible d’enregistrer la visite', removeFailed: 'Impossible de retirer la marque de visite', pending: 'Disponible au début du voyage' },
+    es: { title: 'Este viaje', mark: 'Marcar como visitado', unmark: 'Deshacer visita', saved: 'Visita guardada', removed: 'Marca de visita eliminada', failed: 'No se pudo guardar la visita', removeFailed: 'No se pudo eliminar la marca de visita', pending: 'Disponible cuando empiece el viaje' },
+    pt: { title: 'Esta viagem', mark: 'Marcar como visitado', unmark: 'Desfazer visita', saved: 'Visita salva', removed: 'Marca de visita removida', failed: 'Não foi possível salvar a visita', removeFailed: 'Não foi possível remover a marca de visita', pending: 'Disponível quando a viagem começar' },
+    'zh-CN': { title: '本次旅行', mark: '标记为已到访', unmark: '取消到访', saved: '到访记录已保存', removed: '已取消到访标记', failed: '无法保存到访记录', removeFailed: '无法取消到访标记', pending: '旅行开始后可勾选' },
+    'zh-TW': { title: '本次旅行', mark: '標記為已到訪', unmark: '取消到訪', saved: '到訪紀錄已儲存', removed: '已取消到訪標記', failed: '無法儲存到訪紀錄', removeFailed: '無法取消到訪標記', pending: '旅行開始後可勾選' },
+    da: { title: 'Denne rejse', mark: 'Markér som besøgt', unmark: 'Fortryd besøg', saved: 'Besøg gemt', removed: 'Besøgsmarkering fjernet', failed: 'Kunne ikke gemme besøg', removeFailed: 'Kunne ikke fjerne besøgsmarkering', pending: 'Tilgængelig når rejsen starter' },
+    fi: { title: 'Tämä matka', mark: 'Merkitse käydyksi', unmark: 'Kumoa käynti', saved: 'Käynti tallennettu', removed: 'Käyntimerkintä poistettu', failed: 'Käyntiä ei voitu tallentaa', removeFailed: 'Käyntimerkintää ei voitu poistaa', pending: 'Käytössä matkan alettua' },
+    sv: { title: 'Den här resan', mark: 'Markera som besökt', unmark: 'Ångra besök', saved: 'Besök sparat', removed: 'Besöksmarkering borttagen', failed: 'Kunde inte spara besök', removeFailed: 'Kunde inte ta bort besöksmarkering', pending: 'Tillgängligt när resan startar' },
+    et: { title: 'See reis', mark: 'Märgi külastatuks', unmark: 'Võta külastus tagasi', saved: 'Külastus salvestatud', removed: 'Külastuse märge eemaldati', failed: 'Külastust ei saanud salvestada', removeFailed: 'Külastuse märget ei saanud eemaldada', pending: 'Saadaval reisi alguses' },
 };
 
 // Skeleton pulse component for translation loading
@@ -1140,10 +1140,10 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     stops: updateTripStopVisitState(activeTrip.stops || [], { id: tripStop.id, museumId: tripStop.museumId || data.id }, savedVisit),
                 });
             }
-            showAlert(labels.saved);
+            showAlert(wasVisited ? labels.removed : labels.saved);
         } catch {
             applyTrip(previousTrip);
-            showAlert(labels.failed);
+            showAlert(wasVisited ? labels.removeFailed : labels.failed);
         } finally {
             setTripVisitSaving(false);
         }
@@ -1484,7 +1484,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                 await navigator.clipboard.writeText(url);
                             }
                         }}
-                        className="flex absolute top-4 right-4 z-20 w-12 h-12 items-center justify-center rounded-full bg-black/42 backdrop-blur-md text-white/85 shadow-lg ring-1 ring-white/16 transition-all duration-300 hover:bg-black/60 active:scale-90"
+                        className="mm-detail-hero-share flex absolute top-4 right-4 z-20 w-12 h-12 items-center justify-center rounded-full bg-black/42 backdrop-blur-md text-white/85 shadow-lg ring-1 ring-white/16 transition-all duration-300 hover:bg-black/60 active:scale-90"
                         aria-label="Share"
                     >
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1507,7 +1507,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     {/* Compare button on image */}
                     <button
                         onClick={handleToggleCompare}
-                        className={`flex absolute top-4 right-[4.75rem] z-20 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 active:scale-90 ${isInCompare(data.id)
+                        className={`mm-detail-hero-compare flex absolute top-4 right-[4.75rem] z-20 w-12 h-12 items-center justify-center rounded-full shadow-lg transition-all duration-300 active:scale-90 ${isInCompare(data.id)
                             ? 'bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-blue-500/30 ring-1 ring-blue-200/30'
                             : 'bg-black/42 backdrop-blur-md text-blue-100 hover:bg-black/60 ring-1 ring-white/16'
                             }`}
@@ -1520,7 +1520,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
                     {/* Google Places attribution */}
                     {(data.placePhotos?.length > 0 || data.imageUrl?.includes('googleusercontent')) && (
-                        <span className="absolute left-4 top-4 z-20 inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1.5 text-[9px] font-bold tracking-wide text-white/70 backdrop-blur-md ring-1 ring-white/15 pointer-events-none">
+                        <span className="mm-detail-google-tag absolute left-4 top-4 z-20 inline-flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1.5 text-[9px] font-bold tracking-wide text-white/70 backdrop-blur-md ring-1 ring-white/15 pointer-events-none">
                             <CameraIcon className="h-3 w-3" />
                             Google
                         </span>

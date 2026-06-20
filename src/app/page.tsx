@@ -21,7 +21,7 @@ import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
 import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
-import { navigateWithPending, startRoutePending } from '@/lib/route-pending';
+import { startRoutePending } from '@/lib/route-pending';
 import { getTripVisitStats, isStopVisited, isTripEnded, updateTripStopVisitState } from '@/lib/tripStatus';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
@@ -398,20 +398,20 @@ const TRIP_REORDER_LABELS: Record<Locale, { title: string; message: string; save
   et: { title: 'Kas muuta järjekorda?', message: 'Uus järjekord salvestatakse ka Minu reisidesse.', saved: 'Reisi järjekord salvestatud', failed: 'Järjekorda ei saanud salvestada' },
 };
 
-const TRIP_VISIT_LABELS: Record<Locale, { progress: string; mark: string; unmark: string; saved: string; failed: string }> = {
-  ko: { progress: '다녀감', mark: '다녀감', unmark: '취소', saved: '방문 기록을 저장했어요', failed: '방문 기록을 저장하지 못했어요' },
-  en: { progress: 'Visited', mark: 'Visited', unmark: 'Undo', saved: 'Visit saved', failed: 'Could not save visit' },
-  ja: { progress: '訪問済み', mark: '訪問済み', unmark: '取消', saved: '訪問記録を保存しました', failed: '訪問記録を保存できませんでした' },
-  de: { progress: 'Besucht', mark: 'Besucht', unmark: 'Zurück', saved: 'Besuch gespeichert', failed: 'Besuch konnte nicht gespeichert werden' },
-  fr: { progress: 'Visité', mark: 'Visité', unmark: 'Annuler', saved: 'Visite enregistrée', failed: 'Impossible d’enregistrer la visite' },
-  es: { progress: 'Visitado', mark: 'Visitado', unmark: 'Deshacer', saved: 'Visita guardada', failed: 'No se pudo guardar la visita' },
-  pt: { progress: 'Visitado', mark: 'Visitado', unmark: 'Desfazer', saved: 'Visita salva', failed: 'Não foi possível salvar a visita' },
-  'zh-CN': { progress: '已到访', mark: '已到访', unmark: '取消', saved: '到访记录已保存', failed: '无法保存到访记录' },
-  'zh-TW': { progress: '已到訪', mark: '已到訪', unmark: '取消', saved: '到訪紀錄已儲存', failed: '無法儲存到訪紀錄' },
-  da: { progress: 'Besøgt', mark: 'Besøgt', unmark: 'Fortryd', saved: 'Besøg gemt', failed: 'Kunne ikke gemme besøg' },
-  fi: { progress: 'Käyty', mark: 'Käyty', unmark: 'Kumoa', saved: 'Käynti tallennettu', failed: 'Käyntiä ei voitu tallentaa' },
-  sv: { progress: 'Besökt', mark: 'Besökt', unmark: 'Ångra', saved: 'Besök sparat', failed: 'Kunde inte spara besök' },
-  et: { progress: 'Külastatud', mark: 'Külastatud', unmark: 'Võta tagasi', saved: 'Külastus salvestatud', failed: 'Külastust ei saanud salvestada' },
+const TRIP_VISIT_LABELS: Record<Locale, { progress: string; mark: string; unmark: string; saved: string; removed: string; failed: string; removeFailed: string }> = {
+  ko: { progress: '다녀감', mark: '다녀감', unmark: '취소', saved: '방문 기록을 저장했어요', removed: '다녀감 표시를 취소했어요', failed: '방문 기록을 저장하지 못했어요', removeFailed: '다녀감 표시를 취소하지 못했어요' },
+  en: { progress: 'Visited', mark: 'Visited', unmark: 'Undo', saved: 'Visit saved', removed: 'Visit mark removed', failed: 'Could not save visit', removeFailed: 'Could not remove visit mark' },
+  ja: { progress: '訪問済み', mark: '訪問済み', unmark: '取消', saved: '訪問記録を保存しました', removed: '訪問済みを取り消しました', failed: '訪問記録を保存できませんでした', removeFailed: '訪問済みを取り消せませんでした' },
+  de: { progress: 'Besucht', mark: 'Besucht', unmark: 'Zurück', saved: 'Besuch gespeichert', removed: 'Besuchsmarkierung entfernt', failed: 'Besuch konnte nicht gespeichert werden', removeFailed: 'Besuchsmarkierung konnte nicht entfernt werden' },
+  fr: { progress: 'Visité', mark: 'Visité', unmark: 'Annuler', saved: 'Visite enregistrée', removed: 'Marque de visite retirée', failed: 'Impossible d’enregistrer la visite', removeFailed: 'Impossible de retirer la marque de visite' },
+  es: { progress: 'Visitado', mark: 'Visitado', unmark: 'Deshacer', saved: 'Visita guardada', removed: 'Marca de visita eliminada', failed: 'No se pudo guardar la visita', removeFailed: 'No se pudo eliminar la marca de visita' },
+  pt: { progress: 'Visitado', mark: 'Visitado', unmark: 'Desfazer', saved: 'Visita salva', removed: 'Marca de visita removida', failed: 'Não foi possível salvar a visita', removeFailed: 'Não foi possível remover a marca de visita' },
+  'zh-CN': { progress: '已到访', mark: '已到访', unmark: '取消', saved: '到访记录已保存', removed: '已取消到访标记', failed: '无法保存到访记录', removeFailed: '无法取消到访标记' },
+  'zh-TW': { progress: '已到訪', mark: '已到訪', unmark: '取消', saved: '到訪紀錄已儲存', removed: '已取消到訪標記', failed: '無法儲存到訪紀錄', removeFailed: '無法取消到訪標記' },
+  da: { progress: 'Besøgt', mark: 'Besøgt', unmark: 'Fortryd', saved: 'Besøg gemt', removed: 'Besøgsmarkering fjernet', failed: 'Kunne ikke gemme besøg', removeFailed: 'Kunne ikke fjerne besøgsmarkering' },
+  fi: { progress: 'Käyty', mark: 'Käyty', unmark: 'Kumoa', saved: 'Käynti tallennettu', removed: 'Käyntimerkintä poistettu', failed: 'Käyntiä ei voitu tallentaa', removeFailed: 'Käyntimerkintää ei voitu poistaa' },
+  sv: { progress: 'Besökt', mark: 'Besökt', unmark: 'Ångra', saved: 'Besök sparat', removed: 'Besöksmarkering borttagen', failed: 'Kunde inte spara besök', removeFailed: 'Kunde inte ta bort besöksmarkering' },
+  et: { progress: 'Külastatud', mark: 'Külastatud', unmark: 'Võta tagasi', saved: 'Külastus salvestatud', removed: 'Külastuse märge eemaldati', failed: 'Külastust ei saanud salvestada', removeFailed: 'Külastuse märget ei saanud eemaldada' },
 };
 
 type CurrentWeather = { temp: number; code: number; cityName?: string };
@@ -958,6 +958,8 @@ export default function MainPage() {
   const categoryCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nearbyOpenRef = useRef(false);
   const weatherOpenRef = useRef(false);
+  const settingsNavPendingRef = useRef(false);
+  const adminNavPendingRef = useRef(false);
   const [mapSideMenuOpen, setMapSideMenuOpen] = useState(false);
   const { locale, darkMode } = useApp();
   const { showAlert, showConfirm } = useModal();
@@ -1096,6 +1098,27 @@ export default function MainPage() {
     closeSearchMode();
     dismissClusterPopup();
   }, [closeSearchMode, dismissClusterPopup]);
+
+  const navigateToSettingsNow = useCallback((event?: SyntheticEvent<HTMLElement>) => {
+    event?.preventDefault();
+    if (settingsNavPendingRef.current || typeof window === 'undefined') return;
+    settingsNavPendingRef.current = true;
+    try {
+      sessionStorage.setItem('mm_settings_return_to', '/');
+    } catch { }
+    startRoutePending(locale);
+    window.location.assign('/settings');
+  }, [locale]);
+
+  const navigateToAdminNow = useCallback((event?: SyntheticEvent<HTMLElement>) => {
+    event?.preventDefault();
+    if (adminNavPendingRef.current || typeof window === 'undefined') return;
+    adminNavPendingRef.current = true;
+    closeSearchAndClusterPopup();
+    setMapSideMenuOpen(false);
+    startRoutePending(locale);
+    window.location.assign('/admin');
+  }, [closeSearchAndClusterPopup, locale]);
 
   useEffect(() => {
     const handleMapOverlayDismiss = () => {
@@ -2008,6 +2031,7 @@ export default function MainPage() {
 
   const activeNearbyRef = nearbyPopupTriggerRef || (isLgViewport ? nearbyBtnRefPC : nearbyBtnRefMobile);
   const activeWeatherRef = weatherPopupTriggerRef || (isLgViewport ? weatherBtnRefPC : weatherBtnRefMobile);
+  const sidePopoverAnchor = !isLgViewport && mapPrefs.leftHanded ? 'after' : 'before';
   const effectiveLocation = locationSource === 'manual' && manualLocation ? manualLocation : userLocation;
   const mapZoomLevelIndex = getNearestMapZoomLevelIndex(mapZoom);
   const [mapZoomSliderIndex, setMapZoomSliderIndex] = useState(mapZoomLevelIndex);
@@ -2343,10 +2367,10 @@ export default function MainPage() {
         };
         applyStops(updateTripStopVisitState(previousStops, { id: stop.id, museumId: stop.museumId }, savedVisit));
       }
-      showAlert(labels.saved);
+      showAlert(wasVisited ? labels.removed : labels.saved);
     } catch {
       applyStops(previousStops);
-      showAlert(labels.failed);
+      showAlert(wasVisited ? labels.removeFailed : labels.failed);
     }
   }, [activeTrip, locale, showAlert, tripStopsLocal]);
 
@@ -2747,15 +2771,8 @@ export default function MainPage() {
                 type="button"
                 className="mm-map2-icon-pill"
                 style={mm2.iconPill}
-                onClick={() => {
-                  closeSearchAndClusterPopup();
-                  closeAllPopups();
-                  try {
-                    sessionStorage.setItem('mm_settings_return_to', '/');
-                  } catch {}
-                  startRoutePending(locale);
-                  window.location.assign('/settings');
-                }}
+                onPointerDown={navigateToSettingsNow}
+                onClick={navigateToSettingsNow}
                 aria-label={locale === 'ko' ? '설정' : 'Settings'}
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2765,47 +2782,78 @@ export default function MainPage() {
               </button>
             </div>
 
-            {newMuseums.length > 0 && (
-              <div className={`mm-map2-new-museums-mobile ${activeTrip ? 'has-trip' : ''}`}>
-                <button
-                  type="button"
-                  className={`mm-map2-new-museums-chip ${newMuseumsOpen ? 'is-active' : ''}`}
-                  onClick={() => {
-                    closeSearchAndClusterPopup();
-                    if (newMuseumsOpen) closeNewMuseums();
-                    else openNewMuseums();
-                  }}
-                  aria-label={mobileToolLabels.newMuseums}
-                  aria-expanded={newMuseumsOpen}
-                >
-                  <span className="mm-map2-new-museums-icon">
-                    <MuseumNewIcon />
-                    <span>N</span>
-                  </span>
-                </button>
-                {(newMuseumsOpen || newMuseumsClosing) && (
-                  <div className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} role="dialog" aria-label={mobileToolLabels.newMuseums} onScroll={handleNewMuseumsScroll}>
-                    <div className="mm-map2-new-museums-head">
-                      <h3><MuseumNewIcon className="w-4 h-4" />{mobileToolLabels.newMuseums}</h3>
-                      <button type="button" onClick={closeNewMuseums} aria-label={mobileToolLabels.close}>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            {(newMuseums.length > 0 || activeTrip) && (
+              <div className={`mm-map2-trip-cluster ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${newMuseums.length > 0 ? 'has-new-museums' : ''} ${activeTrip ? 'has-trip' : ''}`}>
+                {newMuseums.length > 0 && (
+                  <div className="mm-map2-new-museums-mobile">
+                    <button
+                      type="button"
+                      className={`mm-map2-new-museums-chip ${newMuseumsOpen ? 'is-active' : ''}`}
+                      onClick={() => {
+                        closeSearchAndClusterPopup();
+                        if (newMuseumsOpen) closeNewMuseums();
+                        else openNewMuseums();
+                      }}
+                      aria-label={mobileToolLabels.newMuseums}
+                      aria-expanded={newMuseumsOpen}
+                    >
+                      <span className="mm-map2-new-museums-icon">
+                        <MuseumNewIcon />
+                        <span>N</span>
+                      </span>
+                    </button>
+                    {(newMuseumsOpen || newMuseumsClosing) && (
+                      <div className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} role="dialog" aria-label={mobileToolLabels.newMuseums} onScroll={handleNewMuseumsScroll}>
+                        <div className="mm-map2-new-museums-head">
+                          <h3><MuseumNewIcon className="w-4 h-4" />{mobileToolLabels.newMuseums}</h3>
+                          <button type="button" onClick={closeNewMuseums} aria-label={mobileToolLabels.close}>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="mm-map2-new-museums-list">
+                          {visibleNewMuseums.map((m: any) => (
+                            <NewMuseumListItem
+                              key={m.id}
+                              museum={m}
+                              locale={locale}
+                              onSelect={(museum) => {
+                                setNewMuseumsOpen(false);
+                                openMuseumPanel(museum);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTrip && (
+                  <div className={`mm-map2-trip-anchor ${newMuseums.length > 0 ? 'has-new-museums' : ''}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeSearchAndClusterPopup();
+                        setIsViewingActiveRoute(true);
+                      }}
+                      className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
+                      style={mm2.toolPill}
+                      aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
+                    >
+                      {activeTrip.pending ? (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                         </svg>
-                      </button>
-                    </div>
-                    <div className="mm-map2-new-museums-list">
-                      {visibleNewMuseums.map((m: any) => (
-                        <NewMuseumListItem
-                          key={m.id}
-                          museum={m}
-                          locale={locale}
-                          onSelect={(museum) => {
-                            setNewMuseumsOpen(false);
-                            openMuseumPanel(museum);
-                          }}
-                        />
-                      ))}
-                    </div>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
+                        </svg>
+                      )}
+                      <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -2824,33 +2872,6 @@ export default function MainPage() {
                     }}
                   />
                 ))}
-              </div>
-            )}
-
-            {activeTrip && (
-              <div className={`mm-map2-trip-anchor ${newMuseums.length > 0 ? 'has-new-museums' : ''}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeSearchAndClusterPopup();
-                    setIsViewingActiveRoute(true);
-                  }}
-                  className={`mm-map2-tool-pill mm-map2-trip-pill ${activeTrip.pending ? 'is-pending' : 'is-on-trip'}`}
-                  style={mm2.toolPill}
-                  aria-label={locale === 'ko' ? '여행 경로 보기' : 'View trip route'}
-                >
-                  {activeTrip.pending ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 7.5V6A3.75 3.75 0 0 1 12 2.25 3.75 3.75 0 0 1 15.75 6v1.5M5.25 7.5h13.5A2.25 2.25 0 0 1 21 9.75v8.25A2.25 2.25 0 0 1 18.75 20.25H5.25A2.25 2.25 0 0 1 3 18V9.75A2.25 2.25 0 0 1 5.25 7.5Z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 12h.008M15.75 12h.008" />
-                    </svg>
-                  )}
-                  <span>{activeTrip.pending ? (locale === 'ko' ? '여행 준비 중' : 'Trip pending') : (locale === 'ko' ? '여행 중' : 'On trip')}</span>
-                </button>
               </div>
             )}
 
@@ -2977,11 +2998,8 @@ export default function MainPage() {
                   {(session?.user as any)?.role === 'ADMIN' && (
                     <button
                       type="button"
-                      onClick={() => {
-                        closeSearchAndClusterPopup();
-                        setMapSideMenuOpen(false);
-                        navigateWithPending('/admin', locale);
-                      }}
+                      onPointerDown={navigateToAdminNow}
+                      onClick={navigateToAdminNow}
                     >
                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-[11px] font-semibold text-white">A</span>
                       Admin
@@ -2989,15 +3007,8 @@ export default function MainPage() {
                   )}
                   <button
                     type="button"
-                    onClick={() => {
-                      closeSearchAndClusterPopup();
-                      setMapSideMenuOpen(false);
-                      try {
-                        sessionStorage.setItem('mm_settings_return_to', '/');
-                      } catch {}
-                      startRoutePending(locale);
-                      window.location.assign('/settings');
-                    }}
+                    onPointerDown={navigateToSettingsNow}
+                    onClick={navigateToSettingsNow}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -3716,7 +3727,7 @@ export default function MainPage() {
         categoryFilter={activeFilter}
         onMuseumClick={handleMuseumClick}
         mode="popover"
-        anchor="before"
+        anchor={sidePopoverAnchor}
         triggerRef={activeNearbyRef}
         locationOverride={locationSource === 'manual' ? manualLocation : null}
       />
@@ -3725,7 +3736,7 @@ export default function MainPage() {
         closing={weatherClosing}
         onClose={closeWeatherPopup}
         mode="popover"
-        anchor="before"
+        anchor={sidePopoverAnchor}
         triggerRef={activeWeatherRef}
         initialWeather={currentWeather}
         onWeatherLoaded={setCurrentWeather}

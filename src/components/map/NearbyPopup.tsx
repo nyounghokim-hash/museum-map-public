@@ -38,7 +38,7 @@ interface Props {
     museums: any[];
     onMuseumClick: (id: string) => void;
     /** Horizontal anchor for the popup relative to its trigger button. Defaults to 'left'. */
-    anchor?: 'left' | 'right' | 'before';
+    anchor?: 'left' | 'right' | 'before' | 'after';
     /** Vertical placement — 'below' opens downward (default), 'above' opens upward. */
     vertical?: 'below' | 'above';
     /**
@@ -109,15 +109,17 @@ export default function NearbyPopup({ isOpen, closing = false, onClose, museums,
             const bottomSafe = window.innerWidth < 768 ? 118 : 24;
             const maxTop = Math.max(12, window.innerHeight - estimatedHeight - bottomSafe);
             const style: React.CSSProperties = { position: 'fixed', width: popupWidth };
-            if (anchor === 'before') style.top = Math.min(Math.max(12, Math.round(rect.top)), maxTop);
+            if (anchor === 'before' || anchor === 'after') style.top = Math.min(Math.max(12, Math.round(rect.top)), maxTop);
             else if (vertical === 'below') style.top = Math.min(Math.max(12, Math.round(rect.bottom + gap)), maxTop);
             else style.bottom = Math.max(bottomSafe, Math.round(window.innerHeight - rect.top + gap));
             // Compute left always, clamped to viewport
             const desiredLeft = anchor === 'before'
                 ? rect.left - popupWidth - gap
-                : anchor === 'right'
-                    ? rect.right - popupWidth
-                    : rect.left;
+                : anchor === 'after'
+                    ? rect.right + gap
+                    : anchor === 'right'
+                        ? rect.right - popupWidth
+                        : rect.left;
             style.left = Math.max(12, Math.min(desiredLeft, window.innerWidth - popupWidth - 12));
             setPopoverStyle(style);
         };

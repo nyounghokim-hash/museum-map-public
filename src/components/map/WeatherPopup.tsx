@@ -9,7 +9,7 @@ interface Props {
     isOpen: boolean;
     closing?: boolean;
     onClose: () => void;
-    anchor?: 'left' | 'right' | 'before';
+    anchor?: 'left' | 'right' | 'before' | 'after';
     vertical?: 'below' | 'above';
     mode?: 'popover' | 'fixed-bottom';
     triggerRef?: RefObject<HTMLElement | null>;
@@ -245,14 +245,16 @@ export default function WeatherPopup({ isOpen, closing = false, onClose, anchor 
             const bottomSafe = window.innerWidth < 768 ? 118 : 24;
             const maxTop = Math.max(12, window.innerHeight - estimatedHeight - bottomSafe);
             const style: React.CSSProperties = { position: 'fixed', width: popupWidth };
-            if (anchor === 'before') style.top = Math.min(Math.max(12, Math.round(rect.top)), maxTop);
+            if (anchor === 'before' || anchor === 'after') style.top = Math.min(Math.max(12, Math.round(rect.top)), maxTop);
             else if (vertical === 'below') style.top = Math.min(Math.max(12, Math.round(rect.bottom + gap)), maxTop);
             else style.bottom = Math.max(bottomSafe, Math.round(window.innerHeight - rect.top + gap));
             const desiredLeft = anchor === 'before'
                 ? rect.left - popupWidth - gap
-                : anchor === 'right'
-                    ? rect.right - popupWidth
-                    : rect.left;
+                : anchor === 'after'
+                    ? rect.right + gap
+                    : anchor === 'right'
+                        ? rect.right - popupWidth
+                        : rect.left;
             style.left = Math.max(12, Math.min(desiredLeft, window.innerWidth - popupWidth - 12));
             setPopoverStyle(style);
         };

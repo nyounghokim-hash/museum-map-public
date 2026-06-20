@@ -1389,6 +1389,32 @@ body .login-2-shell .mm-login-brand-title {
   display: none !important;
 }
 
+@media (max-width: 767px) {
+  html.mm-left-handed-mode .mm-floating-back-button:not(.mm-floating-back-button--pc-only),
+  html.mm-left-handed-mode .fixed.bottom-8.right-8,
+  html.mm-left-handed-mode .mm-detail-floating-back {
+    left: 2rem !important;
+    right: auto !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  html.mm-left-handed-mode .mm-detail-hero-compare {
+    left: 1rem !important;
+    right: auto !important;
+  }
+
+  html.mm-left-handed-mode .mm-detail-hero-share {
+    left: 4.75rem !important;
+    right: auto !important;
+  }
+
+  html.mm-left-handed-mode .mm-detail-google-tag {
+    left: auto !important;
+    right: 1rem !important;
+  }
+}
+
 @media (min-width: 768px) {
   .mm-floating-back-button.mm-floating-back-button--pc-only {
     display: inline-flex !important;
@@ -6096,6 +6122,61 @@ html.is-inapp-browser::after {
   width: calc(100vw - 100px) !important;
 }
 
+.mm-map2-trip-cluster {
+  position: absolute !important;
+  left: 18px !important;
+  right: auto !important;
+  top: 74px !important;
+  z-index: 121 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 10px !important;
+  width: auto !important;
+  max-width: calc(100vw - 36px) !important;
+  pointer-events: none !important;
+}
+
+.mm-map2-trip-cluster.is-left-handed {
+  left: auto !important;
+  right: 18px !important;
+  flex-direction: row-reverse !important;
+  justify-content: flex-end !important;
+}
+
+.mm-map2-trip-cluster .mm-map2-new-museums-mobile,
+.mm-map2-trip-cluster .mm-map2-trip-anchor {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  pointer-events: auto !important;
+}
+
+.mm-map2-trip-cluster .mm-map2-new-museums-popover {
+  pointer-events: auto !important;
+}
+
+.mm-map2-trip-cluster .mm-map2-new-museums-mobile {
+  width: 54px !important;
+  min-width: 54px !important;
+  max-width: 54px !important;
+  flex: 0 0 54px !important;
+}
+
+.mm-map2-trip-cluster .mm-map2-trip-anchor {
+  display: inline-flex !important;
+  justify-content: flex-start !important;
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+}
+
+.mm-map2-trip-cluster .mm-map2-trip-anchor.has-new-museums {
+  width: auto !important;
+}
+
 .mm-map2-tool-stack {
   grid-column: 1 !important;
   position: relative !important;
@@ -6117,13 +6198,13 @@ html.is-inapp-browser::after {
   justify-self: start !important;
 }
 
-.mm-map2-top.is-left-handed .mm-map2-trip-anchor {
+.mm-map2-top.is-left-handed > .mm-map2-trip-anchor {
   left: auto !important;
   right: 18px !important;
   justify-content: flex-end !important;
 }
 
-.mm-map2-top.is-left-handed .mm-map2-trip-anchor.has-new-museums {
+.mm-map2-top.is-left-handed > .mm-map2-trip-anchor.has-new-museums {
   left: auto !important;
   right: 82px !important;
   width: calc(100vw - 100px) !important;
@@ -10616,8 +10697,12 @@ html.is-inapp-browser::after {
 
 .mm-map2-new-museums-mobile {
   position: absolute;
-  left: 18px;
+  left: 18px !important;
+  right: auto !important;
   top: 74px;
+  width: 54px !important;
+  min-width: 54px !important;
+  max-width: 54px !important;
   z-index: 121;
   pointer-events: auto;
   animation: mmDissolveIn 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -10629,15 +10714,24 @@ html.is-inapp-browser::after {
   top: 74px;
 }
 
-.mm-map2-top.is-left-handed .mm-map2-new-museums-mobile {
-  left: auto;
-  right: 18px;
-  flex-direction: row-reverse;
+.mm-map2-top.is-left-handed > .mm-map2-new-museums-mobile {
+  left: auto !important;
+  right: 18px !important;
+}
+
+.mm-map2-new-museums-mobile.is-left-handed-anchor {
+  left: auto !important;
+  right: 18px !important;
 }
 
 .mm-map2-top.is-left-handed .mm-map2-new-museums-popover {
-  left: auto;
-  right: 0;
+  left: auto !important;
+  right: 0 !important;
+}
+
+.mm-map2-new-museums-mobile.is-left-handed-anchor .mm-map2-new-museums-popover {
+  left: auto !important;
+  right: 0 !important;
 }
 
 .mm-map2-new-museums-chip {
@@ -10707,10 +10801,13 @@ html.is-inapp-browser::after {
 }
 
 .mm-map2-new-museums-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
   width: min(330px, calc(100vw - 44px));
   max-height: min(360px, calc(100dvh - 240px));
   overflow-y: auto;
-  margin-top: 8px;
+  margin-top: 0;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(226, 232, 240, 0.86);
@@ -10720,7 +10817,7 @@ html.is-inapp-browser::after {
 
 .mm-map2-new-museums-popover-pc {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 8px);
   left: 0;
   min-width: 360px;
   z-index: 80;

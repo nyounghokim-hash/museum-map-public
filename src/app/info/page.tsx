@@ -2,10 +2,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
+import { backWithFallback } from '@/lib/route-pending';
 
 interface InfoTexts {
     title: string; subtitle: string;
@@ -331,7 +331,6 @@ const BuildingIcon = ({ className }: { className?: string }) => (
 
 export default function InfoPage() {
     const { locale } = useApp();
-    const router = useRouter();
     const { data: session } = useSession();
     const { showAlert, showConfirm } = useModal();
     const baseTx = getTexts(locale);
@@ -676,7 +675,7 @@ export default function InfoPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); router.back(); }}
+                        onClick={() => backWithFallback('/', locale)}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                         aria-label="Back"
                     >

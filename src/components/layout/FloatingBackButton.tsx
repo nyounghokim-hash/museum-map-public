@@ -7,6 +7,8 @@ import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
 
 const FLOATING_BACK_ROUTES = new Set([
     '/admin',
+    '/profile',
+    '/settings',
     '/notifications',
 ]);
 
@@ -41,6 +43,8 @@ function getBackFallback(pathname: string | null) {
     if (pathname.startsWith('/plans/')) return '/plans';
     if (pathname.startsWith('/museums/')) return '/';
     if (pathname.startsWith('/notifications/')) return '/notifications';
+    if (pathname === '/profile') return '/';
+    if (pathname === '/settings') return '/';
     return '/';
 }
 
@@ -67,6 +71,12 @@ export default function FloatingBackButton() {
         backingRef.current = true;
         if (pathname === '/admin') {
             navigateWithPending('/profile', locale);
+            return;
+        }
+        if (pathname === '/settings' && typeof window !== 'undefined') {
+            const storedFallback = sessionStorage.getItem('mm_settings_return_to') || '/';
+            const fallbackTarget = storedFallback === '/settings' ? '/' : storedFallback;
+            backWithFallback(fallbackTarget, locale, { timeoutMs: 700 });
             return;
         }
         backWithFallback(getBackFallback(pathname), locale, { timeoutMs: 520 });

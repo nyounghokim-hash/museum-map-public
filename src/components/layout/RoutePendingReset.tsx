@@ -6,9 +6,24 @@ import { useApp } from '@/components/AppContext';
 import { clearRoutePending, startRoutePending } from '@/lib/route-pending';
 
 const TRANSIENT_NAVIGATION_KEYS = ['navigating-back', 'navigating-forward'];
+const LEFT_HANDED_STORAGE_KEY = 'mm_map_left_handed_mode';
+
+function syncLeftHandedModeClass(nextValue?: boolean) {
+    if (typeof document === 'undefined') return;
+    let enabled = nextValue;
+    if (typeof enabled !== 'boolean') {
+        try {
+            enabled = localStorage.getItem(LEFT_HANDED_STORAGE_KEY) === 'true';
+        } catch {
+            enabled = false;
+        }
+    }
+    document.documentElement.classList.toggle('mm-left-handed-mode', enabled);
+}
 
 function clearBackForwardTransientState() {
     clearRoutePending();
+    syncLeftHandedModeClass();
     const html = document.documentElement;
     const body = document.body;
     if (!body) return;
@@ -42,6 +57,23 @@ export default function RoutePendingReset() {
         window.dispatchEvent(new Event('mm:hydrated'));
         clearBackForwardTransientState();
     }, [pathname]);
+
+    useEffect(() => {
+        syncLeftHandedModeClass();
+        const handleStorage = (event: StorageEvent) => {
+            if (event.key === LEFT_HANDED_STORAGE_KEY) syncLeftHandedModeClass(event.newValue === 'true');
+        };
+        const handlePrefsChange = (event: Event) => {
+            const detail = (event as CustomEvent<{ leftHanded?: boolean }>).detail;
+            syncLeftHandedModeClass(typeof detail?.leftHanded === 'boolean' ? detail.leftHanded : undefined);
+        };
+        window.addEventListener('storage', handleStorage);
+        window.addEventListener('mm-map-prefs-change', handlePrefsChange);
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+            window.removeEventListener('mm-map-prefs-change', handlePrefsChange);
+        };
+    }, []);
 
     useEffect(() => {
         const handleVisibilityChange = () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { useApp } from '@/components/AppContext';
 import { LOCALE_NAMES, type Locale } from '@/lib/i18n';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
@@ -262,6 +262,20 @@ function Toggle({ on }: { on: boolean }) {
   return <span className={`mm-settings-toggle ${on ? 'is-on' : ''}`}><span /></span>;
 }
 
+let settingsRowNavigationPending = false;
+
+function shouldUseDefaultNavigation(event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>) {
+  return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+}
+
+function openSettingsRowNow(href: string, event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>) {
+  if (shouldUseDefaultNavigation(event)) return;
+  event.preventDefault();
+  if (settingsRowNavigationPending || typeof window === 'undefined') return;
+  settingsRowNavigationPending = true;
+  window.location.assign(href);
+}
+
 function SettingsRow({ icon, label, description, value, href, onClick }: { icon: ReactNode; label: string; description?: string; value?: string; href?: string; onClick?: () => void }) {
   const inner = (
     <>
@@ -274,7 +288,18 @@ function SettingsRow({ icon, label, description, value, href, onClick }: { icon:
       <Chevron />
     </>
   );
-  if (href) return <a href={href} className="mm-settings-row">{inner}</a>;
+  if (href) {
+    return (
+      <a
+        href={href}
+        onPointerDown={(event) => openSettingsRowNow(href, event)}
+        onClick={(event) => openSettingsRowNow(href, event)}
+        className="mm-settings-row"
+      >
+        {inner}
+      </a>
+    );
+  }
   return <button type="button" onClick={onClick} className="mm-settings-row w-full text-left">{inner}</button>;
 }
 

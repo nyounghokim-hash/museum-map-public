@@ -1,12 +1,11 @@
 'use client';
 import { useParams } from 'next/navigation';
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { useDragReorder } from '@/hooks/useDragReorder';
 import ConfettiCanvas from '@/components/ui/ConfettiCanvas';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import { useSession } from 'next-auth/react';
 import { useModal } from '@/components/ui/Modal';
@@ -15,23 +14,24 @@ import { getCountryName, getCityName } from '@/lib/countries';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { clearActiveTripForAccount, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
 import { getTripVisitStats, isStopVisited, isTripEnded, isTripPending, updateTripStopVisitState } from '@/lib/tripStatus';
+import { backWithFallback } from '@/lib/route-pending';
 
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
 
-const VISIT_LABELS: Record<string, { progress: string; mark: string; unmark: string; saved: string; failed: string; ended: string; pending: string }> = {
-    ko: { progress: '다녀감', mark: '다녀감', unmark: '취소', saved: '방문 기록을 저장했어요', failed: '방문 기록을 저장하지 못했어요', ended: '끝난 여행', pending: '여행 준비 중' },
-    en: { progress: 'Visited', mark: 'Visited', unmark: 'Undo', saved: 'Visit saved', failed: 'Could not save visit', ended: 'Ended', pending: 'Upcoming' },
-    ja: { progress: '訪問済み', mark: '訪問済み', unmark: '取消', saved: '訪問記録を保存しました', failed: '訪問記録を保存できませんでした', ended: '終了した旅行', pending: '旅行準備中' },
-    de: { progress: 'Besucht', mark: 'Besucht', unmark: 'Zurück', saved: 'Besuch gespeichert', failed: 'Besuch konnte nicht gespeichert werden', ended: 'Beendet', pending: 'Bevorstehend' },
-    fr: { progress: 'Visité', mark: 'Visité', unmark: 'Annuler', saved: 'Visite enregistrée', failed: 'Impossible d’enregistrer la visite', ended: 'Terminé', pending: 'À venir' },
-    es: { progress: 'Visitado', mark: 'Visitado', unmark: 'Deshacer', saved: 'Visita guardada', failed: 'No se pudo guardar la visita', ended: 'Finalizado', pending: 'Próximo' },
-    pt: { progress: 'Visitado', mark: 'Visitado', unmark: 'Desfazer', saved: 'Visita salva', failed: 'Não foi possível salvar a visita', ended: 'Encerrada', pending: 'Em breve' },
-    'zh-CN': { progress: '已到访', mark: '已到访', unmark: '取消', saved: '到访记录已保存', failed: '无法保存到访记录', ended: '已结束', pending: '即将出发' },
-    'zh-TW': { progress: '已到訪', mark: '已到訪', unmark: '取消', saved: '到訪紀錄已儲存', failed: '無法儲存到訪紀錄', ended: '已結束', pending: '即將出發' },
-    da: { progress: 'Besøgt', mark: 'Besøgt', unmark: 'Fortryd', saved: 'Besøg gemt', failed: 'Kunne ikke gemme besøg', ended: 'Afsluttet', pending: 'Kommende' },
-    fi: { progress: 'Käyty', mark: 'Käyty', unmark: 'Kumoa', saved: 'Käynti tallennettu', failed: 'Käyntiä ei voitu tallentaa', ended: 'Päättynyt', pending: 'Tulossa' },
-    sv: { progress: 'Besökt', mark: 'Besökt', unmark: 'Ångra', saved: 'Besök sparat', failed: 'Kunde inte spara besök', ended: 'Avslutad', pending: 'Kommande' },
-    et: { progress: 'Külastatud', mark: 'Külastatud', unmark: 'Võta tagasi', saved: 'Külastus salvestatud', failed: 'Külastust ei saanud salvestada', ended: 'Lõppenud', pending: 'Tulemas' },
+const VISIT_LABELS: Record<string, { progress: string; mark: string; unmark: string; saved: string; removed: string; failed: string; removeFailed: string; ended: string; pending: string }> = {
+    ko: { progress: '다녀감', mark: '다녀감', unmark: '취소', saved: '방문 기록을 저장했어요', removed: '다녀감 표시를 취소했어요', failed: '방문 기록을 저장하지 못했어요', removeFailed: '다녀감 표시를 취소하지 못했어요', ended: '끝난 여행', pending: '여행 준비 중' },
+    en: { progress: 'Visited', mark: 'Visited', unmark: 'Undo', saved: 'Visit saved', removed: 'Visit mark removed', failed: 'Could not save visit', removeFailed: 'Could not remove visit mark', ended: 'Ended', pending: 'Upcoming' },
+    ja: { progress: '訪問済み', mark: '訪問済み', unmark: '取消', saved: '訪問記録を保存しました', removed: '訪問済みを取り消しました', failed: '訪問記録を保存できませんでした', removeFailed: '訪問済みを取り消せませんでした', ended: '終了した旅行', pending: '旅行準備中' },
+    de: { progress: 'Besucht', mark: 'Besucht', unmark: 'Zurück', saved: 'Besuch gespeichert', removed: 'Besuchsmarkierung entfernt', failed: 'Besuch konnte nicht gespeichert werden', removeFailed: 'Besuchsmarkierung konnte nicht entfernt werden', ended: 'Beendet', pending: 'Bevorstehend' },
+    fr: { progress: 'Visité', mark: 'Visité', unmark: 'Annuler', saved: 'Visite enregistrée', removed: 'Marque de visite retirée', failed: 'Impossible d’enregistrer la visite', removeFailed: 'Impossible de retirer la marque de visite', ended: 'Terminé', pending: 'À venir' },
+    es: { progress: 'Visitado', mark: 'Visitado', unmark: 'Deshacer', saved: 'Visita guardada', removed: 'Marca de visita eliminada', failed: 'No se pudo guardar la visita', removeFailed: 'No se pudo eliminar la marca de visita', ended: 'Finalizado', pending: 'Próximo' },
+    pt: { progress: 'Visitado', mark: 'Visitado', unmark: 'Desfazer', saved: 'Visita salva', removed: 'Marca de visita removida', failed: 'Não foi possível salvar a visita', removeFailed: 'Não foi possível remover a marca de visita', ended: 'Encerrada', pending: 'Em breve' },
+    'zh-CN': { progress: '已到访', mark: '已到访', unmark: '取消', saved: '到访记录已保存', removed: '已取消到访标记', failed: '无法保存到访记录', removeFailed: '无法取消到访标记', ended: '已结束', pending: '即将出发' },
+    'zh-TW': { progress: '已到訪', mark: '已到訪', unmark: '取消', saved: '到訪紀錄已儲存', removed: '已取消到訪標記', failed: '無法儲存到訪紀錄', removeFailed: '無法取消到訪標記', ended: '已結束', pending: '即將出發' },
+    da: { progress: 'Besøgt', mark: 'Besøgt', unmark: 'Fortryd', saved: 'Besøg gemt', removed: 'Besøgsmarkering fjernet', failed: 'Kunne ikke gemme besøg', removeFailed: 'Kunne ikke fjerne besøgsmarkering', ended: 'Afsluttet', pending: 'Kommende' },
+    fi: { progress: 'Käyty', mark: 'Käyty', unmark: 'Kumoa', saved: 'Käynti tallennettu', removed: 'Käyntimerkintä poistettu', failed: 'Käyntiä ei voitu tallentaa', removeFailed: 'Käyntimerkintää ei voitu poistaa', ended: 'Päättynyt', pending: 'Tulossa' },
+    sv: { progress: 'Besökt', mark: 'Besökt', unmark: 'Ångra', saved: 'Besök sparat', removed: 'Besöksmarkering borttagen', failed: 'Kunde inte spara besök', removeFailed: 'Kunde inte ta bort besöksmarkering', ended: 'Avslutad', pending: 'Kommande' },
+    et: { progress: 'Külastatud', mark: 'Külastatud', unmark: 'Võta tagasi', saved: 'Külastus salvestatud', removed: 'Külastuse märge eemaldati', failed: 'Külastust ei saanud salvestada', removeFailed: 'Külastuse märget ei saanud eemaldada', ended: 'Lõppenud', pending: 'Tulemas' },
 };
 
 export default function PlanDetailPage() {
@@ -42,7 +42,6 @@ export default function PlanDetailPage() {
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const { locale, darkMode } = useApp();
     const { showAlert, showConfirm } = useModal();
-    const router = useRouter();
     const { data: session } = useSession();
     const isAdmin = session?.user?.email === 'nyoungho.kim@gmail.com';
 
@@ -52,7 +51,6 @@ export default function PlanDetailPage() {
     const [stops, setStops] = useState<any[]>([]);
     const [isDirty, setIsDirty] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
-    const [isExiting, setIsExiting] = useState(false);
     const [isFromBack, setIsFromBack] = useState(false);
     const [calMonth, setCalMonth] = useState(() => {
         const d = new Date();
@@ -325,7 +323,8 @@ export default function PlanDetailPage() {
                 };
                 applyStops(updateTripStopVisitState(stops, { id: stop.id, museumId: stop.museumId }, savedVisit));
             }
-            showAlert((VISIT_LABELS[locale] || VISIT_LABELS.en).saved);
+            const labels = VISIT_LABELS[locale] || VISIT_LABELS.en;
+            showAlert(wasVisited ? labels.removed : labels.saved);
         } catch {
             setStops(previousStops);
             setPlan((prev: any) => prev ? { ...prev, stops: previousStops } : prev);
@@ -333,7 +332,8 @@ export default function PlanDetailPage() {
                 const parsed = getActiveTripForAccount();
                 if (parsed) setActiveTripForAccount({ ...parsed, stops: previousStops });
             }
-            showAlert((VISIT_LABELS[locale] || VISIT_LABELS.en).failed);
+            const labels = VISIT_LABELS[locale] || VISIT_LABELS.en;
+            showAlert(wasVisited ? labels.removeFailed : labels.failed);
         }
     }, [activeTripId, id, locale, showAlert, stops]);
 
@@ -405,7 +405,7 @@ export default function PlanDetailPage() {
                     </div>
                 </div>
             )}
-            <div className={`mm-plan-detail2 hidden sm:flex sm:flex-row h-[calc(100vh-3.5rem)] ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+            <div className={`mm-plan-detail2 hidden sm:flex sm:flex-row h-[calc(100vh-3.5rem)] ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
                 {/* Sidebar: Route List */}
                 <div className="flex flex-col w-96 border-r shrink-0" style={{ background: 'var(--glass-bg-heavy)', borderColor: 'var(--glass-border)', backdropFilter: 'blur(24px) saturate(180%)' }}>
                     <div className="p-6 pb-0 flex flex-col shrink-0">
@@ -599,7 +599,7 @@ export default function PlanDetailPage() {
             </div>
 
             {/* Mobile/Tablet: Map fullscreen + top drawer */}
-            <div className={`mm-plan-detail2 sm:hidden relative h-[calc(100vh-3.5rem)] ${isExiting ? 'page-slide-out' : isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+            <div className={`mm-plan-detail2 sm:hidden relative h-[calc(100vh-3.5rem)] ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
                 {/* Full-screen map */}
                 <div className="absolute inset-0">
                     {routeStops.length > 0 ? (
@@ -695,7 +695,7 @@ export default function PlanDetailPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => { setIsExiting(true); if (typeof window !== 'undefined') sessionStorage.setItem('navigating-back', String(Date.now())); router.back(); }}
+                        onClick={() => backWithFallback('/plans', locale)}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                     >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

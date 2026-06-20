@@ -667,7 +667,7 @@ export default function BlogListPage() {
             return;
         }
 
-        fetch('/api/blog?view=list', { cache: 'force-cache' })
+        fetch('/api/blog?view=list')
             .then(res => res.json())
             .then(data => {
                 if (data.data) {

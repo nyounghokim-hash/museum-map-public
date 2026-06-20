@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -25,6 +25,7 @@ type NotificationItem = Record<string, unknown>;
 
 const notificationMemoryCache = new Map<string, NotificationCacheEntry>();
 const notificationInFlight = new Map<string, Promise<NotificationItem[]>>();
+let headerDocumentNavigationPending = false;
 
 function getNotificationCacheKey(session: unknown) {
     const user = session && typeof session === 'object' && 'user' in session
@@ -231,6 +232,20 @@ export default function NavHeader() {
         try {
             sessionStorage.setItem('mm_settings_return_to', pathname || '/');
         } catch { /* ignore */ }
+    };
+
+    const navigateDocumentNow = (
+        href: string,
+        event: ReactMouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>,
+        options?: { rememberSettings?: boolean; closeMobile?: boolean }
+    ) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        if (headerDocumentNavigationPending || typeof window === 'undefined') return;
+        headerDocumentNavigationPending = true;
+        if (options?.rememberSettings) rememberSettingsReturn();
+        if (options?.closeMobile) setMobileOpen(false);
+        window.location.assign(href);
     };
 
     // Close transient header UI only when the route changes.
@@ -543,8 +558,8 @@ export default function NavHeader() {
                         {/* Settings icon - PC only (gear) */}
                         <a
                             href="/settings"
-                            onPointerDown={rememberSettingsReturn}
-                            onClick={rememberSettingsReturn}
+                            onPointerDown={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true })}
+                            onClick={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true })}
                             className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             title={locale === 'ko' ? '설정' : 'Settings'}
                             aria-label={locale === 'ko' ? '설정' : 'Settings'}
@@ -574,13 +589,15 @@ export default function NavHeader() {
                             <div className="flex items-center gap-2">
                                 {/* Admin button - left of profile */}
                                 {(session.user as any)?.role === 'ADMIN' && (
-                                    <Link
+                                    <a
                                         href="/admin"
+                                        onPointerDown={(event) => navigateDocumentNow('/admin', event)}
+                                        onClick={(event) => navigateDocumentNow('/admin', event)}
                                         className="p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-blue-600 dark:text-blue-400"
                                         title="Admin"
                                     >
                                         <span className="w-5 h-5 flex items-center justify-center font-black text-sm">A</span>
-                                    </Link>
+                                    </a>
                                 )}
                                 {/* Guest: just Login button / User: profile icon with menu */}
                                 {session.user?.name?.startsWith('guest_') ? (
@@ -703,19 +720,20 @@ export default function NavHeader() {
                                 </a>
                             )}
                             {(session?.user as any)?.role === 'ADMIN' && (
-                                <Link
+                                <a
                                     href="/admin"
-                                    onClick={() => setMobileOpen(false)}
+                                    onPointerDown={(event) => navigateDocumentNow('/admin', event, { closeMobile: true })}
+                                    onClick={(event) => navigateDocumentNow('/admin', event, { closeMobile: true })}
                                     className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
                                 >
                                     <span className="flex h-5 w-5 items-center justify-center rounded-md border border-blue-200 text-[11px] font-semibold dark:border-blue-800">A</span>
                                     Admin
-                                </Link>
+                                </a>
                             )}
                             <a
                                 href="/settings"
-                                onPointerDown={rememberSettingsReturn}
-                                onClick={() => { rememberSettingsReturn(); setMobileOpen(false); }}
+                                onPointerDown={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true, closeMobile: true })}
+                                onClick={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true, closeMobile: true })}
                                 className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
