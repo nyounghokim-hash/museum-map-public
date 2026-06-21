@@ -352,6 +352,7 @@ export default function MobileBottomNav() {
     const menuRef = useRef<HTMLDivElement>(null);
     const centerTouchHandledRef = useRef(false);
     const tabTouchHandledRef = useRef<string | null>(null);
+    const menuTouchHandledRef = useRef<string | null>(null);
     const recentNavigationRef = useRef<{ href: string; ts: number } | null>(null);
 
     useEffect(() => {
@@ -552,12 +553,12 @@ export default function MobileBottomNav() {
     };
 
     const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
-        dismissMapOverlays();
         if (tabTouchHandledRef.current === tab.href) {
             event.preventDefault();
             tabTouchHandledRef.current = null;
             return;
         }
+        dismissMapOverlays();
         if ('auth' in tab && tab.auth && isGuest) {
             event.preventDefault();
             setLoginCallbackUrl(tab.href);
@@ -596,44 +597,44 @@ export default function MobileBottomNav() {
         );
     };
 
+    const handleMenuPointerDown = (href: string, protectedRoute = false) => (event: PointerEvent<HTMLButtonElement>) => {
+        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+            event.preventDefault();
+            menuTouchHandledRef.current = href;
+            if (protectedRoute) goProtected(href, true);
+            else goPublic(href, true);
+            return;
+        }
+        primeMenuNavigation(href, protectedRoute);
+    };
+
+    const handleMenuClick = (href: string, protectedRoute = false) => (event: MouseEvent<HTMLButtonElement>) => {
+        if (menuTouchHandledRef.current === href) {
+            event.preventDefault();
+            menuTouchHandledRef.current = null;
+            return;
+        }
+        if (protectedRoute) goProtected(href);
+        else goPublic(href);
+    };
+
     const navContent = (
         <>
             {(menuOpen || menuClosing) && (
                 <>
                     <div className={`mobile-nav-menu-overlay ${menuClosing ? 'is-closing' : ''}`} style={styles.overlay} onClick={closeMenu} />
                     <div className={`mobile-nav-center-menu ${menuClosing ? 'is-closing' : ''}`} style={{ ...styles.menu, ...themedMenuStyle }}>
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={(event) => {
-                            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-                                event.preventDefault();
-                                goProtected('/plans', true);
-                                return;
-                            }
-                            primeMenuNavigation('/plans', true);
-                        }} onClick={() => goProtected('/plans')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/plans', true)} onClick={handleMenuClick('/plans', true)}>
                             <MenuIcon name="plans" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.plans}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={(event) => {
-                            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-                                event.preventDefault();
-                                goPublic('/collections', true);
-                                return;
-                            }
-                            primeMenuNavigation('/collections');
-                        }} onClick={() => goPublic('/collections')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/collections')} onClick={handleMenuClick('/collections')}>
                             <MenuIcon name="collection" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.collection}</span>
                         </button>
                         <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={(event) => {
-                            if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-                                event.preventDefault();
-                                goProtected('/compare', true);
-                                return;
-                            }
-                            primeMenuNavigation('/compare', true);
-                        }} onClick={() => goProtected('/compare')}>
+                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={handleMenuPointerDown('/compare', true)} onClick={handleMenuClick('/compare', true)}>
                             <MenuIcon name="compare" />
                             <span style={{ ...styles.label, fontWeight: 650 }}>{labels.compare}</span>
                         </button>

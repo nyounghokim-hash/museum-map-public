@@ -110,6 +110,7 @@ export default function MainContent({ children }: { children: React.ReactNode })
             if (event.defaultPrevented) return;
             const anchor = (event.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
             if (!anchor || anchor.target || anchor.hasAttribute('download')) return;
+            if (anchor.dataset.mmRoutePending === 'off' || anchor.closest('[data-mm-route-pending="off"]')) return;
             try {
                 const next = new URL(anchor.href);
                 if (next.origin !== window.location.origin) return;
