@@ -51,7 +51,7 @@ export default function NotificationDetailPage() {
             <h1 className="text-xl font-bold dark:text-white mb-4">
                 {t('notif.notFound', locale)}
             </h1>
-            <Link href="/notifications" className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-sm">
+            <Link href="/notifications" data-mm-route-pending="off" className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-sm">
                 ← {t('notif.backToList', locale)}
             </Link>
         </div>
@@ -65,6 +65,7 @@ export default function NotificationDetailPage() {
             <div className="w-full max-w-[1080px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 page-slide-in">
                 <Link
                     href="/notifications"
+                    data-mm-route-pending="off"
                     className="hidden lg:inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-6 sm:mb-8 group"
                 >
                     <svg className="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

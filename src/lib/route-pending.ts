@@ -57,23 +57,32 @@ export function navigateWithPending(href: string, locale?: string | null, replac
     else window.location.assign(href);
 }
 
+export function navigateDocument(href: string, replace = false) {
+    if (typeof window === 'undefined') return;
+    if (replace) window.location.replace(href);
+    else window.location.assign(href);
+}
+
 export function backWithFallback(
     fallbackHref = '/',
     locale?: string | null,
-    options: { timeoutMs?: number } = {},
+    options: { timeoutMs?: number; pendingOnFallback?: boolean } = {},
 ) {
     if (typeof window === 'undefined') return;
     const timeoutMs = options.timeoutMs ?? 650;
+    const shouldShowPending = options.pendingOnFallback === true;
     const currentPath = currentDocumentPath();
     if (window.history.length > 1) {
         window.history.back();
         window.setTimeout(() => {
             if (currentDocumentPath() === currentPath) {
-                navigateWithPending(fallbackHref, locale);
+                if (shouldShowPending) navigateWithPending(fallbackHref, locale);
+                else navigateDocument(fallbackHref);
             }
         }, timeoutMs);
         return;
     }
 
-    navigateWithPending(fallbackHref, locale);
+    if (shouldShowPending) navigateWithPending(fallbackHref, locale);
+    else navigateDocument(fallbackHref);
 }

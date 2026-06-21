@@ -11,7 +11,7 @@ import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { useTranslatedTexts } from '@/hooks/useTranslation';
 import { useModal } from '@/components/ui/Modal';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
-import { navigateWithPending } from '@/lib/route-pending';
+import { navigateDocument } from '@/lib/route-pending';
 
 const NOTIFICATIONS_CACHE_TTL_MS = 2 * 60 * 1000;
 const NOTIFICATIONS_STORAGE_PREFIX = 'mm-notifications-cache-v1';
@@ -26,6 +26,22 @@ type NotificationItem = Record<string, unknown>;
 const notificationMemoryCache = new Map<string, NotificationCacheEntry>();
 const notificationInFlight = new Map<string, Promise<NotificationItem[]>>();
 let headerDocumentNavigationPending = false;
+let headerDocumentNavigationResetTimer: number | undefined;
+
+function resetHeaderDocumentNavigationPending() {
+    headerDocumentNavigationPending = false;
+    if (typeof window !== 'undefined' && headerDocumentNavigationResetTimer) {
+        window.clearTimeout(headerDocumentNavigationResetTimer);
+        headerDocumentNavigationResetTimer = undefined;
+    }
+}
+
+function markHeaderDocumentNavigationPending() {
+    headerDocumentNavigationPending = true;
+    if (typeof window === 'undefined') return;
+    if (headerDocumentNavigationResetTimer) window.clearTimeout(headerDocumentNavigationResetTimer);
+    headerDocumentNavigationResetTimer = window.setTimeout(resetHeaderDocumentNavigationPending, 1400);
+}
 
 function getNotificationCacheKey(session: unknown) {
     const user = session && typeof session === 'object' && 'user' in session
@@ -242,7 +258,7 @@ export default function NavHeader() {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
         if (headerDocumentNavigationPending || typeof window === 'undefined') return;
-        headerDocumentNavigationPending = true;
+        markHeaderDocumentNavigationPending();
         if (options?.rememberSettings) rememberSettingsReturn();
         if (options?.closeMobile) setMobileOpen(false);
         window.location.assign(href);
@@ -251,6 +267,22 @@ export default function NavHeader() {
     // Close transient header UI only when the route changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { closeMobile(); setLangOpen(false); setUserMenuOpen(false); setNotifOpen(false); }, [pathname]);
+
+    useEffect(() => {
+        resetHeaderDocumentNavigationPending();
+        const reset = () => resetHeaderDocumentNavigationPending();
+        const resetWhenVisible = () => {
+            if (!document.hidden) resetHeaderDocumentNavigationPending();
+        };
+        window.addEventListener('pageshow', reset);
+        window.addEventListener('pagehide', reset);
+        document.addEventListener('visibilitychange', resetWhenVisible);
+        return () => {
+            window.removeEventListener('pageshow', reset);
+            window.removeEventListener('pagehide', reset);
+            document.removeEventListener('visibilitychange', resetWhenVisible);
+        };
+    }, []);
 
     useEffect(() => {
         if (!mobileOpen) return;
@@ -334,15 +366,17 @@ export default function NavHeader() {
         };
     }, [userMenuOpen]);
 
-    // Fetch notifications once per settled session and reuse the result across document navigations.
+    // Avoid background DB pressure during navigation. Reuse cached notifications for
+    // badges, and fetch fresh data only when the user opens the notification menu.
     useEffect(() => {
         if (status === 'loading') return;
         const cacheKey = getNotificationCacheKey(session);
         const cached = readNotificationCache(cacheKey);
         if (cached) {
             setNotifications(cached.items);
-            if (Date.now() - cached.ts < NOTIFICATIONS_CACHE_TTL_MS) return;
+            if (!notifOpen || Date.now() - cached.ts < NOTIFICATIONS_CACHE_TTL_MS) return;
         }
+        if (!notifOpen) return;
 
         let cancelled = false;
         const load = () => {
@@ -350,12 +384,12 @@ export default function NavHeader() {
                 if (!cancelled) setNotifications(items);
             });
         };
-        const cancelIdle = scheduleIdle(load, status === 'authenticated' ? 800 : 2500);
+        const cancelIdle = scheduleIdle(load, 250);
         return () => {
             cancelled = true;
             cancelIdle?.();
         };
-    }, [session, status]);
+    }, [notifOpen, session, status]);
 
     // Scroll direction: hide header on scroll down, show on scroll up
     // On detail pages (mobile/tablet only), header hides more aggressively
@@ -411,7 +445,7 @@ export default function NavHeader() {
         <>
             <header className={`sticky top-0 z-50 w-full glass-nav app-header transition-transform duration-300 ease-in-out ${pathname === '/' ? 'max-md:hidden mm-map-home-header' : ''} ${headerHidden ? '-translate-y-full' : 'translate-y-0'}`}>
                 <div className="w-full xl:max-w-screen-xl xl:mx-auto flex h-14 items-center gap-2 lg:gap-4 px-3 lg:px-8">
-                    <Link href="/" className="font-bold text-lg flex items-center gap-1.5 shrink-0 dark:text-white">
+                    <Link href="/" data-mm-route-pending="off" onClick={(event) => navigateDocumentNow('/', event)} className="font-bold text-lg flex items-center gap-1.5 shrink-0 dark:text-white">
                         <svg viewBox="0 0 510 286" className="h-4 w-auto fill-current lg:h-4" aria-label="Museum Map"><path d="M45.69,238.06v-50.84c0-7.74,5.24-14.49,12.73-16.41l44.69-11.47c16.99-4.36,16.97-28.5-.03-32.83l-44.64-11.37c-7.51-1.91-12.76-8.67-12.76-16.42v-50.76c0-9.36,7.59-16.94,16.94-16.94h165.97c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94h-.33c-19.94,0-23.5,28.44-4.18,33.37l8.7,2.22c7.51,1.91,12.76,8.67,12.76,16.42v19.27c0,7.75-5.26,14.51-12.77,16.42l-8.43,2.14c-19.33,4.91-15.77,33.37,4.18,33.37h.08c9.36,0,16.94,7.59,16.94,16.94v16.51c0,9.36-7.59,16.94-16.94,16.94H62.63c-9.36,0-16.94-7.59-16.94-16.94Z" /><path d="M464.31,47.94v50.85c0,7.73-5.23,14.48-12.72,16.41l-44.5,11.47c-16.97,4.37-16.95,28.48.03,32.83l44.45,11.37c7.5,1.92,12.75,8.68,12.75,16.42v50.78c0,9.36-7.59,16.94-16.94,16.94h-165.21c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h.25c19.93,0,23.51-28.42,4.2-33.36l-8.64-2.21c-7.5-1.92-12.75-8.68-12.75-16.42v-19.3c0-7.74,5.25-14.5,12.75-16.42l8.38-2.14c19.31-4.93,15.74-33.36-4.19-33.36h0c-9.36,0-16.94-7.59-16.94-16.94v-16.51c0-9.36,7.59-16.94,16.94-16.94h165.21c9.36,0,16.94,7.59,16.94,16.94Z" /></svg>
                         <span className="mm-brand-word hidden sm:inline">Museum Map</span>
                     </Link>
@@ -433,6 +467,7 @@ export default function NavHeader() {
                                 <a
                                     key={link.href}
                                     href={link.href}
+                                    data-mm-route-pending="off"
                                     onClick={handleDesktopClick}
                                     className={`relative transition-colors hover:text-blue-700 dark:hover:text-blue-300 ${pathname === link.href
                                         ? 'text-blue-700 dark:text-blue-300'
@@ -450,6 +485,8 @@ export default function NavHeader() {
                         <div className="relative" ref={notifRef}>
                             <Link
                                 href="/notifications"
+                                data-mm-route-pending="off"
+                                onClick={(event) => navigateDocumentNow('/notifications', event)}
                                 className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 title={t('notif.title', locale)}
                                 aria-label={t('notif.title', locale)}
@@ -506,7 +543,7 @@ export default function NavHeader() {
                                                             setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, isRead: true } : notif));
                                                         }
                                                         setNotifOpen(false);
-                                                        navigateWithPending('/notifications', locale);
+                                                        navigateDocument('/notifications');
                                                     }}
                                                 >
                                                     <div className="flex items-start gap-3">
@@ -528,7 +565,7 @@ export default function NavHeader() {
                         {activeTrip && !activeTrip.pending && (
                             <button
                                 type="button"
-                                onClick={() => { if (typeof window !== 'undefined') navigateWithPending('/?trip=active', locale); }}
+                                onClick={() => navigateDocument('/?trip=active')}
                                 className="hidden lg:inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 shadow-sm shadow-blue-500/10 transition-all hover:bg-blue-100 active:scale-95 dark:border-blue-500/20 dark:bg-blue-500/12 dark:text-blue-300"
                                 aria-label={locale === 'ko' ? '여행 경로 보기' : 'View active trip route'}
                             >
@@ -558,6 +595,7 @@ export default function NavHeader() {
                         {/* Settings icon - PC only (gear) */}
                         <a
                             href="/settings"
+                            data-mm-route-pending="off"
                             onPointerDown={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true })}
                             onClick={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true })}
                             className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -591,6 +629,7 @@ export default function NavHeader() {
                                 {(session.user as any)?.role === 'ADMIN' && (
                                     <a
                                         href="/admin"
+                                        data-mm-route-pending="off"
                                         onPointerDown={(event) => navigateDocumentNow('/admin', event)}
                                         onClick={(event) => navigateDocumentNow('/admin', event)}
                                         className="p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-blue-600 dark:text-blue-400"
@@ -603,6 +642,7 @@ export default function NavHeader() {
                                 {session.user?.name?.startsWith('guest_') ? (
                                     <a
                                         href="/login"
+                                        data-mm-route-pending="off"
                                         className="px-4 py-1.5 rounded-full gradient-btn text-xs font-bold shadow-sm active:scale-95 transition-all"
                                     >
                                         {t('login.title', locale) || 'Login'}
@@ -628,6 +668,7 @@ export default function NavHeader() {
                         ) : (
                             <a
                                 href="/login"
+                                data-mm-route-pending="off"
                                 className="px-4 py-1.5 rounded-full gradient-btn text-xs font-bold shadow-sm active:scale-95 transition-all"
                             >
                                 {t('login.title', locale) || 'Login'}
@@ -689,6 +730,7 @@ export default function NavHeader() {
                                         <a
                                             key={link.href}
                                             href={link.href}
+                                            data-mm-route-pending="off"
                                             onClick={handleDrawerClick}
                                             className={`block px-4 py-3 rounded-xl text-sm font-medium transition-all ${pathname === link.href
                                             ? 'gradient-btn !rounded-xl shadow-lg shadow-blue-500/18'
@@ -708,6 +750,7 @@ export default function NavHeader() {
                             {session && !session.user?.name?.startsWith('guest_') && (
                                 <a
                                     href="/profile"
+                                    data-mm-route-pending="off"
                                     onClick={() => setMobileOpen(false)}
                                     className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
                                 >
@@ -722,6 +765,7 @@ export default function NavHeader() {
                             {(session?.user as any)?.role === 'ADMIN' && (
                                 <a
                                     href="/admin"
+                                    data-mm-route-pending="off"
                                     onPointerDown={(event) => navigateDocumentNow('/admin', event, { closeMobile: true })}
                                     onClick={(event) => navigateDocumentNow('/admin', event, { closeMobile: true })}
                                     className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
@@ -732,6 +776,7 @@ export default function NavHeader() {
                             )}
                             <a
                                 href="/settings"
+                                data-mm-route-pending="off"
                                 onPointerDown={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true, closeMobile: true })}
                                 onClick={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true, closeMobile: true })}
                                 className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
@@ -761,6 +806,7 @@ export default function NavHeader() {
                             {session?.user?.name?.startsWith('guest_') && (
                                 <a
                                     href="/login"
+                                    data-mm-route-pending="off"
                                     onClick={() => setMobileOpen(false)}
                                     className="block w-full px-4 py-3 rounded-xl text-sm font-bold text-center text-white gradient-btn active:scale-95 transition-all mb-2"
                                 >
@@ -898,6 +944,7 @@ export default function NavHeader() {
                     </div>
                     <a
                         href="/profile"
+                        data-mm-route-pending="off"
                         onClick={() => setUserMenuOpen(false)}
                         className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/25 transition-colors focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-900/25"
                     >

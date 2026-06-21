@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect, useRef, type CSSProperties } from 'react';
+import { useState, useCallback, useEffect, useRef, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslatedText, useTranslatedTexts } from '@/hooks/useTranslation';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -487,6 +487,10 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const fromMap = searchParams.get('fromMap') === '1';
     const backHref = fromMuseum && /^[A-Za-z0-9_-]+$/.test(fromMuseum) ? `/museums/${fromMuseum}` : null;
     const artworkBackHref = fromArtwork && /^[A-Za-z0-9_-]+$/.test(fromArtwork) ? `/artworks/${fromArtwork}` : null;
+    const [previewError, setPreviewError] = useState(false);
+    const [storyBackVisible, setStoryBackVisible] = useState(true);
+    const [portalReady, setPortalReady] = useState(false);
+    const backPointerHandledRef = useRef(false);
 
     // Check if we arrived via back navigation
     useEffect(() => {
@@ -518,6 +522,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const handleBack = useCallback(() => {
         if (isBackingRef.current) return;
         isBackingRef.current = true;
+        setStoryBackVisible(false);
 
         const currentPath = typeof window !== 'undefined'
             ? `${window.location.pathname}${window.location.search}`
@@ -536,6 +541,22 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
 
         backWithFallback(target || '/blog', effectiveLocale, { timeoutMs: 650 });
     }, [artworkBackHref, backHref, effectiveLocale, fromMap, pathname, searchParams]);
+
+    const handleBackPointerDown = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+        event.preventDefault();
+        backPointerHandledRef.current = true;
+        handleBack();
+    }, [handleBack]);
+
+    const handleBackClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+        if (backPointerHandledRef.current) {
+            event.preventDefault();
+            backPointerHandledRef.current = false;
+            return;
+        }
+        handleBack();
+    }, [handleBack]);
 
     const handleShare = useCallback(async () => {
         const url = buildShareUrl(window.location.href);
@@ -597,9 +618,6 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
 
     const [reportOpen, setReportOpen] = useState(false);
 
-    const [previewError, setPreviewError] = useState(false);
-    const [storyBackVisible, setStoryBackVisible] = useState(true);
-    const [portalReady, setPortalReady] = useState(false);
     const showBackControls = pathname?.startsWith('/blog/') && pathname !== '/blog';
 
     useEffect(() => {
@@ -655,7 +673,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
             </div>
 
             {portalReady && showBackControls && storyBackVisible && createPortal(
-                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back mm-story-floating-back lg:hidden">
+                <button type="button" onPointerDown={handleBackPointerDown} onClick={handleBackClick} aria-label="Back" className="mm-detail-floating-back mm-story-floating-back lg:hidden">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>

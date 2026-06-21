@@ -257,6 +257,7 @@ export default function NotificationsPage() {
                             <Link
                                 key={n.id}
                                 href={`/notifications/${n.id}`}
+                                data-mm-route-pending="off"
                                 onClick={() => { if (!n.isRead) markRead(n.id); }}
                                 className={`mm-notification-row2 ${!n.isRead ? 'is-unread' : ''}`}
                             >

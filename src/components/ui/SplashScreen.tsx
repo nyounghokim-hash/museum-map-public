@@ -113,10 +113,10 @@ const SPLASH_LABELS: Record<string, { kicker: string; loading: string; madeBy: s
     },
 };
 
-const MIN_SHOW_MS = 3000;
-const MAX_SHOW_MS = 3200;
-const FADE_MS = 260;
-const COMPLETE_HOLD_MS = 120;
+const MIN_SHOW_MS = 620;
+const MAX_SHOW_MS = 900;
+const FADE_MS = 180;
+const COMPLETE_HOLD_MS = 60;
 
 function finishFoucOverlay() {
     if (typeof document === 'undefined') return;

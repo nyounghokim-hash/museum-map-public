@@ -1,6 +1,7 @@
 .git
 .next
 .next.bak-*
+.next.local-bak-*
 .next 2
 .next_stale_20260427
 node_modules

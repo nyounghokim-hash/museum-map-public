@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent, PointerEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
-import { clearRoutePending, navigateWithPending, startRoutePending } from '@/lib/route-pending';
+import { clearRoutePending, navigateDocument } from '@/lib/route-pending';
 
 const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; artworks: string; story: string; collection: string; compare: string }> = {
     ko: { map: '홈', saved: '내 픽', plans: '내 여행', artworks: '작품', story: 'MM스토리', collection: '컬렉션', compare: '비교' },
@@ -24,24 +24,12 @@ const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; ar
     et: { map: 'Avaleht', saved: 'Salvestatud', plans: 'Reisid', artworks: 'Teosed', story: 'MM Story', collection: 'Kogu', compare: 'Võrdle' },
 };
 
-function navigateNative(href: string, locale?: string | null) {
-    if (typeof window === 'undefined') return;
-    navigateWithPending(href, locale);
-}
-
 const PUBLIC_PREFETCH_ROUTES = ['/', '/blog', '/artworks', '/collections'];
 const ACCOUNT_PREFETCH_ROUTES = ['/saved', '/plans', '/compare'];
 const MAP_OVERLAY_DISMISS_EVENT = 'mm:map-overlays-dismiss';
-const NAV_CACHE_TTL_MS = 5 * 60 * 1000;
 const NAV_DOCUMENT_PREFETCH_KEY = 'mm-nav-document-prefetch-ts';
-const NAV_DATA_PREFETCH_KEY = 'mm-nav-data-prefetch-ts';
 const NAV_DOCUMENT_PREFETCH_TTL_MS = 5 * 60 * 1000;
-const NAV_DATA_PREFETCH_TTL_MS = 10 * 60 * 1000;
-const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
-const ARTWORKS_CACHE_KEY = 'artworks_cache';
-const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v1';
 const prefetchedRoutes = new Set<string>();
-let navDataPrefetchStarted = false;
 
 function hasRecentSessionStamp(key: string, ttl: number) {
     if (typeof window === 'undefined') return false;
@@ -75,14 +63,6 @@ function scheduleIdleTask(callback: () => void, timeout = 2500) {
     }
     const timer = window.setTimeout(callback, timeout);
     return () => window.clearTimeout(timer);
-}
-
-function shouldSkipEagerDataPrefetch() {
-    if (typeof navigator === 'undefined') return false;
-    const connection = (navigator as Navigator & {
-        connection?: { saveData?: boolean; effectiveType?: string };
-    }).connection;
-    return !!connection?.saveData || connection?.effectiveType === '2g' || connection?.effectiveType === 'slow-2g';
 }
 
 function prefetchRouteDocument(href: string) {
@@ -119,57 +99,9 @@ function dismissMapOverlays() {
     window.dispatchEvent(new Event(MAP_OVERLAY_DISMISS_EVENT));
 }
 
-function hasFreshCache(key: string) {
-    try {
-        const cached = JSON.parse(sessionStorage.getItem(key) || 'null') as { ts?: number; items?: unknown[]; posts?: unknown[]; data?: unknown[] } | null;
-        if (!cached) return false;
-        const hasItems = Array.isArray(cached.items) || Array.isArray(cached.posts) || Array.isArray(cached.data);
-        if (!hasItems) return false;
-        return typeof cached.ts !== 'number' || Date.now() - cached.ts < NAV_CACHE_TTL_MS;
-    } catch {
-        return false;
-    }
-}
-
-function prefetchNavDataCaches() {
-    if (typeof window === 'undefined' || navDataPrefetchStarted) return;
-    if (hasRecentSessionStamp(NAV_DATA_PREFETCH_KEY, NAV_DATA_PREFETCH_TTL_MS)) return;
-    if (shouldSkipEagerDataPrefetch()) return;
-    navDataPrefetchStarted = true;
-    stampSession(NAV_DATA_PREFETCH_KEY);
-
-    if (!hasFreshCache(BLOG_LIST_CACHE_KEY)) {
-        fetch('/api/blog?view=list', { cache: 'force-cache' })
-            .then(res => res.ok ? res.json() : null)
-            .then((json: { data?: Array<{ status?: string }> } | null) => {
-                const posts = json?.data?.filter(post => post.status === 'PUBLISHED') || [];
-                if (posts.length > 0) sessionStorage.setItem(BLOG_LIST_CACHE_KEY, JSON.stringify({ ts: Date.now(), posts }));
-            })
-            .catch(() => { });
-    }
-
-    if (!hasFreshCache(ARTWORKS_CACHE_KEY)) {
-        const seed = `nav-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        fetch(`/api/artworks?limit=48&random=true&seed=${encodeURIComponent(seed)}`)
-            .then(res => res.ok ? res.json() : null)
-            .then((json: { data?: { artworks?: unknown[]; hasMore?: boolean; nextCursor?: string | null } } | null) => {
-                const items = json?.data?.artworks || [];
-                if (items.length === 0) return;
-                const cursor = json?.data?.nextCursor ? `offset:${json.data.nextCursor}` : null;
-                sessionStorage.setItem(ARTWORKS_CACHE_KEY, JSON.stringify({ ts: Date.now(), items, hasMore: json?.data?.hasMore ?? false, cursor, seed }));
-            })
-            .catch(() => { });
-    }
-
-    if (!hasFreshCache(COLLECTIONS_PUBLIC_CACHE_KEY)) {
-        fetch('/api/collections?public=true')
-            .then(res => res.ok ? res.json() : null)
-            .then((json: { data?: unknown[] } | null) => {
-                const data = json?.data || [];
-                if (data.length > 0) sessionStorage.setItem(COLLECTIONS_PUBLIC_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-            })
-            .catch(() => { });
-    }
+function prepareClientRouteChange() {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new Event('mm:client-route-change-start'));
 }
 
 const styles = {
@@ -410,6 +342,7 @@ export default function MobileBottomNav() {
     const [loginCallbackUrl, setLoginCallbackUrl] = useState('');
     const menuRef = useRef<HTMLDivElement>(null);
     const centerTouchHandledRef = useRef(false);
+    const tabTouchHandledRef = useRef<string | null>(null);
     const recentNavigationRef = useRef<{ href: string; ts: number } | null>(null);
 
     useEffect(() => {
@@ -429,12 +362,9 @@ export default function MobileBottomNav() {
             routes.forEach(prefetchRouteDocument);
             stampSession(NAV_DOCUMENT_PREFETCH_KEY);
         };
-        const warmData = () => prefetchNavDataCaches();
         const cancelDocumentWarmup = scheduleIdleTask(warmDocuments, pathname === '/' ? 1800 : 900);
-        const cancelDataWarmup = scheduleIdleTask(warmData, pathname === '/' ? 9000 : 6000);
         return () => {
             cancelDocumentWarmup?.();
-            cancelDataWarmup?.();
         };
     }, [isGuest, pathname]);
 
@@ -508,41 +438,58 @@ export default function MobileBottomNav() {
         setMenuOpen(true);
     };
 
-    const goProtected = (href: string) => {
-        dismissMapOverlays();
-        closeMenu();
+    const prefetchRoute = (href: string) => {
+        prefetchRouteDocument(href);
+    };
+
+    const openRoute = (href: string, immediate = false) => {
+        if (!immediate) prepareClientRouteChange();
+        clearRoutePending();
+        navigateDocument(href);
+    };
+
+    const goProtected = (href: string, immediate = false) => {
+        if (!immediate) dismissMapOverlays();
         if (isGuest) {
+            closeMenu();
             setLoginCallbackUrl(href);
             setLoginModalOpen(true);
             return;
         }
+        if (!immediate) {
+            setMenuOpen(false);
+            setMenuClosing(false);
+        }
         setPendingHref(href);
-        startRoutePending(locale);
-        navigateNative(href, locale);
+        if (!immediate) prefetchRoute(href);
+        openRoute(href, immediate);
     };
 
-    const goRoute = (href: string) => {
-        dismissMapOverlays();
+    const goRoute = (href: string, immediate = false) => {
+        if (!immediate) dismissMapOverlays();
         if (href === pathname) return;
         const now = Date.now();
         const recent = recentNavigationRef.current;
         if (recent?.href === href && now - recent.ts < 650) return;
         recentNavigationRef.current = { href, ts: now };
+        if (!immediate) {
+            setMenuOpen(false);
+            setMenuClosing(false);
+        }
         setPendingHref(href);
-        startRoutePending(locale);
-        navigateNative(href, locale);
+        if (!immediate) prefetchRoute(href);
+        openRoute(href, immediate);
     };
 
-    const goPublic = (href: string) => {
-        closeMenu();
-        goRoute(href);
+    const goPublic = (href: string, immediate = false) => {
+        goRoute(href, immediate);
     };
 
     const primeMenuNavigation = (href: string, protectedRoute = false) => {
         if (protectedRoute && isGuest) return;
         dismissMapOverlays();
         setPendingHref(href);
-        startRoutePending(locale);
+        prefetchRoute(href);
     };
 
     const tabsLeft = [
@@ -554,8 +501,39 @@ export default function MobileBottomNav() {
         { href: '/artworks', key: 'artworks' as const, label: labels.artworks, active: isVisuallyActive('artworks') },
     ];
 
+    const handleTabPointerDown = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: PointerEvent<HTMLAnchorElement>) => {
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+            dismissMapOverlays();
+            if (tab.href === pathname) return;
+            if ('auth' in tab && tab.auth && isGuest) return;
+            setPendingHref(tab.href);
+            prefetchRoute(tab.href);
+            return;
+        }
+
+        if (tab.href === pathname) {
+            event.preventDefault();
+            return;
+        }
+
+        event.preventDefault();
+        if ('auth' in tab && tab.auth && isGuest) {
+            setLoginCallbackUrl(tab.href);
+            setLoginModalOpen(true);
+            return;
+        }
+
+        tabTouchHandledRef.current = tab.href;
+        goRoute(tab.href, true);
+    };
+
     const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
         dismissMapOverlays();
+        if (tabTouchHandledRef.current === tab.href) {
+            event.preventDefault();
+            tabTouchHandledRef.current = null;
+            return;
+        }
         if ('auth' in tab && tab.auth && isGuest) {
             event.preventDefault();
             setLoginCallbackUrl(tab.href);
@@ -566,10 +544,13 @@ export default function MobileBottomNav() {
             event.preventDefault();
             return;
         }
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
         const now = Date.now();
         recentNavigationRef.current = { href: tab.href, ts: now };
         setPendingHref(tab.href);
-        startRoutePending(locale);
+        prefetchRoute(tab.href);
+        openRoute(tab.href);
     };
 
     const renderTab = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => {
@@ -579,13 +560,8 @@ export default function MobileBottomNav() {
         <a
             key={tab.href}
             href={tab.href}
-            onPointerDown={() => {
-                dismissMapOverlays();
-                if (tab.href === pathname) return;
-                if ('auth' in tab && tab.auth && isGuest) return;
-                setPendingHref(tab.href);
-                startRoutePending(locale);
-            }}
+            data-mm-route-pending="off"
+            onPointerDown={handleTabPointerDown(tab)}
             onClick={handleTabClick(tab)}
             className={`mm-nav-original-tab ${active ? 'is-active' : ''} ${pendingHref === tab.href ? 'is-pending' : ''}`}
             style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(active ? styles.tabActive : null), ...(pendingHref === tab.href && !tab.active ? styles.tabPending : null) }}
@@ -605,7 +581,7 @@ export default function MobileBottomNav() {
                         <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={(event) => {
                             if (event.pointerType === 'touch' || event.pointerType === 'pen') {
                                 event.preventDefault();
-                                goProtected('/plans');
+                                goProtected('/plans', true);
                                 return;
                             }
                             primeMenuNavigation('/plans', true);
@@ -617,7 +593,7 @@ export default function MobileBottomNav() {
                         <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={(event) => {
                             if (event.pointerType === 'touch' || event.pointerType === 'pen') {
                                 event.preventDefault();
-                                goPublic('/collections');
+                                goPublic('/collections', true);
                                 return;
                             }
                             primeMenuNavigation('/collections');
@@ -629,7 +605,7 @@ export default function MobileBottomNav() {
                         <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={(event) => {
                             if (event.pointerType === 'touch' || event.pointerType === 'pen') {
                                 event.preventDefault();
-                                goProtected('/compare');
+                                goProtected('/compare', true);
                                 return;
                             }
                             primeMenuNavigation('/compare', true);

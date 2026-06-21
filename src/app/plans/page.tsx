@@ -200,13 +200,13 @@ export default function MyPlansPage() {
             ) : plans.length === 0 ? (
                 <EmptyStateGame locale={locale} title={t('plans.empty', locale)} description={t('plans.emptyDesc', locale)}>
                     <div className="mm-travel-empty-actions mx-auto grid max-w-sm grid-cols-1 gap-2 sm:grid-cols-2">
-                        <Link href="/saved" className="mm-travel-empty-action mm-travel-empty-action--primary">
+                        <Link href="/saved" data-mm-route-pending="off" className="mm-travel-empty-action mm-travel-empty-action--primary">
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v18l7-5 7 5V3H5z" />
                             </svg>
                             {emptyActions.primary}
                         </Link>
-                        <Link href="/" className="mm-travel-empty-action">
+                        <Link href="/" data-mm-route-pending="off" className="mm-travel-empty-action">
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                             </svg>

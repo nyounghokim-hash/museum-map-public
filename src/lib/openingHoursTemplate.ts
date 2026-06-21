@@ -15,6 +15,10 @@ export type OpeningDayTemplate = {
 export type OpeningHoursTemplate = {
     schema: 'museum_map_opening_hours_v1';
     source: 'google_places' | 'official' | 'manual' | 'visitor_info' | 'unknown';
+    status?: 'long_term_closure' | 'temporary_closure' | string;
+    statusStart?: string;
+    statusEnd?: string;
+    statusUntil?: string;
     timezone?: string;
     weekly: OpeningDayTemplate[];
     raw?: unknown;
@@ -22,6 +26,12 @@ export type OpeningHoursTemplate = {
     fetchedAt?: string;
     normalizedAt: string;
     confidence: 'high' | 'medium' | 'low';
+};
+
+type VisitorHoursItem = Record<string, unknown> & {
+    icon?: unknown;
+    label?: unknown;
+    value?: string;
 };
 
 const DAY_KEYS: OpeningDayKey[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -249,19 +259,23 @@ function rowsFromOpeningHours(value: unknown): string[] {
     return [];
 }
 
-export function findVisitorHoursItem(visitorInfo: unknown): { index: number; item: any } | null {
+export function findVisitorHoursItem(visitorInfo: unknown): { index: number; item: VisitorHoursItem } | null {
     if (!Array.isArray(visitorInfo)) return null;
     const index = visitorInfo.findIndex(item => {
-        const label = String(item?.label || '').toLowerCase();
-        return item?.icon === '🕐'
-            || item?.icon === 'clock'
+        const objectItem = item && typeof item === 'object' ? item as VisitorHoursItem : null;
+        const label = String(objectItem?.label || '').toLowerCase();
+        return objectItem?.icon === '🕐'
+            || objectItem?.icon === 'clock'
             || /운영시간|영업시간|개관|휴관|opening|hours/.test(label);
     });
-    return index >= 0 ? { index, item: visitorInfo[index] } : null;
+    const item = visitorInfo[index];
+    return index >= 0 && item && typeof item === 'object' ? { index, item: item as VisitorHoursItem } : null;
 }
 
 export function isOpeningHoursTemplate(value: unknown): value is OpeningHoursTemplate {
-    return Boolean(value && typeof value === 'object' && (value as any).schema === 'museum_map_opening_hours_v1' && Array.isArray((value as any).weekly));
+    if (!value || typeof value !== 'object') return false;
+    const candidate = value as Partial<OpeningHoursTemplate>;
+    return candidate.schema === 'museum_map_opening_hours_v1' && Array.isArray(candidate.weekly);
 }
 
 function hasSuspiciousMidnightRange(template: OpeningHoursTemplate) {

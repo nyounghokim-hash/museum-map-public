@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
@@ -576,7 +575,7 @@ export default function InfoPage() {
                     </div>
                 )}
                 {/* Feedback */}
-                <Link href="/feedback" className="block group">
+                <a href="/feedback" data-mm-route-pending="off" className="block group">
                     <div className="flex items-center gap-3 border rounded-xl px-4 py-3.5 hover:border-blue-300 dark:hover:border-blue-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                         <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
                             <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -591,10 +590,10 @@ export default function InfoPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                         </svg>
                     </div>
-                </Link>
+                </a>
 
                 {/* Terms — link to /terms */}
-                <Link href="/terms" className="block group">
+                <a href="/terms" data-mm-route-pending="off" className="block group">
                     <div className="flex items-start gap-3 border rounded-xl px-4 py-3.5 hover:border-blue-300 dark:hover:border-blue-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                         <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-neutral-800 flex items-center justify-center shrink-0 mt-0.5">
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -610,10 +609,10 @@ export default function InfoPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                         </svg>
                     </div>
-                </Link>
+                </a>
 
                 {/* Privacy — link to /terms?tab=privacy */}
-                <Link href="/terms?tab=privacy" className="block group">
+                <a href="/terms?tab=privacy" data-mm-route-pending="off" className="block group">
                     <div className="flex items-start gap-3 border rounded-xl px-4 py-3.5 hover:border-blue-300 dark:hover:border-blue-700 transition-all" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
                         <div className="w-8 h-8 rounded-lg bg-gray-50 dark:bg-neutral-800 flex items-center justify-center shrink-0 mt-0.5">
                             <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -629,7 +628,7 @@ export default function InfoPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                         </svg>
                     </div>
-                </Link>
+                </a>
 
                 {/* Data Sources */}
                 <div className="border rounded-xl px-4 py-3.5" style={{ background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }}>
@@ -675,7 +674,7 @@ export default function InfoPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => backWithFallback('/', locale)}
+                        onClick={() => backWithFallback('/settings', locale, { timeoutMs: 900, pendingOnFallback: false })}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                         aria-label="Back"
                     >

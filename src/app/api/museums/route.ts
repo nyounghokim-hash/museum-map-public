@@ -1,29 +1,65 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { successResponse, errorResponse } from '@/lib/api-utils';
 import { transformMuseumPhotos } from '@/lib/photo-proxy';
 import { privateMuseumWhere } from '@/lib/museumVisibility';
 
-const MAP_MUSEUM_SELECT = {
+const MAP_MUSEUM_SELECT_BASE = {
     id: true,
     name: true,
     nameKo: true,
     nameEn: true,
-    nameTranslations: true,
     country: true,
     city: true,
     cityKo: true,
-    cityTranslations: true,
     type: true,
     imageUrl: true,
     latitude: true,
     longitude: true,
-    popularityScore: true,
     createdAt: true,
     googleRating: true,
-    googleRatingsTotal: true,
     cachedPhotoUrls: true,
 } as const;
+
+const MAP_CACHE_REVALIDATE_SECONDS = 300;
+const MAP_RESPONSE_MEMORY_TTL_MS = 5 * 60 * 1000;
+const mapResponseMemoryCache = new Map<string, { ts: number; body: string }>();
+
+function getMapResponseHeaders(cacheStatus: 'HIT' | 'MISS') {
+    return {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': `public, max-age=120, s-maxage=${MAP_CACHE_REVALIDATE_SECONDS}, stale-while-revalidate=1800`,
+        'X-Museum-Map-Cache': cacheStatus,
+    };
+}
+
+function mapJsonResponse(body: string, cacheStatus: 'HIT' | 'MISS') {
+    return new NextResponse(body, {
+        status: 200,
+        headers: getMapResponseHeaders(cacheStatus),
+    });
+}
+
+function getMapMuseumSelect(locale: string) {
+    const needsTranslations = locale !== 'ko' && locale !== 'en';
+    if (!needsTranslations) return MAP_MUSEUM_SELECT_BASE;
+    return {
+        ...MAP_MUSEUM_SELECT_BASE,
+        nameTranslations: true,
+        cityTranslations: true,
+    } as const;
+}
+
+async function fetchMapMuseums(locale: string, offset: number, limit: number) {
+    const data = await prisma.museum.findMany({
+        where: { AND: [privateMuseumWhere as any] },
+        orderBy: { popularityScore: 'desc' },
+        skip: offset,
+        take: limit,
+        select: getMapMuseumSelect(locale),
+    });
+    return data.map(museum => toMapMuseum(museum, locale));
+}
 
 function pickLocaleTranslations(value: unknown, locale: string) {
     if (!locale || locale === 'ko' || locale === 'en' || !value || typeof value !== 'object') return undefined;
@@ -37,20 +73,18 @@ function toMapMuseum(museum: any, locale: string) {
         id: transformed.id,
         name: transformed.name,
         nameKo: transformed.nameKo,
-        nameEn: transformed.nameEn,
+        nameEn: transformed.nameEn && transformed.nameEn !== transformed.name ? transformed.nameEn : undefined,
         nameTranslations: pickLocaleTranslations(transformed.nameTranslations, locale),
         country: transformed.country,
         city: transformed.city,
-        cityKo: transformed.cityKo,
+        cityKo: transformed.cityKo && transformed.cityKo !== transformed.city ? transformed.cityKo : undefined,
         cityTranslations: pickLocaleTranslations(transformed.cityTranslations, locale),
         type: transformed.type,
         imageUrl: transformed.imageUrl || '',
         latitude: transformed.latitude,
         longitude: transformed.longitude,
-        popularityScore: transformed.popularityScore,
-        createdAt: transformed.createdAt,
+        createdAt: transformed.createdAt ? new Date(transformed.createdAt).toISOString().slice(0, 10) : undefined,
         googleRating: transformed.googleRating,
-        googleRatingsTotal: transformed.googleRatingsTotal,
     };
 }
 
@@ -120,21 +154,31 @@ export async function GET(req: NextRequest) {
             where.AND.push({ country });
         }
 
-        const [data, count] = await Promise.all([
-            prisma.museum.findMany({
-                where,
-                orderBy: { popularityScore: 'desc' },
-                skip: offset,
-                take: limit,
-                select: isMapView ? MAP_MUSEUM_SELECT : {
-                    id: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, description: true, descriptionKo: true, summary: true, summaryTranslations: true, country: true, city: true, cityKo: true, cityTranslations: true,
-                    type: true, website: true, imageUrl: true, latitude: true, longitude: true, popularityScore: true,
-                    createdAt: true, googleRating: true, googleRatingsTotal: true, placePhotos: true, cachedPhotoUrls: true,
-                    openingHours: true, visitorInfo: true, address: true, phone: true
-                }
-            }),
-            prisma.museum.count({ where })
-        ]);
+        if (isMapView && !bbox && !q && !country) {
+            const responseCacheKey = `${locale}:${offset}:${limit}`;
+            const cachedResponse = mapResponseMemoryCache.get(responseCacheKey);
+            if (cachedResponse && Date.now() - cachedResponse.ts < MAP_RESPONSE_MEMORY_TTL_MS) {
+                return mapJsonResponse(cachedResponse.body, 'HIT');
+            }
+            const data = await fetchMapMuseums(locale, offset, limit);
+            const body = JSON.stringify({ data: { data, total: data.length, page, limit } });
+            mapResponseMemoryCache.set(responseCacheKey, { ts: Date.now(), body });
+            return mapJsonResponse(body, 'MISS');
+        }
+
+        const data = await prisma.museum.findMany({
+            where,
+            orderBy: { popularityScore: 'desc' },
+            skip: offset,
+            take: limit,
+            select: isMapView ? getMapMuseumSelect(locale) : {
+                id: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, description: true, descriptionKo: true, summary: true, summaryTranslations: true, country: true, city: true, cityKo: true, cityTranslations: true,
+                type: true, website: true, imageUrl: true, latitude: true, longitude: true, popularityScore: true,
+                createdAt: true, googleRating: true, googleRatingsTotal: true, placePhotos: true, cachedPhotoUrls: true,
+                openingHours: true, visitorInfo: true, address: true, phone: true
+            }
+        });
+        const count = isMapView ? data.length : await prisma.museum.count({ where });
 
         return successResponse({ data: isMapView ? data.map(museum => toMapMuseum(museum, locale)) : data.map(transformMuseumPhotos), total: count, page, limit });
     } catch (err: any) {

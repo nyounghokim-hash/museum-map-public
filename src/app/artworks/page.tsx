@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type MouseEvent, type PointerEvent } from 'react';
 import { useApp } from '@/components/AppContext';
 import { useSearchParams } from 'next/navigation';
 import type { Locale } from '@/lib/i18n';
@@ -10,6 +10,7 @@ import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
+import { navigateDocument } from '@/lib/route-pending';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
 
@@ -28,6 +29,9 @@ const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: st
     sv: { title: 'Konstverk', subtitle: 'Utvalda konstverk från hela världen', loading: 'Laddar...', empty: 'Inga konstverk ännu', viewMuseum: 'Visa museum', listTitle: 'Verklista', countUnit: 'verk', searchPlaceholder: 'Sök konstverk, konstnärer, museer...' },
     et: { title: 'Teosed', subtitle: 'Maailma silmapaistvad teosed', loading: 'Laadimine...', empty: 'Teoseid pole veel', viewMuseum: 'Vaata muuseumi', listTitle: 'Teoste loend', countUnit: 'teost', searchPlaceholder: 'Otsi teoseid, kunstnikke, muuseume...' },
 };
+
+const TOUCH_TAP_CANCEL_PX = 10;
+const TOUCH_CLICK_SUPPRESS_MS = 450;
 
 type ArtworkSortMode = 'random' | 'registered' | 'year' | 'alphabetical';
 const ARTWORK_SORT_LABELS: Record<ArtworkSortMode, Record<string, string>> = {
@@ -77,6 +81,7 @@ function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
 
 const SCROLL_KEY = 'artworks_scroll_pos';
 const CACHE_KEY = 'artworks_cache';
+const SCROLL_RESTORE_RETRY_MS = [80, 220, 520, 900, 1400];
 
 type ArtworkCachePayload = {
     items?: any[];
@@ -92,6 +97,15 @@ function readArtworkCache(cacheKey: string): ArtworkCachePayload | null {
         if (cached?.items?.length) return cached;
     } catch { }
     return null;
+}
+
+function restoreScrollPosition(y: number) {
+    if (typeof window === 'undefined' || !Number.isFinite(y) || y <= 0) return;
+    const restore = () => window.scrollTo(0, y);
+    requestAnimationFrame(restore);
+    SCROLL_RESTORE_RETRY_MS.forEach((delay) => {
+        window.setTimeout(restore, delay);
+    });
 }
 
 // Fisher-Yates (Knuth) shuffle — true uniform random, no bias
@@ -137,6 +151,9 @@ export default function ArtworksPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
     const [isSearchFocused, setIsSearchFocused] = useState(false);
+    const artworkPointerHandledRef = useRef<string | null>(null);
+    const artworkTouchRef = useRef<{ id: string; pointerId: number; x: number; y: number; moved: boolean } | null>(null);
+    const artworkSuppressClickRef = useRef<{ id: string; until: number } | null>(null);
     const labels = PAGE_LABELS[locale] || PAGE_LABELS.en;
     const selectedDescriptionSource = selected?.descriptionKo || selected?.description || '';
     const selectedTranslatedDescription = useTranslatedText(selectedDescriptionSource, locale as Locale);
@@ -229,10 +246,7 @@ export default function ArtworksPage() {
                     setLoading(false);
                     restoredRef.current = true;
                     if (savedScroll) {
-                        // Restore scroll position after render
-                        requestAnimationFrame(() => {
-                            setTimeout(() => { window.scrollTo(0, parseInt(savedScroll, 10)); }, 50);
-                        });
+                        restoreScrollPosition(parseInt(savedScroll, 10));
                         sessionStorage.removeItem(SCROLL_KEY);
                     }
                     return;
@@ -264,10 +278,72 @@ export default function ArtworksPage() {
         if (!artworkId) return;
         gtag.event('view_artwork', { category: 'artwork', label: label || artworkId, value: 1 });
         try {
+            const routeKey = `${window.location.pathname}${window.location.search}`;
+            const routeScroll = JSON.stringify({ x: window.scrollX, y: window.scrollY, ts: Date.now() });
             sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+            sessionStorage.setItem(`mm-scroll-position:${routeKey}`, routeScroll);
+            sessionStorage.setItem(`mm-scroll-position-lock:${routeKey}`, String(Date.now()));
             sessionStorage.setItem('artwork-list-return', window.location.pathname + window.location.search);
         } catch { }
-        window.location.assign(`/artworks/${artworkId}`);
+        navigateDocument(`/artworks/${encodeURIComponent(artworkId)}`);
+    };
+
+    const suppressArtworkClick = (id: string) => {
+        artworkSuppressClickRef.current = { id, until: Date.now() + TOUCH_CLICK_SUPPRESS_MS };
+    };
+
+    const handleArtworkPointerDown = (event: PointerEvent<HTMLAnchorElement>, artworkId: string) => {
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+        artworkTouchRef.current = {
+            id: artworkId,
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            moved: false,
+        };
+    };
+
+    const handleArtworkPointerMove = (event: PointerEvent<HTMLAnchorElement>, artworkId: string) => {
+        const state = artworkTouchRef.current;
+        if (!state || state.id !== artworkId || state.pointerId !== event.pointerId) return;
+        if (Math.hypot(event.clientX - state.x, event.clientY - state.y) > TOUCH_TAP_CANCEL_PX) {
+            state.moved = true;
+        }
+    };
+
+    const handleArtworkPointerCancel = (artworkId: string) => {
+        artworkTouchRef.current = null;
+        suppressArtworkClick(artworkId);
+    };
+
+    const handleArtworkPointerUp = (event: PointerEvent<HTMLAnchorElement>, artwork: any) => {
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+        const state = artworkTouchRef.current;
+        artworkTouchRef.current = null;
+        if (!state || state.id !== artwork.id || state.pointerId !== event.pointerId) return;
+        if (state.moved) {
+            suppressArtworkClick(artwork.id);
+            return;
+        }
+        event.preventDefault();
+        artworkPointerHandledRef.current = artwork.id;
+        openArtworkDetail(artwork.id, artwork.title || artwork.id);
+    };
+
+    const handleArtworkClick = (event: MouseEvent<HTMLAnchorElement>, artwork: any) => {
+        const suppressed = artworkSuppressClickRef.current;
+        if (suppressed?.id === artwork.id && Date.now() < suppressed.until) {
+            event.preventDefault();
+            return;
+        }
+        if (artworkPointerHandledRef.current === artwork.id) {
+            event.preventDefault();
+            artworkPointerHandledRef.current = null;
+            return;
+        }
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        openArtworkDetail(artwork.id, artwork.title || artwork.id);
     };
 
     const openMuseumFromArtwork = async (museum: any) => {
@@ -470,13 +546,14 @@ export default function ArtworksPage() {
                                 <a
                                     key={`${shuffleKey}-${aw.id}`}
                                     href={`/artworks/${encodeURIComponent(aw.id)}`}
+                                    data-mm-route-pending="off"
                                     className="mm-artwork-card2 block no-underline text-inherit group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.98]"
                                     style={{ animation: `fadeInUp 0.4s ${Math.min(idx, 11) * 50}ms both` }}
-                                    onClick={(event) => {
-                                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-                                        event.preventDefault();
-                                        openArtworkDetail(aw.id, aw.title || aw.id);
-                                    }}
+                                    onPointerDown={(event) => handleArtworkPointerDown(event, aw.id)}
+                                    onPointerMove={(event) => handleArtworkPointerMove(event, aw.id)}
+                                    onPointerCancel={() => handleArtworkPointerCancel(aw.id)}
+                                    onPointerUp={(event) => handleArtworkPointerUp(event, aw)}
+                                    onClick={(event) => handleArtworkClick(event, aw)}
                                 >
                                     <div className="aspect-[4/3] relative overflow-hidden bg-gray-100 dark:bg-neutral-800">
                                         {aw.image ? (

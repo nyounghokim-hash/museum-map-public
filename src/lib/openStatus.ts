@@ -262,6 +262,51 @@ function normalizeOpeningHoursSource(value: unknown): string | undefined {
     return undefined;
 }
 
+function collectStatusText(value: unknown): string {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) return value.map(collectStatusText).filter(Boolean).join(' ');
+    if (typeof value === 'object') return Object.values(value as Record<string, unknown>).map(collectStatusText).filter(Boolean).join(' ');
+    return '';
+}
+
+function dateOnlyValue(raw: unknown): string | null {
+    if (typeof raw !== 'string') return null;
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    return match?.[1] || null;
+}
+
+function isDateBoundStatusActive(openingHours: unknown, now: Date = new Date()) {
+    if (!openingHours || typeof openingHours !== 'object') return true;
+    const value = openingHours as Record<string, unknown>;
+    const today = now.toISOString().slice(0, 10);
+    const start = dateOnlyValue(value.statusStart || value.closedFrom || value.validFrom);
+    const end = dateOnlyValue(value.statusEnd || value.statusUntil || value.closedUntil || value.validThrough);
+    if (start && today < start) return false;
+    if (end && today > end) return false;
+    return true;
+}
+
+function resolveStoredClosureStatus(openingHours: unknown, visitorInfo: unknown): MuseumOpenStatusKind | null {
+    const status = typeof openingHours === 'object' && openingHours
+        ? String((openingHours as Record<string, unknown>).status || '').toLowerCase()
+        : '';
+
+    if (status && !isDateBoundStatusActive(openingHours)) return null;
+    if (/long[_\s-]?term[_\s-]?closure|renovation[_\s-]?closure/.test(status)) return 'closed';
+    if (/temporary[_\s-]?closure|temporarily[_\s-]?closed/.test(status)) return 'todayClosed';
+
+    const statusText = `${collectStatusText(openingHours)} ${collectStatusText(visitorInfo)}`.replace(/\s+/g, ' ');
+    if (/장기\s*(?:리노베이션\s*)?휴관|long[-\s]?term closure|closed until\s+20\d{2}|closure until\s+20\d{2}|closed for renovation/i.test(statusText)) {
+        return 'closed';
+    }
+    if (/임시\s*휴관|temporarily closed|temporary closure/i.test(statusText)) {
+        return 'todayClosed';
+    }
+    return null;
+}
+
 function isValidCoordinate(value: unknown) {
     return typeof value === 'number' && Number.isFinite(value);
 }
@@ -449,6 +494,15 @@ export function resolveOpenStatusFromHours(hoursValue: string | undefined, count
 }
 
 export function resolveMuseumOpenStatus(museum: MuseumOpenStatusInput, locale: string): MuseumOpenStatus {
+    const storedClosureStatus = resolveStoredClosureStatus(museum?.openingHours, museum?.visitorInfo);
+    if (storedClosureStatus) {
+        return {
+            kind: storedClosureStatus,
+            label: labelFor(storedClosureStatus, locale),
+            detailLabel: detailFor(storedClosureStatus, locale),
+        };
+    }
+
     const quickHoursItem = findVisitorHoursItem(museum?.visitorInfo)?.item;
     const hoursValue = normalizeOpeningHoursSource(museum?.openingHours) || quickHoursItem?.value;
     return resolveOpenStatusFromHours(hoursValue, museum?.country, locale, {

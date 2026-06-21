@@ -21,7 +21,7 @@ import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
 import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
-import { startRoutePending } from '@/lib/route-pending';
+import { navigateDocument } from '@/lib/route-pending';
 import { getTripVisitStats, isStopVisited, isTripEnded, updateTripStopVisitState } from '@/lib/tripStatus';
 
 const MapLibreViewer = dynamic(() => import('@/components/map/MapLibreViewer'), { ssr: false });
@@ -939,6 +939,7 @@ function NewMuseumListItem({ museum, locale, onSelect }: { museum: any; locale: 
 }
 
 const NEW_MUSEUM_BATCH_SIZE = 36;
+const MOBILE_MAP_RENDER_DELAY_MS = 1400;
 
 export default function MainPage() {
   const { compareIds: compareIdsArr } = useCompare({
@@ -971,6 +972,7 @@ export default function MainPage() {
   const [navToolbarReady, setNavToolbarReady] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [showTripActivatedNotif, setShowTripActivatedNotif] = useState(false);
+  const [mapRendererReady, setMapRendererReady] = useState(false);
   const { data: session, status } = useSession();
   const [showConsentGate, setShowConsentGate] = useState(false);
   const [consentTerms, setConsentTerms] = useState(false);
@@ -983,6 +985,25 @@ export default function MainPage() {
     syncSearchParams();
     window.addEventListener('popstate', syncSearchParams);
     return () => window.removeEventListener('popstate', syncSearchParams);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isMobileViewport = window.matchMedia('(max-width: 767px)').matches;
+    if (!isMobileViewport) {
+      setMapRendererReady(true);
+      return;
+    }
+
+    let cancelIdle: (() => void) | undefined;
+    const timer = window.setTimeout(() => {
+      cancelIdle = scheduleIdleTask(() => setMapRendererReady(true), 900);
+    }, MOBILE_MAP_RENDER_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+      cancelIdle?.();
+    };
   }, []);
 
   // AI Recommend
@@ -1099,35 +1120,56 @@ export default function MainPage() {
     dismissClusterPopup();
   }, [closeSearchMode, dismissClusterPopup]);
 
+  const prepareMapForClientRoute = useCallback(() => {
+    closeSearchAndClusterPopup();
+    closeAllPopups();
+    setSelectedMuseum(null);
+    setIsViewingActiveRoute(false);
+    setMapRendererReady(false);
+    document.body.removeAttribute('data-detail-open');
+    document.body.style.overflow = '';
+  }, [closeAllPopups, closeSearchAndClusterPopup]);
+
   const navigateToSettingsNow = useCallback((event?: SyntheticEvent<HTMLElement>) => {
     event?.preventDefault();
     if (settingsNavPendingRef.current || typeof window === 'undefined') return;
     settingsNavPendingRef.current = true;
+    prepareMapForClientRoute();
     try {
       sessionStorage.setItem('mm_settings_return_to', '/');
     } catch { }
-    startRoutePending(locale);
-    window.location.assign('/settings');
-  }, [locale]);
+    window.setTimeout(() => {
+      settingsNavPendingRef.current = false;
+    }, 1400);
+    navigateDocument('/settings');
+  }, [prepareMapForClientRoute]);
 
   const navigateToAdminNow = useCallback((event?: SyntheticEvent<HTMLElement>) => {
     event?.preventDefault();
     if (adminNavPendingRef.current || typeof window === 'undefined') return;
     adminNavPendingRef.current = true;
-    closeSearchAndClusterPopup();
-    setMapSideMenuOpen(false);
-    startRoutePending(locale);
-    window.location.assign('/admin');
-  }, [closeSearchAndClusterPopup, locale]);
+    prepareMapForClientRoute();
+    window.setTimeout(() => {
+      adminNavPendingRef.current = false;
+    }, 1400);
+    navigateDocument('/admin');
+  }, [prepareMapForClientRoute]);
 
   useEffect(() => {
     const handleMapOverlayDismiss = () => {
       closeSearchAndClusterPopup();
       closeAllPopups();
     };
+    const handleClientRouteStart = () => {
+      prepareMapForClientRoute();
+    };
     window.addEventListener('mm:map-overlays-dismiss', handleMapOverlayDismiss);
-    return () => window.removeEventListener('mm:map-overlays-dismiss', handleMapOverlayDismiss);
-  }, [closeAllPopups, closeSearchAndClusterPopup]);
+    window.addEventListener('mm:client-route-change-start', handleClientRouteStart);
+    return () => {
+      window.removeEventListener('mm:map-overlays-dismiss', handleMapOverlayDismiss);
+      window.removeEventListener('mm:client-route-change-start', handleClientRouteStart);
+    };
+  }, [closeAllPopups, closeSearchAndClusterPopup, prepareMapForClientRoute]);
 
   const openCategoryDropdown = useCallback(() => {
     if (categoryCloseTimerRef.current) {
@@ -2247,7 +2289,7 @@ export default function MainPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    const shouldLockSearchScroll = !isLgViewport && !isPanelOpen && searchFocused;
+    const shouldLockSearchScroll = !isLgViewport && searchFocused;
     if (!shouldLockSearchScroll) return;
 
     const html = document.documentElement;
@@ -2783,7 +2825,9 @@ export default function MainPage() {
             </div>
 
             {(newMuseums.length > 0 || activeTrip) && (
-              <div className={`mm-map2-trip-cluster ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${newMuseums.length > 0 ? 'has-new-museums' : ''} ${activeTrip ? 'has-trip' : ''}`}>
+              <div
+                className={`mm-map2-trip-cluster ${mapPrefs.leftHanded ? 'is-left-handed' : ''} ${newMuseums.length > 0 ? 'has-new-museums' : ''} ${activeTrip ? 'has-trip' : ''}`}
+              >
                 {newMuseums.length > 0 && (
                   <div className="mm-map2-new-museums-mobile">
                     <button
@@ -2985,7 +3029,6 @@ export default function MainPage() {
                       onClick={() => {
                         closeSearchAndClusterPopup();
                         setMapSideMenuOpen(false);
-                        startRoutePending(locale);
                         window.location.assign('/profile');
                       }}
                     >
@@ -3137,7 +3180,7 @@ export default function MainPage() {
               handleActiveRouteMuseumClick(stop.museumId);
             }}
           />
-        ) : (
+        ) : mapRendererReady ? (
           <MapLibreViewer
             museums={mapMuseums}
             onMuseumClick={handleMuseumClick}
@@ -3157,6 +3200,8 @@ export default function MainPage() {
             onMapInteraction={closeSearchMode}
             popupDismissKey={clusterPopupDismissKey}
           />
+        ) : (
+          <div className="mm-map-renderer-placeholder" aria-hidden="true" />
         )}
 
         {locationPickMode && !isPanelOpen && (

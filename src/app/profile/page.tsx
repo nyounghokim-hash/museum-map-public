@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { signIn, signOut, useSession } from 'next-auth/react';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/components/AppContext';
@@ -204,11 +203,11 @@ export default function ProfilePage() {
         </div>
         <div className="mm-profile-stat-grid2">
           {statCards.map(card => (
-            <Link key={card.href} href={card.href} className="mm-profile-stat-card2">
+            <a key={card.href} href={card.href} data-mm-route-pending="off" className="mm-profile-stat-card2">
               <span>{card.label}</span>
               <strong>{loadingCounts ? '-' : card.value.toLocaleString()}</strong>
               <p>{card.desc}</p>
-            </Link>
+            </a>
           ))}
         </div>
       </section>
@@ -216,13 +215,13 @@ export default function ProfilePage() {
       <section className="mt-8">
         <div className="mm-profile-action-list2">
           {isAdmin && (
-            <Link href="/admin" replace className="mm-profile-action-row2">
+            <a href="/admin" data-mm-route-pending="off" className="mm-profile-action-row2">
               <span>
                 <strong>{labels.admin}</strong>
                 <em>{labels.adminDesc}</em>
               </span>
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-            </Link>
+            </a>
           )}
           <button type="button" onClick={() => { clearClientAccountStateForLogout(); try { sessionStorage.setItem('mm-logout-done', '1'); } catch { } signOut({ callbackUrl: '/' }); }} className="mm-profile-action-row2 is-danger">
             <span>

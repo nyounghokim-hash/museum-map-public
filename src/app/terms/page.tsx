@@ -175,7 +175,7 @@ export default function TermsPage() {
     return (
         <div className="mm-legal-page2 mm-library-page2 no-back-swipe w-full max-w-[800px] mx-auto px-4 py-4 sm:px-6 sm:py-8 md:px-8 mt-4 sm:mt-8 pb-32 lg:pb-8 animate-fadeInUp" onTouchStart={handleSwipeStart} onTouchEnd={handleSwipeEnd}>
             {/* PC: Back */}
-            <button onClick={() => backWithFallback('/info', locale)} className="hidden lg:flex w-10 h-10 items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-full mb-6 transition-colors shadow-sm active:scale-95">
+            <button onClick={() => backWithFallback('/settings', locale, { timeoutMs: 900, pendingOnFallback: false })} className="hidden lg:flex w-10 h-10 items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-gray-700 dark:text-gray-300 rounded-full mb-6 transition-colors shadow-sm active:scale-95">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </button>
 
@@ -229,7 +229,7 @@ export default function TermsPage() {
             {typeof document !== 'undefined' && createPortal(
                 <div className="lg:hidden fixed bottom-8 right-8 z-[9998] flex flex-col gap-2">
                     <button
-                        onClick={() => backWithFallback('/info', locale)}
+                        onClick={() => backWithFallback('/settings', locale, { timeoutMs: 900, pendingOnFallback: false })}
                         className="w-14 h-14 flex items-center justify-center rounded-full bg-neutral-800/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-gray-800 shadow-lg border border-neutral-700/60 dark:border-gray-200/60 active:scale-95 transition-all hover:bg-neutral-700 dark:hover:bg-gray-100"
                     >   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                     </button>

@@ -52,7 +52,7 @@ export default function CookieConsent() {
                 <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-3 leading-relaxed">
                     {t.message}
                 </p>
-                <Link href="/cookies" onClick={() => dismiss('declined')} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium mb-3 block">
+                <Link href="/cookies" data-mm-route-pending="off" onClick={() => dismiss('declined')} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium mb-3 block">
                     {locale === 'ko' ? '자세히 보기 →' : 'Learn more →'}
                 </Link>
                 <div className="flex gap-2">

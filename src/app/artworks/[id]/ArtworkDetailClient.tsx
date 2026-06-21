@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type MouseEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { buildShareUrl } from '@/lib/utm';
 import { useApp } from '@/components/AppContext';
@@ -10,7 +10,7 @@ import type { Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
-import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
+import { backWithFallback, navigateDocument } from '@/lib/route-pending';
 
 
 
@@ -52,6 +52,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const [isFromBack, setIsFromBack] = useState(false);
     const [portalReady, setPortalReady] = useState(false);
     const isBackingRef = useRef(false);
+    const backPointerHandledRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const lightboxRef = useRef<HTMLDivElement>(null);
     const lightboxTouchStart = useRef({ x: 0, y: 0 });
@@ -80,20 +81,36 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             const historyState = window.history.state;
             if (returnPath && window.history.length <= 1) {
                 sessionStorage.removeItem('artwork-list-return');
-                navigateWithPending(returnPath, locale, true);
+                navigateDocument(returnPath, true);
                 return;
             }
             if (historyState?.backAnchor) {
-                navigateWithPending('/artworks', locale, true);
+                navigateDocument('/artworks', true);
                 return;
             }
             if (window.history.length <= 1) {
-                navigateWithPending('/artworks', locale, true);
+                navigateDocument('/artworks', true);
                 return;
             }
         }
         backWithFallback('/artworks', locale);
     }, [locale]);
+
+    const handleBackPointerDown = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+        event.preventDefault();
+        backPointerHandledRef.current = true;
+        handleBack();
+    }, [handleBack]);
+
+    const handleBackClick = useCallback((event: MouseEvent<HTMLButtonElement>) => {
+        if (backPointerHandledRef.current) {
+            event.preventDefault();
+            backPointerHandledRef.current = false;
+            return;
+        }
+        handleBack();
+    }, [handleBack]);
 
     const allTexts = useMemo(() => {
         if (!artwork) return [];
@@ -211,7 +228,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                 <p className="text-gray-500 dark:text-gray-400 text-lg font-bold">
                     {locale === 'ko' ? '작품을 찾지 못했어요' : 'Artwork not found'}
                 </p>
-                <button onClick={() => navigateWithPending('/artworks', locale)} className="mt-4 text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline">
+                <button onClick={() => navigateDocument('/artworks')} className="mt-4 text-sm font-bold text-blue-600 dark:text-blue-400 hover:underline">
                     ← {locale === 'ko' ? '작품 목록' : 'Back to artworks'}
                 </button>
             </div>
@@ -249,7 +266,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
         <div ref={containerRef} className={`mm-editorial-page2 mm-artwork-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
             <div className="mm-detail-hero2 w-full h-[420px] sm:h-[520px] bg-gray-100 dark:bg-neutral-800 sm:rounded-b-[32px] relative mt-0">
                 <div className="mm-detail-round-actions">
-                    <button onClick={handleBack} aria-label="Back" className="mm-detail-top-back">
+                    <button onPointerDown={handleBackPointerDown} onClick={handleBackClick} aria-label="Back" className="mm-detail-top-back">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                         </svg>
@@ -297,7 +314,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             </div>
 
             {portalReady && createPortal(
-                <button type="button" onClick={handleBack} aria-label="Back" className="mm-detail-floating-back md:hidden">
+                <button type="button" onPointerDown={handleBackPointerDown} onClick={handleBackClick} aria-label="Back" className="mm-detail-floating-back md:hidden">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                     </svg>

@@ -27,16 +27,20 @@ const BLOG_MUSEUM_LIST_SELECT = {
     name: true,
     nameKo: true,
     nameEn: true,
-    nameTranslations: true,
     city: true,
     cityKo: true,
-    cityTranslations: true,
     country: true,
     imageUrl: true,
     cachedPhotoUrls: true,
     placePhotos: true,
     latitude: true,
     longitude: true,
+};
+
+const BLOG_MUSEUM_FULL_SELECT = {
+    ...BLOG_MUSEUM_LIST_SELECT,
+    nameTranslations: true,
+    cityTranslations: true,
 };
 
 const BLOG_LIST_SELECT = {
@@ -67,7 +71,7 @@ const BLOG_LIST_SELECT = {
 const BLOG_FULL_INCLUDE = {
     museums: {
         include: {
-            museum: { select: BLOG_MUSEUM_LIST_SELECT },
+            museum: { select: BLOG_MUSEUM_FULL_SELECT },
         },
     },
     storyArtworks: {

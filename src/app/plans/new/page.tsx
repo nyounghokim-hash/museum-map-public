@@ -12,14 +12,30 @@ import * as gtag from '@/lib/gtag';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import CalendarPicker from '@/components/ui/CalendarPicker';
 import { useDragReorder } from '@/hooks/useDragReorder';
-import { backWithFallback, navigateWithPending, startRoutePending } from '@/lib/route-pending';
+import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
+import type { RouteStop as MapRouteStop } from '@/components/map/RouteMapViewer';
 
 const RouteMapViewer = dynamic(() => import('@/components/map/RouteMapViewer'), { ssr: false });
+
+type PlanRouteStop = {
+    id?: string | number;
+    museumId: string;
+    name?: string;
+    nameKo?: string | null;
+    nameEn?: string | null;
+    nameTranslations?: Record<string, string> | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    order: number;
+    expectedArrival?: Date | string;
+    type?: string | null;
+    [key: string]: unknown;
+};
 
 function AutoRouteContent() {
     const searchParams = useSearchParams();
     const { showAlert } = useModal();
-    const [route, setRoute] = useState<any[]>([]);
+    const [route, setRoute] = useState<PlanRouteStop[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saveStarted, setSaveStarted] = useState(false);
@@ -47,9 +63,10 @@ function AutoRouteContent() {
             fetch('/api/museums?limit=5')
                 .then(r => r.json())
                 .then(res => {
-                    const list = res.data?.data || res.data || [];
-                    const demoRoute = list.map((m: any, i: number) => ({
-                        museumId: m.id,
+                    const list = (res.data?.data || res.data || []) as PlanRouteStop[];
+                    const demoRoute = list.map((m, i) => ({
+                        ...m,
+                        museumId: String(m.id ?? m.museumId ?? ''),
                         name: getLocalizedMuseumName(m, locale),
                         latitude: m.latitude,
                         longitude: m.longitude,
@@ -73,10 +90,10 @@ function AutoRouteContent() {
             .then(res => {
                 if (res.data?.route) {
                     // Enrich with coordinates by fetching each museum
-                    const stops = res.data.route;
+                    const stops = res.data.route as PlanRouteStop[];
                     // Fetch museum details for coordinates
                     Promise.all(
-                        stops.map((s: any) =>
+                        stops.map((s) =>
                             fetch(`/api/museums/${s.museumId}`)
                                 .then(r => r.json())
                                 .then(d => ({ ...s, latitude: d.data?.latitude, longitude: d.data?.longitude }))
@@ -91,14 +108,17 @@ function AutoRouteContent() {
                 }
             })
             .catch(console.error);
-    }, [searchParams]);
+    }, [locale, searchParams]);
 
-    const routeStops = useMemo(() =>
-        route.filter(s => s.latitude && s.longitude).map(s => ({
+    const routeStops = useMemo<MapRouteStop[]>(() =>
+        route.filter((s): s is PlanRouteStop & { latitude: number; longitude: number } =>
+            typeof s.latitude === 'number' && typeof s.longitude === 'number'
+        ).map(s => ({
             name: getLocalizedMuseumName(s, locale),
             latitude: s.latitude,
             longitude: s.longitude,
             order: s.order,
+            museumId: s.museumId,
         })),
         [route, locale]
     );
@@ -124,7 +144,6 @@ function AutoRouteContent() {
                     label: title,
                     value: route.length
                 });
-                startRoutePending(locale);
                 navigateWithPending('/plans', locale);
             } else {
                 console.error('[Save Plan Error]', data);
@@ -149,6 +168,7 @@ function AutoRouteContent() {
             setRoute(prevRoute => {
                 const newRoute = [...prevRoute];
                 const [moved] = newRoute.splice(fromIndex, 1);
+                if (!moved) return prevRoute;
                 newRoute.splice(toIndex, 0, moved);
                 return newRoute.map((s, i) => ({
                     ...s,

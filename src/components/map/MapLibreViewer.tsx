@@ -675,8 +675,10 @@ export default function MapLibreViewer({
     const cleanup = (after?: () => void) => {
       if (cleaned) return;
       cleaned = true;
+      try {
+        root.unmount();
+      } catch { }
       after?.();
-      root.unmount();
     };
 
     if (window.matchMedia('(max-width: 1023px)').matches) {
@@ -703,8 +705,7 @@ export default function MapLibreViewer({
     });
     activePopupRef.current = {
       remove: () => {
-        popup.remove();
-        cleanup();
+        cleanup(() => popup.remove());
       },
     };
   };

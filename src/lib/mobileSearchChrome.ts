@@ -1,9 +1,8 @@
 const LIGHT_THEME_COLOR = '#f8fbff';
 const DARK_THEME_COLOR = '#020617';
-const LIGHT_SEARCH_BACKGROUND = '#fff';
-const DARK_SEARCH_BACKGROUND = '#020617';
 
 type SearchChromeTheme = 'light' | 'dark';
+type ThemeMetaSnapshot = Array<{ content: string; media: string | null }>;
 
 function getOrCreateMeta(name: string) {
   let meta = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
@@ -19,6 +18,16 @@ function getCurrentTheme(): SearchChromeTheme {
   const root = document.documentElement;
   if (root.dataset.theme === 'dark' || root.classList.contains('dark')) return 'dark';
   if (root.dataset.theme === 'light') return 'light';
+  try {
+    const savedThemeMode = localStorage.getItem('themeMode');
+    if (savedThemeMode === 'dark') return 'dark';
+    if (savedThemeMode === 'light') return 'light';
+    if (savedThemeMode !== 'system') {
+      const savedDarkMode = localStorage.getItem('darkMode');
+      if (savedDarkMode === 'true') return 'dark';
+      if (savedDarkMode === 'false') return 'light';
+    }
+  } catch { }
   if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
   return 'light';
 }
@@ -28,42 +37,53 @@ function getSearchChromeValues() {
   return {
     theme,
     themeColor: theme === 'dark' ? DARK_THEME_COLOR : LIGHT_THEME_COLOR,
-    backgroundColor: theme === 'dark' ? DARK_SEARCH_BACKGROUND : LIGHT_SEARCH_BACKGROUND,
     statusBarStyle: theme === 'dark' ? 'black-translucent' : 'default',
-    colorScheme: theme,
   };
+}
+
+function readThemeMetaSnapshot(): ThemeMetaSnapshot {
+  return Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')).map((meta) => ({
+    content: meta.getAttribute('content') || '',
+    media: meta.getAttribute('media'),
+  })).filter((item) => item.content);
+}
+
+function writeThemeMetas(snapshot: ThemeMetaSnapshot) {
+  const currentMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
+  const values = snapshot.length > 0
+    ? snapshot
+    : [{ content: getSearchChromeValues().themeColor, media: null }];
+  values.forEach((value, index) => {
+    const meta = currentMetas[index] || document.createElement('meta');
+    meta.setAttribute('name', 'theme-color');
+    meta.setAttribute('content', value.content);
+    if (value.media) meta.setAttribute('media', value.media);
+    else meta.removeAttribute('media');
+    if (!meta.parentNode) document.head.appendChild(meta);
+  });
+  currentMetas.slice(values.length).forEach((meta) => meta.remove());
 }
 
 function applySearchChrome() {
   const values = getSearchChromeValues();
-  const themeMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
-  const primaryThemeMeta = themeMetas[0] || getOrCreateMeta('theme-color');
-  primaryThemeMeta.setAttribute('content', values.themeColor);
-  primaryThemeMeta.removeAttribute('media');
-  themeMetas.slice(1).forEach((meta) => meta.remove());
-
+  writeThemeMetas([{ content: values.themeColor, media: null }]);
   const statusBarMeta = getOrCreateMeta('apple-mobile-web-app-status-bar-style');
   statusBarMeta.setAttribute('content', values.statusBarStyle);
 
   const html = document.documentElement;
   const body = document.body;
   html.setAttribute('data-search-chrome', values.theme);
-  html.style.backgroundColor = values.backgroundColor;
-  html.style.colorScheme = values.colorScheme;
-  body.style.backgroundColor = values.backgroundColor;
+  html.style.colorScheme = values.theme;
+  html.style.backgroundColor = values.themeColor;
+  body.style.backgroundColor = values.theme === 'dark' ? DARK_THEME_COLOR : '#ffffff';
 }
 
 function restoreAppChrome() {
-  const theme = getCurrentTheme();
-  const themeColor = theme === 'dark' ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
-  const themeMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
-  const primaryThemeMeta = themeMetas[0] || getOrCreateMeta('theme-color');
-  primaryThemeMeta.setAttribute('content', themeColor);
-  primaryThemeMeta.removeAttribute('media');
-  themeMetas.slice(1).forEach((meta) => meta.remove());
+  const values = getSearchChromeValues();
+  writeThemeMetas([{ content: values.themeColor, media: null }]);
 
   const statusBarMeta = getOrCreateMeta('apple-mobile-web-app-status-bar-style');
-  statusBarMeta.setAttribute('content', theme === 'dark' ? 'black-translucent' : 'default');
+  statusBarMeta.setAttribute('content', values.statusBarStyle);
 }
 
 function addEventListenerSafe(
@@ -85,6 +105,10 @@ export function lockMobileSearchChrome() {
   const previousBodyBackground = body.style.backgroundColor;
   const previousColorScheme = html.style.colorScheme;
   const previousSearchChrome = html.getAttribute('data-search-chrome');
+  const previousThemeMetas = readThemeMetaSnapshot();
+  const previousStatusBarStyle = document
+    .querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]')
+    ?.getAttribute('content') || null;
 
   html.classList.add('mm-search-locking');
   body.classList.add('mm-search-locking');
@@ -128,6 +152,9 @@ export function lockMobileSearchChrome() {
     html.style.backgroundColor = previousHtmlBackground;
     html.style.colorScheme = previousColorScheme;
     body.style.backgroundColor = previousBodyBackground;
-    restoreAppChrome();
+    if (previousThemeMetas.length > 0) writeThemeMetas(previousThemeMetas);
+    else restoreAppChrome();
+    const statusBarMeta = getOrCreateMeta('apple-mobile-web-app-status-bar-style');
+    statusBarMeta.setAttribute('content', previousStatusBarStyle || getSearchChromeValues().statusBarStyle);
   };
 }

@@ -4,7 +4,6 @@ import { signIn, signOut, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import * as gtag from '@/lib/gtag';
-import Link from 'next/link';
 
 /** Detect in-app browsers that block Google OAuth */
 function detectInAppBrowser(): string | null {
@@ -356,9 +355,9 @@ export default function LoginPage() {
                         <div className="mt-5 text-center">
                             <p className="text-[11px] text-gray-600 dark:text-neutral-400 leading-relaxed">
                                 {l.agree}{' '}
-                                <Link href="/terms" className="text-blue-600 hover:underline font-semibold">{l.terms}</Link>
+                                <a href="/terms" data-mm-route-pending="off" className="text-blue-600 hover:underline font-semibold">{l.terms}</a>
                                 {' & '}
-                                <Link href="/terms?tab=privacy" className="text-blue-600 hover:underline font-semibold">{l.privacy}</Link>
+                                <a href="/terms?tab=privacy" data-mm-route-pending="off" className="text-blue-600 hover:underline font-semibold">{l.privacy}</a>
                             </p>
                         </div>
                     </div>
@@ -542,7 +541,7 @@ export default function LoginPage() {
                                             <p key="t7">Google OAuth를 통해 가입하며, 계정 정보의 정확성은 이용자 본인에게 있습니다.</p>,
                                             <p key="t8" className="font-semibold text-gray-700 dark:text-gray-300">제4조 (금지 행위)</p>,
                                             <p key="t9">부정 접근, 서비스 방해, 타인의 권리 침해 등의 행위를 금지합니다.</p>,
-                                            <p key="t10" className="mt-4"><button onClick={() => router.push('/terms')} className="text-blue-500 hover:underline font-medium">전체 약관 보기 →</button></p>,
+                                            <p key="t10" className="mt-4"><button onClick={() => window.location.assign('/terms')} className="text-blue-500 hover:underline font-medium">전체 약관 보기 →</button></p>,
                                         ].map((el, i) => <div key={i} style={{ animation: `fadeSlideIn 0.4s ease ${i * 50}ms both` }}>{el}</div>)}
                                     </div>
                                 ) : (
@@ -558,7 +557,7 @@ export default function LoginPage() {
                                             <p key="p7">회원 탈퇴 시 즉시 삭제. 별도 삭제 요청은 30일 내 처리.</p>,
                                             <p key="p8" className="font-semibold text-gray-700 dark:text-gray-300">제3자 제공</p>,
                                             <p key="p9">이용자의 동의 없이 제3자에게 개인정보를 제공하지 않습니다.</p>,
-                                            <p key="p10" className="mt-4"><button onClick={() => router.push('/terms?tab=privacy')} className="text-blue-500 hover:underline font-medium">전체 방침 보기 →</button></p>,
+                                            <p key="p10" className="mt-4"><button onClick={() => window.location.assign('/terms?tab=privacy')} className="text-blue-500 hover:underline font-medium">전체 방침 보기 →</button></p>,
                                         ].map((el, i) => <div key={i} style={{ animation: `fadeSlideIn 0.4s ease ${i * 50}ms both` }}>{el}</div>)}
                                     </div>
                                 )}

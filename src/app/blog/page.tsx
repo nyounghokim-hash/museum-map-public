@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useDeferredValue, type CSSProperties } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue, useRef, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { useApp } from '@/components/AppContext';
 import { t, formatDate, type Locale } from '@/lib/i18n';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -7,9 +7,71 @@ import { useTranslatedText } from '@/hooks/useTranslation';
 import { getMuseumImageSrc, isRenderableUrl } from '@/lib/getMuseumImage';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
+import { navigateDocument } from '@/lib/route-pending';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import * as gtag from '@/lib/gtag';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
+
+type StoryNavigateHandler = (id: string, navigate?: boolean) => void;
+
+const TOUCH_TAP_CANCEL_PX = 10;
+const TOUCH_CLICK_SUPPRESS_MS = 450;
+
+function useInstantStoryLink(id: string, onNavigate: StoryNavigateHandler) {
+    const pointerHandledRef = useRef(false);
+    const touchRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null);
+    const suppressClickUntilRef = useRef(0);
+    const href = `/blog/${id}`;
+    const suppressClick = () => {
+        suppressClickUntilRef.current = Date.now() + TOUCH_CLICK_SUPPRESS_MS;
+    };
+    return {
+        href,
+        'data-mm-route-pending': 'off',
+        onPointerDown: (event: PointerEvent<HTMLAnchorElement>) => {
+            if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+            touchRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+        },
+        onPointerMove: (event: PointerEvent<HTMLAnchorElement>) => {
+            const state = touchRef.current;
+            if (!state || state.pointerId !== event.pointerId) return;
+            if (Math.hypot(event.clientX - state.x, event.clientY - state.y) > TOUCH_TAP_CANCEL_PX) {
+                state.moved = true;
+            }
+        },
+        onPointerCancel: () => {
+            touchRef.current = null;
+            suppressClick();
+        },
+        onPointerUp: (event: PointerEvent<HTMLAnchorElement>) => {
+            if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+            const state = touchRef.current;
+            touchRef.current = null;
+            if (!state || state.pointerId !== event.pointerId) return;
+            if (state.moved) {
+                suppressClick();
+                return;
+            }
+            event.preventDefault();
+            pointerHandledRef.current = true;
+            onNavigate(id, true);
+        },
+        onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+            if (Date.now() < suppressClickUntilRef.current) {
+                event.preventDefault();
+                return;
+            }
+            if (pointerHandledRef.current) {
+                event.preventDefault();
+                pointerHandledRef.current = false;
+                return;
+            }
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+            event.preventDefault();
+            onNavigate(id, true);
+        },
+    };
+}
 
 function sanitizeAI(text: string): string {
     if (!text) return text;
@@ -244,12 +306,12 @@ function getStorySearchText(post: any, locale: Locale) {
     ].filter(Boolean).join(' ').toLowerCase();
 }
 
-function StorySearchResult({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
+function StorySearchResult({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: StoryNavigateHandler }) {
     const chain = getStoryImageChain(post);
+    const linkProps = useInstantStoryLink(post.id, onNavigate);
     return (
         <a
-            href={`/blog/${post.id}`}
-            onClick={() => onNavigate(post.id)}
+            {...linkProps}
             className="mm-story-search-result mm-map2-search-result w-full text-left px-4 py-3 transition-colors border-b last:border-0 flex items-center gap-3"
         >
             <div className="mm-map2-search-result-thumb w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
@@ -269,7 +331,7 @@ function StorySearchResult({ post, locale, onNavigate }: { post: any; locale: Lo
     );
 }
 
-function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
+function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: StoryNavigateHandler }) {
     // DB-cached translations for non-ko/en
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
     const sourceTitle = post.titleEn || post.title || '';
@@ -287,10 +349,10 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
         displayTitle = getDisplayStoryTitle(sanitizeAI(safeTranslatedStoryText(liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
     }
     const chain = getStoryImageChain(post);
+    const linkProps = useInstantStoryLink(post.id, onNavigate);
     return (
         <a
-            href={`/blog/${post.id}`}
-            onClick={() => onNavigate(post.id)}
+            {...linkProps}
             className="mm-list-row2 group w-full text-left"
         >
             <div className="mm-story-list-thumb">
@@ -336,7 +398,7 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
                         </>
                     )}
                 </div>
-                <h2 className="text-[16px] sm:text-[17px] font-black mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate" style={{ color: 'var(--mm-text-primary)', wordBreak: 'normal' }}>
+                <h2 className="text-[14px] sm:text-[15px] font-black mb-1.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate" style={{ color: 'var(--mm-text-primary)', wordBreak: 'normal' }}>
                     {displayTitle}
                 </h2>
                 <StoryMuseumMeta post={post} locale={locale} className="text-xs leading-relaxed" />
@@ -345,7 +407,7 @@ function BlogCard({ post, locale, onNavigate }: { post: any; locale: Locale; onN
     );
 }
 
-function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
+function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: StoryNavigateHandler }) {
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
     const sourceTitle = post.titleEn || post.title || '';
     const liveTitle = useTranslatedText(sourceTitle, locale);
@@ -355,9 +417,10 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
             ? (post.titleEn || post.title)
             : safeTranslatedStoryText(cached.title || liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
     const chain = getStoryImageChain(post);
+    const linkProps = useInstantStoryLink(post.id, onNavigate);
 
     return (
-        <a href={`/blog/${post.id}`} onClick={() => onNavigate(post.id)} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
+        <a {...linkProps} className="mm-story-rail-card group text-left active:scale-[0.99] transition-transform">
             <div className="relative h-24 sm:h-28 overflow-hidden bg-slate-100 dark:bg-neutral-800">
                 <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
@@ -413,7 +476,7 @@ function StoryRailCard({ post, locale, onNavigate }: { post: any; locale: Locale
     );
 }
 
-function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: (id: string) => void }) {
+function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: StoryNavigateHandler }) {
     const { translations: cached } = useCachedTranslation('story', post.id, locale);
     const sourceTitle = post.titleEn || post.title || '';
     const liveTitle = useTranslatedText(sourceTitle, locale);
@@ -423,9 +486,10 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
             ? (post.titleEn || post.title)
             : safeTranslatedStoryText(cached.title || liveTitle || sourceTitle, locale, STORY_SECTION_LABELS[locale]?.loading || STORY_SECTION_LABELS.en.loading)), post.museums);
     const chain = getStoryImageChain(post);
+    const linkProps = useInstantStoryLink(post.id, onNavigate);
 
     return (
-        <a href={`/blog/${post.id}`} onClick={() => onNavigate(post.id)} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
+        <a {...linkProps} className="mm-story-mini-card group text-left active:scale-[0.99] transition-transform">
             <div className="mm-story-mini-thumb relative">
                 <StoryCategoryTag category={post.category} locale={locale} />
                 {chain[0] ? (
@@ -564,6 +628,16 @@ const STORY_RETURN_TO_KEY = 'mm-story-return-to';
 const BLOG_LIST_CACHE_KEY = 'mm-blog-list-cache-v2';
 const BLOG_LIST_CACHE_TTL_MS = 5 * 60 * 1000;
 const STORY_RANDOM_SEED = 'mm-story-list-v1';
+const SCROLL_RESTORE_RETRY_MS = [80, 220, 520, 900, 1400];
+
+function restoreScrollPosition(y: number) {
+    if (typeof window === 'undefined' || !Number.isFinite(y) || y <= 0) return;
+    const restore = () => window.scrollTo(0, y);
+    requestAnimationFrame(restore);
+    SCROLL_RESTORE_RETRY_MS.forEach((delay) => {
+        window.setTimeout(restore, delay);
+    });
+}
 
 function hashString(value: string): number {
     let hash = 2166136261;
@@ -616,25 +690,30 @@ export default function BlogListPage() {
     const sectionLabels = STORY_SECTION_LABELS[locale] || STORY_SECTION_LABELS.en;
     const searchLabels = STORY_SEARCH_LABELS[locale] || STORY_SEARCH_LABELS.en;
     const PER_PAGE = 10;
-    const SCROLL_KEY = 'blog_scroll_pos';
-    const PAGE_KEY = 'blog_page';
-    const CAT_KEY = 'blog_category';
-    const SORT_KEY = 'blog_sort';
+const SCROLL_KEY = 'blog_scroll_pos';
+const PAGE_KEY = 'blog_page';
+const CAT_KEY = 'blog_category';
+const SORT_KEY = 'blog_sort';
 
     useEffect(() => {
         if (!isSearchFocused) return;
         return lockMobileSearchChrome();
     }, [isSearchFocused]);
 
-    const handleNavigate = (id: string) => {
+    const handleNavigate = (id: string, navigate = false) => {
         gtag.event('view_blog_post', { category: 'blog', label: id, value: 1 });
         try {
+            const routeKey = `${window.location.pathname}${window.location.search}`;
+            const routeScroll = JSON.stringify({ x: window.scrollX, y: window.scrollY, ts: Date.now() });
             sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+            sessionStorage.setItem(`mm-scroll-position:${routeKey}`, routeScroll);
+            sessionStorage.setItem(`mm-scroll-position-lock:${routeKey}`, String(Date.now()));
             sessionStorage.setItem(PAGE_KEY, String(page));
             sessionStorage.setItem(CAT_KEY, activeCategory);
             sessionStorage.setItem(SORT_KEY, sortMode);
             sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
         } catch { }
+        if (navigate) navigateDocument(`/blog/${id}`);
     };
 
     useEffect(() => {
@@ -647,9 +726,7 @@ export default function BlogListPage() {
                     sessionStorage.removeItem(PAGE_KEY);
                 }
                 if (savedScroll) {
-                    requestAnimationFrame(() => {
-                        setTimeout(() => window.scrollTo(0, parseInt(savedScroll, 10)), 50);
-                    });
+                    restoreScrollPosition(parseInt(savedScroll, 10));
                     sessionStorage.removeItem(SCROLL_KEY);
                 }
                 const savedCat = sessionStorage.getItem(CAT_KEY);

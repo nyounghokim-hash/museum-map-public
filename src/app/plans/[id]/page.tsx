@@ -347,7 +347,7 @@ export default function PlanDetailPage() {
     if (error) return (
         <div className="p-20 text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-4">{error}</p>
-            <Link href="/plans" className="text-blue-600 font-semibold hover:underline">{t('detail.backToMap', locale)}</Link>
+            <Link href="/plans" data-mm-route-pending="off" className="text-blue-600 font-semibold hover:underline">{t('detail.backToMap', locale)}</Link>
         </div>
     );
 
@@ -409,7 +409,7 @@ export default function PlanDetailPage() {
                 {/* Sidebar: Route List */}
                 <div className="flex flex-col w-96 border-r shrink-0" style={{ background: 'var(--glass-bg-heavy)', borderColor: 'var(--glass-border)', backdropFilter: 'blur(24px) saturate(180%)' }}>
                     <div className="p-6 pb-0 flex flex-col shrink-0">
-                        <Link href="/plans" className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-blue-950/70 dark:hover:bg-blue-900/60 text-gray-700 dark:text-gray-300 rounded-full mb-4 transition-colors shadow-sm active:scale-95 shrink-0" title={t('plans.title', locale)}>
+                        <Link href="/plans" data-mm-route-pending="off" className="w-10 h-10 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-blue-950/70 dark:hover:bg-blue-900/60 text-gray-700 dark:text-gray-300 rounded-full mb-4 transition-colors shadow-sm active:scale-95 shrink-0" title={t('plans.title', locale)}>
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                             </svg>

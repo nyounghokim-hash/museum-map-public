@@ -262,7 +262,39 @@ function Toggle({ on }: { on: boolean }) {
   return <span className={`mm-settings-toggle ${on ? 'is-on' : ''}`}><span /></span>;
 }
 
+const SETTINGS_SUBROUTE_PREFETCH_HREFS = ['/profile', '/notifications', '/privacy', '/terms', '/cookies', '/info', '/feedback'];
+
 let settingsRowNavigationPending = false;
+let settingsRowNavigationResetTimer: number | undefined;
+let settingsSubroutesPrefetched = false;
+
+function resetSettingsRowNavigationPending() {
+  settingsRowNavigationPending = false;
+  if (typeof window !== 'undefined' && settingsRowNavigationResetTimer) {
+    window.clearTimeout(settingsRowNavigationResetTimer);
+    settingsRowNavigationResetTimer = undefined;
+  }
+}
+
+function markSettingsRowNavigationPending() {
+  settingsRowNavigationPending = true;
+  if (typeof window === 'undefined') return;
+  if (settingsRowNavigationResetTimer) window.clearTimeout(settingsRowNavigationResetTimer);
+  settingsRowNavigationResetTimer = window.setTimeout(resetSettingsRowNavigationPending, 1400);
+}
+
+function prefetchSettingsSubroutes() {
+  if (settingsSubroutesPrefetched || typeof document === 'undefined') return;
+  settingsSubroutesPrefetched = true;
+  SETTINGS_SUBROUTE_PREFETCH_HREFS.forEach((href) => {
+    if (document.head.querySelector(`link[rel="prefetch"][href="${href}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = href;
+    link.as = 'document';
+    document.head.appendChild(link);
+  });
+}
 
 function shouldUseDefaultNavigation(event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>) {
   return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
@@ -272,7 +304,7 @@ function openSettingsRowNow(href: string, event: MouseEvent<HTMLAnchorElement> |
   if (shouldUseDefaultNavigation(event)) return;
   event.preventDefault();
   if (settingsRowNavigationPending || typeof window === 'undefined') return;
-  settingsRowNavigationPending = true;
+  markSettingsRowNavigationPending();
   window.location.assign(href);
 }
 
@@ -292,6 +324,7 @@ function SettingsRow({ icon, label, description, value, href, onClick }: { icon:
     return (
       <a
         href={href}
+        data-mm-route-pending="off"
         onPointerDown={(event) => openSettingsRowNow(href, event)}
         onClick={(event) => openSettingsRowNow(href, event)}
         className="mm-settings-row"
@@ -319,6 +352,39 @@ export default function SettingsPage() {
   const accountLocationEmail = isAuthenticatedUser && session?.user?.email
     ? session.user.email
     : null;
+
+  useEffect(() => {
+    resetSettingsRowNavigationPending();
+    const reset = () => resetSettingsRowNavigationPending();
+    const resetWhenVisible = () => {
+      if (!document.hidden) resetSettingsRowNavigationPending();
+    };
+    window.addEventListener('pageshow', reset);
+    window.addEventListener('pagehide', reset);
+    document.addEventListener('visibilitychange', resetWhenVisible);
+
+    const win = window as Window & typeof globalThis & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    let idleId: number | undefined;
+    let usedIdleCallback = false;
+    if (typeof win.requestIdleCallback === 'function') {
+      usedIdleCallback = true;
+      idleId = win.requestIdleCallback(prefetchSettingsSubroutes, { timeout: 900 });
+    } else {
+      idleId = window.setTimeout(prefetchSettingsSubroutes, 250);
+    }
+
+    return () => {
+      window.removeEventListener('pageshow', reset);
+      window.removeEventListener('pagehide', reset);
+      document.removeEventListener('visibilitychange', resetWhenVisible);
+      if (idleId === undefined) return;
+      if (usedIdleCallback && typeof win.cancelIdleCallback === 'function') win.cancelIdleCallback(idleId);
+      else window.clearTimeout(idleId);
+    };
+  }, []);
 
   useEffect(() => {
     const savedLocationSource = readMapLocationSourceForAccount(accountLocationEmail);
@@ -361,7 +427,7 @@ export default function SettingsPage() {
             <p>{labels.loginTitle || LABELS.en.loginTitle}</p>
             <span>{labels.loginBody || LABELS.en.loginBody}</span>
           </div>
-          <a href="/login?callbackUrl=%2Fsettings" className="mm-settings-login-cta">
+          <a href="/login?callbackUrl=%2Fsettings" data-mm-route-pending="off" className="mm-settings-login-cta">
             {labels.loginCta || LABELS.en.loginCta}
           </a>
         </section>

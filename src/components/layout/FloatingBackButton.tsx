@@ -1,9 +1,9 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
 import { useApp } from '@/components/AppContext';
-import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
+import { backWithFallback, navigateDocument } from '@/lib/route-pending';
 
 const FLOATING_BACK_ROUTES = new Set([
     '/admin',
@@ -52,7 +52,9 @@ export default function FloatingBackButton() {
     const pathname = usePathname();
     const { locale } = useApp();
     const backingRef = useRef(false);
+    const backPointerHandledRef = useRef(false);
     const [isDesktop, setIsDesktop] = useState(false);
+    const [hiddenDuringBack, setHiddenDuringBack] = useState(false);
 
     useEffect(() => {
         const query = window.matchMedia('(min-width: 768px)');
@@ -62,30 +64,74 @@ export default function FloatingBackButton() {
         return () => query.removeEventListener('change', update);
     }, []);
 
-    if (!shouldShowFloatingBack(pathname)) return null;
+    useEffect(() => {
+        setHiddenDuringBack(false);
+        const reset = () => {
+            backingRef.current = false;
+            setHiddenDuringBack(false);
+        };
+        const hideForNavigation = () => {
+            setHiddenDuringBack(true);
+            window.setTimeout(() => setHiddenDuringBack(false), 1600);
+        };
+        window.addEventListener('pageshow', reset);
+        window.addEventListener('pagehide', hideForNavigation);
+        window.addEventListener('popstate', hideForNavigation, true);
+        window.addEventListener('mm:client-route-change-start', hideForNavigation);
+        return () => {
+            window.removeEventListener('pageshow', reset);
+            window.removeEventListener('pagehide', hideForNavigation);
+            window.removeEventListener('popstate', hideForNavigation, true);
+            window.removeEventListener('mm:client-route-change-start', hideForNavigation);
+        };
+    }, [pathname]);
+
+    if (hiddenDuringBack || !shouldShowFloatingBack(pathname)) return null;
     const pcOnly = isPcOnlyFloatingBack(pathname);
     if (pcOnly && !isDesktop) return null;
 
     const handleBack = () => {
         if (backingRef.current) return;
         backingRef.current = true;
+        setHiddenDuringBack(true);
+        window.setTimeout(() => {
+            backingRef.current = false;
+            setHiddenDuringBack(false);
+        }, 1400);
         if (pathname === '/admin') {
-            navigateWithPending('/profile', locale);
+            navigateDocument('/profile');
             return;
         }
         if (pathname === '/settings' && typeof window !== 'undefined') {
             const storedFallback = sessionStorage.getItem('mm_settings_return_to') || '/';
             const fallbackTarget = storedFallback === '/settings' ? '/' : storedFallback;
-            backWithFallback(fallbackTarget, locale, { timeoutMs: 700 });
+            backWithFallback(fallbackTarget, locale, { timeoutMs: 900, pendingOnFallback: false });
             return;
         }
-        backWithFallback(getBackFallback(pathname), locale, { timeoutMs: 520 });
+        backWithFallback(getBackFallback(pathname), locale, { timeoutMs: 900, pendingOnFallback: false });
+    };
+
+    const handleBackPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+        if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+        event.preventDefault();
+        backPointerHandledRef.current = true;
+        handleBack();
+    };
+
+    const handleBackClick = (event: MouseEvent<HTMLButtonElement>) => {
+        if (backPointerHandledRef.current) {
+            event.preventDefault();
+            backPointerHandledRef.current = false;
+            return;
+        }
+        handleBack();
     };
 
     return (
         <button
             type="button"
-            onClick={handleBack}
+            onPointerDown={handleBackPointerDown}
+            onClick={handleBackClick}
             className={`mm-floating-back-button ${pcOnly ? 'mm-floating-back-button--pc-only' : ''}`}
             aria-label="Back"
         >

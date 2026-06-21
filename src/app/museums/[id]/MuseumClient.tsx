@@ -4,7 +4,7 @@ import MuseumDetailCard from '@/components/museum/MuseumDetailCard';
 import { useApp } from '@/components/AppContext';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { addMuseumView } from '@/lib/museum-history';
-import { backWithFallback, navigateWithPending } from '@/lib/route-pending';
+import { backWithFallback, navigateDocument } from '@/lib/route-pending';
 
 export default function MuseumClient({ museumId, initialData }: { museumId: string; initialData?: any }) {
     const { locale } = useApp();
@@ -56,12 +56,12 @@ export default function MuseumClient({ museumId, initialData }: { museumId: stri
             const artworkReturn = sessionStorage.getItem('artwork-to-museum-return');
             if (artworkReturn && window.history.length <= 1) {
                 sessionStorage.removeItem('artwork-to-museum-return');
-                navigateWithPending(artworkReturn, locale, true);
+                navigateDocument(artworkReturn, true);
                 return;
             }
             const historyState = window.history.state;
             if (historyState?.backAnchor) {
-                navigateWithPending('/', locale, true);
+                navigateDocument('/', true);
                 return;
             }
         }
