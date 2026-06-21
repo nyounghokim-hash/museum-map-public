@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent, PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
@@ -339,7 +339,6 @@ function CenterMuseumIcon({ active, pending }: { active: boolean; pending?: bool
 
 export default function MobileBottomNav() {
     const pathname = usePathname();
-    const router = useRouter();
     const { locale, darkMode } = useApp();
     const { data: session } = useSession();
     const isGuest = !session || session.user?.name?.startsWith('guest_');
@@ -374,17 +373,14 @@ export default function MobileBottomNav() {
         const routes = isGuest ? PUBLIC_PREFETCH_ROUTES : [...PUBLIC_PREFETCH_ROUTES, ...ACCOUNT_PREFETCH_ROUTES];
         const warmDocuments = () => {
             if (hasRecentSessionStamp(NAV_DOCUMENT_PREFETCH_KEY, NAV_DOCUMENT_PREFETCH_TTL_MS)) return;
-            routes.forEach((href) => {
-                prefetchRouteDocument(href);
-                router.prefetch(href);
-            });
+            routes.forEach(prefetchRouteDocument);
             stampSession(NAV_DOCUMENT_PREFETCH_KEY);
         };
         const cancelDocumentWarmup = scheduleIdleTask(warmDocuments, pathname === '/' ? 1800 : 900);
         return () => {
             cancelDocumentWarmup?.();
         };
-    }, [isGuest, pathname, router]);
+    }, [isGuest, pathname]);
 
     useEffect(() => {
         setMenuOpen(false);
@@ -456,24 +452,17 @@ export default function MobileBottomNav() {
         setMenuOpen(true);
     };
 
-    const shouldUseDocumentNavigation = (href: string) => {
-        const targetPath = normalizeRoutePath(href);
-        return pathname === '/' || targetPath === '/';
-    };
-
     const prefetchRoute = (href: string) => {
         prefetchRouteDocument(href);
-        router.prefetch(href);
     };
 
     const openRoute = (href: string, immediate = false) => {
-        if (shouldUseDocumentNavigation(href)) {
+        if (immediate) {
             navigateDocumentNow(href);
             return;
         }
-        if (!immediate) prepareClientRouteChange();
-        clearRoutePending();
-        router.push(href);
+        prepareClientRouteChange();
+        navigateDocumentNow(href);
     };
 
     const goProtected = (href: string, immediate = false) => {
@@ -485,10 +474,6 @@ export default function MobileBottomNav() {
             return;
         }
         if (immediate) {
-            if (!shouldUseDocumentNavigation(href)) {
-                setPendingHref(href);
-                prefetchRoute(href);
-            }
             openRoute(href, true);
             return;
         }
@@ -509,10 +494,6 @@ export default function MobileBottomNav() {
         if (recent?.href === href && now - recent.ts < 650) return;
         recentNavigationRef.current = { href, ts: now };
         if (immediate) {
-            if (!shouldUseDocumentNavigation(href)) {
-                setPendingHref(href);
-                prefetchRoute(href);
-            }
             openRoute(href, true);
             return;
         }
