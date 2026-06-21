@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent, PointerEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
-import { clearRoutePending, navigateDocument } from '@/lib/route-pending';
+import { clearRoutePending } from '@/lib/route-pending';
 
 const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; artworks: string; story: string; collection: string; compare: string }> = {
     ko: { map: '홈', saved: '내 픽', plans: '내 여행', artworks: '작품', story: 'MM스토리', collection: '컬렉션', compare: '비교' },
@@ -102,6 +103,13 @@ function dismissMapOverlays() {
 function prepareClientRouteChange() {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(new Event('mm:client-route-change-start'));
+}
+
+function navigateDocumentNow(href: string) {
+    if (typeof window === 'undefined') return;
+    if (window.location.pathname + window.location.search + window.location.hash === href) return;
+    clearRoutePending();
+    window.location.assign(href);
 }
 
 const styles = {
@@ -340,10 +348,15 @@ export default function MobileBottomNav() {
     const [detailOpen, setDetailOpen] = useState(false);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const [loginCallbackUrl, setLoginCallbackUrl] = useState('');
+    const [portalReady, setPortalReady] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const centerTouchHandledRef = useRef(false);
     const tabTouchHandledRef = useRef<string | null>(null);
     const recentNavigationRef = useRef<{ href: string; ts: number } | null>(null);
+
+    useEffect(() => {
+        setPortalReady(true);
+    }, []);
 
     useEffect(() => {
         setDetailOpen(document.body.hasAttribute('data-detail-open'));
@@ -443,9 +456,12 @@ export default function MobileBottomNav() {
     };
 
     const openRoute = (href: string, immediate = false) => {
-        if (!immediate) prepareClientRouteChange();
-        clearRoutePending();
-        navigateDocument(href);
+        if (immediate) {
+            navigateDocumentNow(href);
+            return;
+        }
+        prepareClientRouteChange();
+        navigateDocumentNow(href);
     };
 
     const goProtected = (href: string, immediate = false) => {
@@ -456,12 +472,16 @@ export default function MobileBottomNav() {
             setLoginModalOpen(true);
             return;
         }
+        if (immediate) {
+            openRoute(href, true);
+            return;
+        }
         if (!immediate) {
             setMenuOpen(false);
             setMenuClosing(false);
         }
         setPendingHref(href);
-        if (!immediate) prefetchRoute(href);
+        prefetchRoute(href);
         openRoute(href, immediate);
     };
 
@@ -472,12 +492,16 @@ export default function MobileBottomNav() {
         const recent = recentNavigationRef.current;
         if (recent?.href === href && now - recent.ts < 650) return;
         recentNavigationRef.current = { href, ts: now };
+        if (immediate) {
+            openRoute(href, true);
+            return;
+        }
         if (!immediate) {
             setMenuOpen(false);
             setMenuClosing(false);
         }
         setPendingHref(href);
-        if (!immediate) prefetchRoute(href);
+        prefetchRoute(href);
         openRoute(href, immediate);
     };
 
@@ -572,7 +596,7 @@ export default function MobileBottomNav() {
         );
     };
 
-    return (
+    const navContent = (
         <>
             {(menuOpen || menuClosing) && (
                 <>
@@ -668,4 +692,7 @@ export default function MobileBottomNav() {
             <LoginRequiredModal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} callbackUrl={loginCallbackUrl} />
         </>
     );
+
+    if (!portalReady) return null;
+    return createPortal(navContent, document.body);
 }
