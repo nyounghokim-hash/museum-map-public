@@ -1,7 +1,7 @@
 'use client';
 
 import { signOut, useSession } from 'next-auth/react';
-import { useEffect, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { useApp } from '@/components/AppContext';
 import { LOCALE_NAMES, type Locale } from '@/lib/i18n';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
@@ -267,6 +267,7 @@ const SETTINGS_SUBROUTE_PREFETCH_HREFS = ['/profile', '/notifications', '/privac
 let settingsRowNavigationPending = false;
 let settingsRowNavigationResetTimer: number | undefined;
 let settingsSubroutesPrefetched = false;
+let settingsControlGuardUntil = 0;
 
 function resetSettingsRowNavigationPending() {
   settingsRowNavigationPending = false;
@@ -296,6 +297,14 @@ function prefetchSettingsSubroutes() {
   });
 }
 
+function blockSettingsRowNavigation(ms = 650) {
+  settingsControlGuardUntil = Date.now() + ms;
+}
+
+function isSettingsRowNavigationBlocked() {
+  return Date.now() < settingsControlGuardUntil;
+}
+
 function shouldUseDefaultNavigation(event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>) {
   return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
 }
@@ -303,6 +312,10 @@ function shouldUseDefaultNavigation(event: MouseEvent<HTMLAnchorElement> | Point
 function openSettingsRowNow(href: string, event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>) {
   if (shouldUseDefaultNavigation(event)) return;
   event.preventDefault();
+  if (isSettingsRowNavigationBlocked()) {
+    event.stopPropagation();
+    return;
+  }
   if (settingsRowNavigationPending || typeof window === 'undefined') return;
   markSettingsRowNavigationPending();
   window.location.assign(href);
@@ -342,6 +355,7 @@ export default function SettingsPage() {
   const [mapPrefs, setMapPrefs] = useState<MapPrefs>(DEFAULT_MAP_PREFS);
   const [locationSource, setLocationSource] = useState<MapLocationSource>('current');
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const settingsControlTouchHandledRef = useRef<string | null>(null);
   const labels = LABELS[locale] || LABELS.en;
   const policyLabels = POLICY_LABELS[locale] || POLICY_LABELS.en;
   const locationLabels = LOCATION_SETTING_LABELS[locale] || LOCATION_SETTING_LABELS.en;
@@ -415,6 +429,27 @@ export default function SettingsPage() {
     window.dispatchEvent(new CustomEvent('mm-map-location-source-change', { detail: { source } }));
   };
 
+  const settingsControlHandlers = (id: string, action: () => void) => ({
+    onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+      event.preventDefault();
+      event.stopPropagation();
+      settingsControlTouchHandledRef.current = id;
+      blockSettingsRowNavigation();
+      action();
+    },
+    onClick: (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (settingsControlTouchHandledRef.current === id) {
+        settingsControlTouchHandledRef.current = null;
+        return;
+      }
+      blockSettingsRowNavigation();
+      action();
+    },
+  });
+
   return (
     <div className="mm-settings-page2 no-back-swipe mx-auto w-full max-w-[640px] px-5 pb-32 pt-[max(28px,env(safe-area-inset-top,0px))] lg:pb-12 mm-settings-page2--enter">
       <div className="mb-12 flex items-center justify-center">
@@ -448,7 +483,12 @@ export default function SettingsPage() {
             <span className="min-w-0 flex-1 text-[15px] font-semibold text-slate-700 dark:text-neutral-200">{labels.theme}</span>
             <div className="flex gap-2">
               {(['light', 'dark', 'system'] as const).map(mode => (
-                <button key={mode} onClick={() => setThemeMode(mode)} className={`mm-settings-theme-option rounded-full px-3.5 py-2 text-sm font-semibold ${themeMode === mode ? 'is-active bg-blue-700 text-white shadow-lg shadow-blue-700/20' : 'bg-white/60 text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-800'}`}>
+                <button
+                  key={mode}
+                  type="button"
+                  {...settingsControlHandlers(`theme:${mode}`, () => setThemeMode(mode))}
+                  className={`mm-settings-theme-option rounded-full px-3.5 py-2 text-sm font-semibold ${themeMode === mode ? 'is-active bg-blue-700 text-white shadow-lg shadow-blue-700/20' : 'bg-white/60 text-slate-500 ring-1 ring-slate-200 dark:bg-neutral-900 dark:text-neutral-400 dark:ring-neutral-800'}`}
+                >
                   {mode === 'light' ? labels.light : mode === 'dark' ? labels.dark : labels.system}
                 </button>
               ))}
@@ -490,7 +530,7 @@ export default function SettingsPage() {
                   className={`mm-settings-location-source-option ${locationSource === 'current' ? 'is-active' : ''}`}
                   aria-pressed={locationSource === 'current'}
                   disabled={isSessionLoading}
-                  onClick={() => updateLocationSource('current')}
+                  {...settingsControlHandlers('location-source:current', () => updateLocationSource('current'))}
                 >
                   {locationLabels.current}
                 </button>
@@ -499,7 +539,7 @@ export default function SettingsPage() {
                   className={`mm-settings-location-source-option ${locationSource === 'manual' ? 'is-active' : ''}`}
                   aria-pressed={locationSource === 'manual'}
                   disabled={isSessionLoading}
-                  onClick={() => updateLocationSource('manual')}
+                  {...settingsControlHandlers('location-source:manual', () => updateLocationSource('manual'))}
                 >
                   {locationLabels.manual}
                 </button>
@@ -512,7 +552,13 @@ export default function SettingsPage() {
             ['weather', labels.weather],
             ['leftHanded', labels.leftHanded],
           ] as Array<[MapSettingKey, string]>).map(([key, label]) => (
-            <button key={key} type="button" className="mm-settings-row w-full text-left" onClick={() => updateMapPref(key)}>
+            <button
+              key={key}
+              type="button"
+              className="mm-settings-row w-full text-left"
+              aria-pressed={mapPrefs[key]}
+              {...settingsControlHandlers(`map-pref:${key}`, () => updateMapPref(key))}
+            >
               <Icon>{MAP_SETTING_ICONS[key]}</Icon>
               <span className="min-w-0 flex-1 text-[15px] font-semibold text-slate-700 dark:text-neutral-200">{String(label)}</span>
               <Toggle on={mapPrefs[key]} />

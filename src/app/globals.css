@@ -8723,12 +8723,15 @@ html.is-inapp-browser::after {
 }
 
 .mm-settings-row {
+  position: relative;
   min-height: 72px;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 0 18px;
   border-bottom: 1px solid rgba(226,232,240,0.78);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mm-settings-row:last-child {
@@ -8855,6 +8858,7 @@ html.is-inapp-browser::after {
   background: #d1d5db;
   padding: 3px;
   transition: background 160ms ease;
+  pointer-events: none;
 }
 
 .mm-settings-toggle.is-on {
@@ -9371,6 +9375,8 @@ html.is-inapp-browser::after {
   text-align: center;
   box-shadow: none;
   transition: background 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mm-settings-location-source-option.is-active {
@@ -9406,6 +9412,8 @@ html.is-inapp-browser::after {
 
 .mm-settings-theme-option {
   transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mm-settings-theme-option:not(.is-active) {
