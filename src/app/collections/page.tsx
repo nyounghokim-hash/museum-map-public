@@ -12,12 +12,15 @@ import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 
 const INITIAL_PUBLIC_COLLECTIONS = 40;
 const PUBLIC_COLLECTIONS_INCREMENT = 40;
-const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v1';
+const COLLECTIONS_PUBLIC_CACHE_KEY = 'mm-public-collections-cache-v2';
 const COLLECTIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type PublicCollectionsCache = {
     ts?: number;
     data?: any[];
+    hasMore?: boolean;
+    nextOffset?: number | null;
+    total?: number;
 };
 
 function readPublicCollectionsCache(): PublicCollectionsCache | null {
@@ -60,7 +63,10 @@ export default function CollectionsPage() {
     const [publicCollections, setPublicCollections] = useState<any[]>(() => initialPublicCollections?.data || []);
     const [loadingMy, setLoadingMy] = useState(true);
     const [loadingPublic, setLoadingPublic] = useState(() => !(initialPublicCollections?.data?.length));
-    const [visiblePublicCount, setVisiblePublicCount] = useState(INITIAL_PUBLIC_COLLECTIONS);
+    const [loadingMorePublic, setLoadingMorePublic] = useState(false);
+    const [publicHasMore, setPublicHasMore] = useState(() => initialPublicCollections?.hasMore ?? false);
+    const [publicNextOffset, setPublicNextOffset] = useState<number | null>(() => initialPublicCollections?.nextOffset ?? null);
+    const [publicTotal, setPublicTotal] = useState(() => initialPublicCollections?.total || initialPublicCollections?.data?.length || 0);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const { locale } = useApp();
     const { showConfirm } = useModal();
@@ -71,23 +77,57 @@ export default function CollectionsPage() {
     useEffect(() => {
         if (initialPublicCollections?.data?.length) return;
         try {
-            const cached = JSON.parse(sessionStorage.getItem(COLLECTIONS_PUBLIC_CACHE_KEY) || 'null') as { ts?: number; data?: any[] } | null;
+            const cached = JSON.parse(sessionStorage.getItem(COLLECTIONS_PUBLIC_CACHE_KEY) || 'null') as PublicCollectionsCache | null;
             if (cached?.data && Date.now() - (cached.ts || 0) < COLLECTIONS_CACHE_TTL_MS) {
                 setPublicCollections(cached.data);
+                setPublicHasMore(cached.hasMore ?? false);
+                setPublicNextOffset(cached.nextOffset ?? null);
+                setPublicTotal(cached.total || cached.data.length);
                 setLoadingPublic(false);
                 return;
             }
         } catch { }
-        fetch('/api/collections?public=true')
+        fetch(`/api/collections?public=true&limit=${INITIAL_PUBLIC_COLLECTIONS}`)
             .then(r => r.json())
             .then(res => {
-                const data = res.data || [];
+                const payload = res.data || {};
+                const data = Array.isArray(payload) ? payload : (payload.items || []);
+                const hasMore = Array.isArray(payload) ? false : !!payload.hasMore;
+                const nextOffset = Array.isArray(payload) ? null : (payload.nextOffset ?? null);
+                const total = Array.isArray(payload) ? data.length : (payload.total || data.length);
                 setPublicCollections(data);
-                try { sessionStorage.setItem(COLLECTIONS_PUBLIC_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch { }
+                setPublicHasMore(hasMore);
+                setPublicNextOffset(nextOffset);
+                setPublicTotal(total);
+                try { sessionStorage.setItem(COLLECTIONS_PUBLIC_CACHE_KEY, JSON.stringify({ ts: Date.now(), data, hasMore, nextOffset, total })); } catch { }
                 setLoadingPublic(false);
             })
             .catch(() => setLoadingPublic(false));
     }, []);
+
+    const loadMorePublicCollections = () => {
+        if (loadingMorePublic || !publicHasMore || publicNextOffset == null) return;
+        setLoadingMorePublic(true);
+        fetch(`/api/collections?public=true&limit=${PUBLIC_COLLECTIONS_INCREMENT}&offset=${publicNextOffset}`)
+            .then(r => r.json())
+            .then(res => {
+                const payload = res.data || {};
+                const nextItems = Array.isArray(payload) ? payload : (payload.items || []);
+                const hasMore = Array.isArray(payload) ? false : !!payload.hasMore;
+                const nextOffset = Array.isArray(payload) ? null : (payload.nextOffset ?? null);
+                const total = Array.isArray(payload) ? publicCollections.length + nextItems.length : (payload.total || publicTotal);
+                setPublicCollections(prev => {
+                    const merged = [...prev, ...nextItems];
+                    try { sessionStorage.setItem(COLLECTIONS_PUBLIC_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: merged, hasMore, nextOffset, total })); } catch { }
+                    return merged;
+                });
+                setPublicHasMore(hasMore);
+                setPublicNextOffset(nextOffset);
+                setPublicTotal(total);
+            })
+            .catch(() => { })
+            .finally(() => setLoadingMorePublic(false));
+    };
 
     useEffect(() => {
         if (tab !== 'my') {
@@ -117,8 +157,8 @@ export default function CollectionsPage() {
 
     const collections = tab === 'my' ? myCollections : publicCollections;
     const loading = tab === 'my' ? loadingMy : loadingPublic;
-    const visibleCollections = tab === 'public' ? collections.slice(0, visiblePublicCount) : collections;
-    const hasMorePublicCollections = tab === 'public' && visiblePublicCount < collections.length;
+    const visibleCollections = collections;
+    const hasMorePublicCollections = tab === 'public' && publicHasMore;
 
     const tabLabel = (key: string) => {
         const labels: Record<string, Record<string, string>> = {
@@ -170,8 +210,8 @@ export default function CollectionsPage() {
                     <>
                         <div className="mm-gallery-kicker mb-3">
                             Collection
-                            {collections.length > 0 && (
-                                <span className="ml-2 rounded-full bg-white/12 px-2 py-0.5 text-[10px] text-blue-100">{collections.length}</span>
+                            {(tab === 'public' ? publicTotal : collections.length) > 0 && (
+                                <span className="ml-2 rounded-full bg-white/12 px-2 py-0.5 text-[10px] text-blue-100">{tab === 'public' ? publicTotal : collections.length}</span>
                             )}
                         </div>
                         <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">{t('collections.title', locale)}</h1>
@@ -311,10 +351,11 @@ export default function CollectionsPage() {
                     {hasMorePublicCollections && (
                         <button
                             type="button"
-                            onClick={() => setVisiblePublicCount(count => count + PUBLIC_COLLECTIONS_INCREMENT)}
+                            onClick={loadMorePublicCollections}
+                            disabled={loadingMorePublic}
                             className="mm-gallery-chip mx-auto mt-5 flex justify-center px-5"
                         >
-                            {SHOW_MORE_LABELS[locale] || SHOW_MORE_LABELS.en}
+                            {loadingMorePublic ? (t('global.loading', locale) || 'Loading') : (SHOW_MORE_LABELS[locale] || SHOW_MORE_LABELS.en)}
                         </button>
                     )}
                 </>

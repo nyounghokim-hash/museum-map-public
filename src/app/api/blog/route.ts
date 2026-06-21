@@ -53,7 +53,6 @@ const BLOG_LIST_SELECT = {
     category: true,
     views: true,
     createdAt: true,
-    updatedAt: true,
     museums: {
         include: {
             museum: { select: BLOG_MUSEUM_LIST_SELECT },
@@ -89,9 +88,10 @@ function stripBlogListPayload(post: any) {
         result.museums = result.museums.map((item: any) => {
             if (!item?.museum) return item;
             const museum = { ...item.museum };
+            delete museum.imageUrl;
             delete museum.cachedPhotoUrls;
             delete museum.placePhotos;
-            return { ...item, museum };
+            return { museum };
         });
     }
     return result;
@@ -122,7 +122,6 @@ export async function GET(req: NextRequest) {
         });
 
         let transformed = transformNestedPhotos(posts);
-        if (listView) transformed = transformed.map(stripBlogListPayload);
         // 썸네일 기준은 상세 커버 이미지(previewImage) — 없을 때만 연결 박물관 이미지로 대체
         for (const post of transformed) {
             if (post.previewImage) continue;
@@ -135,6 +134,7 @@ export async function GET(req: NextRequest) {
                 post.previewImage = museumImages[hash % museumImages.length];
             }
         }
+        if (listView) transformed = transformed.map(stripBlogListPayload);
 
         return NextResponse.json(
             { data: transformed },

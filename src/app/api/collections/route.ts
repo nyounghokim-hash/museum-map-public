@@ -54,25 +54,44 @@ export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const isPublicQuery = searchParams.get('public') === 'true';
+        const rawLimit = Number(searchParams.get('limit') || '0');
+        const rawOffset = Number(searchParams.get('offset') || '0');
+        const pageLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 80) : 0;
+        const pageOffset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
         if (isPublicQuery) {
             const sessionUser = await getSessionUser();
             // Public collections - no auth required
-            const collections = await prisma.collection.findMany({
-                where: { isPublic: true },
-                include: {
-                    _count: { select: { items: true } },
-                    user: { select: { name: true, email: true } },
-                    items: {
-                        select: { museumId: true, reviewId: true, museum: { select: { id: true, imageUrl: true, cachedPhotoUrls: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, type: true, googleRating: true } } },
-                        take: 5,
-                        orderBy: { order: 'asc' },
+            const [collections, total] = await Promise.all([
+                prisma.collection.findMany({
+                    where: { isPublic: true },
+                    include: {
+                        _count: { select: { items: true } },
+                        user: { select: { name: true, email: true } },
+                        items: {
+                            select: { museumId: true, reviewId: true, museum: { select: { id: true, imageUrl: true, cachedPhotoUrls: true, name: true, nameKo: true, nameEn: true, nameTranslations: true, type: true, googleRating: true } } },
+                            take: 5,
+                            orderBy: { order: 'asc' },
+                        },
                     },
-                },
-                orderBy: { createdAt: 'desc' },
-            });
+                    orderBy: { createdAt: 'desc' },
+                    ...(pageLimit ? { take: pageLimit + 1, skip: pageOffset } : {}),
+                }),
+                pageLimit ? prisma.collection.count({ where: { isPublic: true } }) : Promise.resolve(null),
+            ]);
+            const hasMore = pageLimit ? collections.length > pageLimit : false;
+            const pageItems = pageLimit && hasMore ? collections.slice(0, pageLimit) : collections;
             const tripCounts = await getTripPlanIdsByMuseumId(sessionUser?.id);
-            return successResponse(attachTripCounts(markVisitedCollections(collections), tripCounts).map(transformNestedPhotos));
+            const data = attachTripCounts(markVisitedCollections(pageItems), tripCounts).map(transformNestedPhotos);
+            if (pageLimit) {
+                return successResponse({
+                    items: data,
+                    total: total || data.length,
+                    hasMore,
+                    nextOffset: hasMore ? pageOffset + pageLimit : null,
+                });
+            }
+            return successResponse(data);
         }
 
         const user = await requireAuth();
