@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Locale, getLocaleFromCountry, t } from '@/lib/i18n';
+import { type Locale, getLocaleFromCountry } from '@/lib/locale-core';
 import { useSession, signOut } from 'next-auth/react';
 import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 
@@ -13,7 +13,6 @@ interface AppContextType {
     setDarkMode: (d: boolean) => void;
     themeMode: ThemeMode;
     setThemeMode: (mode: ThemeMode) => void;
-    t: (key: string, loc?: Locale) => string;
 }
 
 const AppContext = createContext<AppContextType>({
@@ -23,7 +22,6 @@ const AppContext = createContext<AppContextType>({
     setDarkMode: () => { },
     themeMode: 'light',
     setThemeMode: () => { },
-    t: (key: string) => key,
 });
 
 const VALID_LOCALES: Locale[] = ['en', 'ko', 'ja', 'de', 'fr', 'es', 'pt', 'zh-CN', 'zh-TW', 'da', 'fi', 'sv', 'et'];
@@ -226,7 +224,7 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
     };
 
     return (
-        <AppContext.Provider value={{ locale, setLocale, darkMode, setDarkMode, themeMode, setThemeMode, t: (key, loc) => t(key as any, loc || locale) }}>
+        <AppContext.Provider value={{ locale, setLocale, darkMode, setDarkMode, themeMode, setThemeMode }}>
             {children}
         </AppContext.Provider>
     );

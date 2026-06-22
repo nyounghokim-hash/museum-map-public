@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
-import { t, LOCALE_NAMES, Locale } from '@/lib/i18n';
+import { LOCALE_NAMES, type Locale } from '@/lib/locale-core';
 import { ACTIVE_TRIP_CHANGE_EVENT, getActiveTripForAccount } from '@/lib/accountStorage';
 import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { useTranslatedTexts } from '@/hooks/useTranslation';
@@ -22,6 +22,276 @@ type NotificationCacheEntry = {
 };
 
 type NotificationItem = Record<string, unknown>;
+
+type HeaderLabels = {
+    mapExplore: string;
+    favorites: string;
+    compare: string;
+    myPlans: string;
+    myCollections: string;
+    mmStory: string;
+    artworks: string;
+    notifTitle: string;
+    notifMarkAllRead: string;
+    notifNoNew: string;
+    themeLight: string;
+    themeDark: string;
+    loginTitle: string;
+    menu: string;
+    logout: string;
+    settings: string;
+    profile: string;
+};
+
+const HEADER_LABELS: Record<Locale, HeaderLabels> = {
+    ko: {
+        mapExplore: '지도',
+        favorites: '내 픽',
+        compare: '비교',
+        myPlans: '내 여행',
+        myCollections: '컬렉션',
+        mmStory: 'MM스토리',
+        artworks: '작품',
+        notifTitle: '알림',
+        notifMarkAllRead: '모두 읽음',
+        notifNoNew: '새 알림이 없어요',
+        themeLight: '라이트 모드',
+        themeDark: '다크 모드',
+        loginTitle: '로그인',
+        menu: '메뉴',
+        logout: '로그아웃',
+        settings: '설정',
+        profile: '프로필',
+    },
+    en: {
+        mapExplore: 'Map',
+        favorites: 'My Pick',
+        compare: 'Compare',
+        myPlans: 'My Trips',
+        myCollections: 'Collections',
+        mmStory: 'MM Story',
+        artworks: 'Artworks',
+        notifTitle: 'Notifications',
+        notifMarkAllRead: 'Mark all read',
+        notifNoNew: 'No new notifications.',
+        themeLight: 'Light mode',
+        themeDark: 'Dark mode',
+        loginTitle: 'Login',
+        menu: 'Menu',
+        logout: 'Sign out',
+        settings: 'Settings',
+        profile: 'Profile',
+    },
+    ja: {
+        mapExplore: '地図',
+        favorites: 'マイピック',
+        compare: '比較',
+        myPlans: '旅程',
+        myCollections: 'コレクション',
+        mmStory: 'MMストーリー',
+        artworks: '作品',
+        notifTitle: '通知',
+        notifMarkAllRead: 'すべて既読',
+        notifNoNew: '新しい通知はありません。',
+        themeLight: 'ライトモード',
+        themeDark: 'ダークモード',
+        loginTitle: 'ログイン',
+        menu: 'メニュー',
+        logout: 'ログアウト',
+        settings: '設定',
+        profile: 'プロフィール',
+    },
+    de: {
+        mapExplore: 'Karte',
+        favorites: 'Meine Auswahl',
+        compare: 'Vergleichen',
+        myPlans: 'Meine Reisen',
+        myCollections: 'Sammlungen',
+        mmStory: 'MM Story',
+        artworks: 'Werke',
+        notifTitle: 'Benachrichtigungen',
+        notifMarkAllRead: 'Alle als gelesen markieren',
+        notifNoNew: 'Keine neuen Benachrichtigungen.',
+        themeLight: 'Heller Modus',
+        themeDark: 'Dunkler Modus',
+        loginTitle: 'Anmelden',
+        menu: 'Menü',
+        logout: 'Abmelden',
+        settings: 'Einstellungen',
+        profile: 'Profil',
+    },
+    fr: {
+        mapExplore: 'Carte',
+        favorites: 'Mes choix',
+        compare: 'Comparer',
+        myPlans: 'Mes voyages',
+        myCollections: 'Collections',
+        mmStory: 'MM Story',
+        artworks: 'Œuvres',
+        notifTitle: 'Notifications',
+        notifMarkAllRead: 'Tout marquer comme lu',
+        notifNoNew: 'Aucune nouvelle notification.',
+        themeLight: 'Mode clair',
+        themeDark: 'Mode sombre',
+        loginTitle: 'Connexion',
+        menu: 'Menu',
+        logout: 'Déconnexion',
+        settings: 'Paramètres',
+        profile: 'Profil',
+    },
+    es: {
+        mapExplore: 'Mapa',
+        favorites: 'Mi selección',
+        compare: 'Comparar',
+        myPlans: 'Mis viajes',
+        myCollections: 'Colecciones',
+        mmStory: 'MM Story',
+        artworks: 'Obras',
+        notifTitle: 'Notificaciones',
+        notifMarkAllRead: 'Marcar todo como leído',
+        notifNoNew: 'No hay nuevas notificaciones.',
+        themeLight: 'Modo claro',
+        themeDark: 'Modo oscuro',
+        loginTitle: 'Iniciar sesión',
+        menu: 'Menú',
+        logout: 'Cerrar sesión',
+        settings: 'Ajustes',
+        profile: 'Perfil',
+    },
+    pt: {
+        mapExplore: 'Mapa',
+        favorites: 'Minhas escolhas',
+        compare: 'Comparar',
+        myPlans: 'Minhas viagens',
+        myCollections: 'Coleções',
+        mmStory: 'MM Story',
+        artworks: 'Obras',
+        notifTitle: 'Notificações',
+        notifMarkAllRead: 'Marcar todas como lidas',
+        notifNoNew: 'Nenhuma notificação nova.',
+        themeLight: 'Modo claro',
+        themeDark: 'Modo escuro',
+        loginTitle: 'Entrar',
+        menu: 'Menu',
+        logout: 'Sair',
+        settings: 'Configurações',
+        profile: 'Perfil',
+    },
+    'zh-CN': {
+        mapExplore: '地图',
+        favorites: '我的精选',
+        compare: '比较',
+        myPlans: '我的旅行',
+        myCollections: '合集',
+        mmStory: 'MM故事',
+        artworks: '作品',
+        notifTitle: '通知',
+        notifMarkAllRead: '全部标为已读',
+        notifNoNew: '没有新通知。',
+        themeLight: '浅色模式',
+        themeDark: '深色模式',
+        loginTitle: '登录',
+        menu: '菜单',
+        logout: '退出登录',
+        settings: '设置',
+        profile: '个人资料',
+    },
+    'zh-TW': {
+        mapExplore: '地圖',
+        favorites: '我的精選',
+        compare: '比較',
+        myPlans: '我的旅行',
+        myCollections: '合集',
+        mmStory: 'MM故事',
+        artworks: '作品',
+        notifTitle: '通知',
+        notifMarkAllRead: '全部標為已讀',
+        notifNoNew: '沒有新通知。',
+        themeLight: '淺色模式',
+        themeDark: '深色模式',
+        loginTitle: '登入',
+        menu: '選單',
+        logout: '登出',
+        settings: '設定',
+        profile: '個人資料',
+    },
+    da: {
+        mapExplore: 'Kort',
+        favorites: 'Mine valg',
+        compare: 'Sammenlign',
+        myPlans: 'Mine ture',
+        myCollections: 'Samlinger',
+        mmStory: 'MM Story',
+        artworks: 'Værker',
+        notifTitle: 'Notifikationer',
+        notifMarkAllRead: 'Markér alle som læst',
+        notifNoNew: 'Ingen nye notifikationer.',
+        themeLight: 'Lyst tema',
+        themeDark: 'Mørkt tema',
+        loginTitle: 'Log ind',
+        menu: 'Menu',
+        logout: 'Log ud',
+        settings: 'Indstillinger',
+        profile: 'Profil',
+    },
+    fi: {
+        mapExplore: 'Kartta',
+        favorites: 'Omat valinnat',
+        compare: 'Vertaa',
+        myPlans: 'Omat matkat',
+        myCollections: 'Kokoelmat',
+        mmStory: 'MM Story',
+        artworks: 'Teokset',
+        notifTitle: 'Ilmoitukset',
+        notifMarkAllRead: 'Merkitse kaikki luetuiksi',
+        notifNoNew: 'Ei uusia ilmoituksia.',
+        themeLight: 'Vaalea teema',
+        themeDark: 'Tumma teema',
+        loginTitle: 'Kirjaudu',
+        menu: 'Valikko',
+        logout: 'Kirjaudu ulos',
+        settings: 'Asetukset',
+        profile: 'Profiili',
+    },
+    sv: {
+        mapExplore: 'Karta',
+        favorites: 'Mina val',
+        compare: 'Jämför',
+        myPlans: 'Mina resor',
+        myCollections: 'Samlingar',
+        mmStory: 'MM Story',
+        artworks: 'Konstverk',
+        notifTitle: 'Aviseringar',
+        notifMarkAllRead: 'Markera alla som lästa',
+        notifNoNew: 'Inga nya aviseringar.',
+        themeLight: 'Ljust tema',
+        themeDark: 'Mörkt tema',
+        loginTitle: 'Logga in',
+        menu: 'Meny',
+        logout: 'Logga ut',
+        settings: 'Inställningar',
+        profile: 'Profil',
+    },
+    et: {
+        mapExplore: 'Kaart',
+        favorites: 'Minu valikud',
+        compare: 'Võrdle',
+        myPlans: 'Minu reisid',
+        myCollections: 'Kogud',
+        mmStory: 'MM Story',
+        artworks: 'Kunstiteosed',
+        notifTitle: 'Teavitused',
+        notifMarkAllRead: 'Märgi kõik loetuks',
+        notifNoNew: 'Uusi teavitusi pole.',
+        themeLight: 'Hele režiim',
+        themeDark: 'Tume režiim',
+        loginTitle: 'Logi sisse',
+        menu: 'Menüü',
+        logout: 'Logi välja',
+        settings: 'Seaded',
+        profile: 'Profiil',
+    },
+};
 
 const notificationMemoryCache = new Map<string, NotificationCacheEntry>();
 const notificationInFlight = new Map<string, Promise<NotificationItem[]>>();
@@ -150,6 +420,7 @@ export default function NavHeader() {
     const [userMenuStyle, setUserMenuStyle] = useState<{ top: number; left: number } | null>(null);
     const notifRef = useRef<HTMLDivElement>(null);
     const { locale, setLocale, darkMode, setDarkMode } = useApp();
+    const labels = HEADER_LABELS[locale] || HEADER_LABELS.en;
     const [isMapMobileHome, setIsMapMobileHome] = useState(false);
     const [isDesktopViewport, setIsDesktopViewport] = useState(false);
     const [activeTrip, setActiveTrip] = useState<any>(null);
@@ -228,13 +499,13 @@ export default function NavHeader() {
     };
 
     const NAV_LINKS = [
-        { href: '/', label: t('nav.mapExplore', locale) },
-        { href: '/saved', label: t('nav.favorites', locale) },
-        { href: '/compare', label: t('compare.title', locale) },
-        { href: '/plans', label: t('nav.myPlans', locale) },
-        { href: '/collections', label: t('nav.myCollections', locale) },
-        { href: '/blog', label: t('nav.mmStory', locale) },
-        { href: '/artworks', label: t('nav.artworks', locale) },
+        { href: '/', label: labels.mapExplore },
+        { href: '/saved', label: labels.favorites },
+        { href: '/compare', label: labels.compare },
+        { href: '/plans', label: labels.myPlans },
+        { href: '/collections', label: labels.myCollections },
+        { href: '/blog', label: labels.mmStory },
+        { href: '/artworks', label: labels.artworks },
     ];
 
     const closeMobile = () => {
@@ -488,8 +759,8 @@ export default function NavHeader() {
                                 data-mm-route-pending="off"
                                 onClick={(event) => navigateDocumentNow('/notifications', event)}
                                 className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                title={t('notif.title', locale)}
-                                aria-label={t('notif.title', locale)}
+                                title={labels.notifTitle}
+                                aria-label={labels.notifTitle}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -501,8 +772,8 @@ export default function NavHeader() {
                             <button
                                 onClick={() => setNotifOpen(!notifOpen)}
                                 className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                title={t('notif.title', locale)}
-                                aria-label={t('notif.title', locale)}
+                                title={labels.notifTitle}
+                                aria-label={labels.notifTitle}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -514,7 +785,7 @@ export default function NavHeader() {
                             {notifOpen && (
                                 <div className="absolute right-[-8px] top-full mt-1 glass-popup gradient-border rounded-2xl py-0 min-w-[300px] max-w-[350px] z-50 overflow-hidden mx-4" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
                                     <div className="px-4 py-3 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between">
-                                        <span className="text-sm font-bold dark:text-white">{t('notif.title', locale)}</span>
+                                        <span className="text-sm font-bold dark:text-white">{labels.notifTitle}</span>
                                         {notifications.length > 0 && (
                                             <button
                                                 onClick={() => {
@@ -523,14 +794,14 @@ export default function NavHeader() {
                                                 }}
                                                 className="text-[10px] text-blue-600 dark:text-blue-400 font-bold hover:underline"
                                             >
-                                                {t('notif.markAllRead', locale)}
+                                                {labels.notifMarkAllRead}
                                             </button>
                                         )}
                                     </div>
                                     <div className="max-h-[400px] overflow-y-auto">
                                         {notifications.length === 0 ? (
                                             <div className="px-4 py-10 text-center">
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">{t('notif.noNew', locale)}</p>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">{labels.notifNoNew}</p>
                                             </div>
                                         ) : (
                                             notifications.map(n => (
@@ -578,8 +849,8 @@ export default function NavHeader() {
                         <button
                             onClick={() => setDarkMode(!darkMode)}
                             className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            title={darkMode ? t('theme.light', locale) : t('theme.dark', locale)}
-                            aria-label={darkMode ? t('theme.light', locale) : t('theme.dark', locale)}
+                            title={darkMode ? labels.themeLight : labels.themeDark}
+                            aria-label={darkMode ? labels.themeLight : labels.themeDark}
                         >
                             {darkMode ? (
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -599,8 +870,8 @@ export default function NavHeader() {
                             onPointerDown={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true })}
                             onClick={(event) => navigateDocumentNow('/settings', event, { rememberSettings: true })}
                             className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            title={locale === 'ko' ? '설정' : 'Settings'}
-                            aria-label={locale === 'ko' ? '설정' : 'Settings'}
+                            title={labels.settings}
+                            aria-label={labels.settings}
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -645,7 +916,7 @@ export default function NavHeader() {
                                         data-mm-route-pending="off"
                                         className="px-4 py-1.5 rounded-full gradient-btn text-xs font-bold shadow-sm active:scale-95 transition-all"
                                     >
-                                        {t('login.title', locale) || 'Login'}
+                                        {labels.loginTitle}
                                     </a>
                                 ) : (
                                     <div className="relative" ref={userMenuRef}>
@@ -671,7 +942,7 @@ export default function NavHeader() {
                                 data-mm-route-pending="off"
                                 className="px-4 py-1.5 rounded-full gradient-btn text-xs font-bold shadow-sm active:scale-95 transition-all"
                             >
-                                {t('login.title', locale) || 'Login'}
+                                {labels.loginTitle}
                             </a>
                         )}
 
@@ -704,7 +975,7 @@ export default function NavHeader() {
                         {/* Gradient accent on left edge */}
                         <div className="absolute top-0 left-0 w-[2px] h-full" style={{ background: 'var(--gradient-blue-orange)' }} />
                         <div className="flex items-center justify-between p-4 border-b dark:border-neutral-800">
-                            <span className="font-bold text-lg dark:text-white">{t('nav.menu', locale)}</span>
+                            <span className="font-bold text-lg dark:text-white">{labels.menu}</span>
                             <button onClick={closeMobile} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
                                 <svg className="w-5 h-5 dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -758,7 +1029,7 @@ export default function NavHeader() {
                                         {session.user?.image ? <img src={session.user.image} alt="" className="h-full w-full object-cover" /> : (session.user?.name?.charAt(0).toUpperCase() || 'U')}
                                     </span>
                                     <span className="min-w-0 flex-1 truncate">
-                                        {session.user?.name || (locale === 'ko' ? '프로필' : 'Profile')}
+                                        {session.user?.name || labels.profile}
                                     </span>
                                 </a>
                             )}
@@ -785,7 +1056,7 @@ export default function NavHeader() {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                {(() => { const s: Record<string, string> = { ko: '설정', en: 'Settings', ja: '設定', de: 'Einstellungen', fr: 'Paramètres', es: 'Ajustes', pt: 'Configurações', 'zh-CN': '设置', 'zh-TW': '設定', da: 'Indstillinger', fi: 'Asetukset', sv: 'Inställningar', et: 'Seaded' }; return s[locale] || s['en']; })()}
+                                {labels.settings}
                             </a>
                         </div>
 
@@ -814,7 +1085,7 @@ export default function NavHeader() {
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
                                         </svg>
-                                        {t('login.title', locale) || 'Login'}
+                                        {labels.loginTitle}
                                     </span>
                                 </a>
                             )}
@@ -832,7 +1103,7 @@ export default function NavHeader() {
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                                         </svg>
                                     )}
-                                    {darkMode ? t('theme.light', locale) : t('theme.dark', locale)}
+                                    {darkMode ? labels.themeLight : labels.themeDark}
                                 </span>
                             </button>
 
@@ -948,7 +1219,7 @@ export default function NavHeader() {
                         onClick={() => setUserMenuOpen(false)}
                         className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/25 transition-colors focus-visible:outline-none focus-visible:bg-blue-50 dark:focus-visible:bg-blue-900/25"
                     >
-                        {locale === 'ko' ? '프로필' : 'Profile'}
+                        {labels.profile}
                     </a>
                     <button
                         onClick={() => {
@@ -958,7 +1229,7 @@ export default function NavHeader() {
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/35 transition-colors focus-visible:outline-none focus-visible:bg-red-50 dark:focus-visible:bg-red-900/35"
                     >
-                        {t('auth.logout', locale)}
+                        {labels.logout}
                     </button>
                 </div>,
                 document.body,

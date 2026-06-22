@@ -12,6 +12,7 @@ import { useModal } from '@/components/ui/Modal';
 import { t, translateCategory, type Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import MuseumDetailCard from '@/components/museum/MuseumDetailCard';
+import MapCriticalStyles from '@/components/layout/MapCriticalStyles';
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 import * as gtag from '@/lib/gtag';
 import { SparkleIcon, StarIcon, AirplaneIcon } from '@/components/ui/Icons';
@@ -2763,6 +2764,7 @@ export default function MainPage() {
         background: '#eef6ff',
       }}
     >
+      <MapCriticalStyles />
       {/* PC Click-outside Overlay */}
       {selectedMuseum && isLgViewport && (
         <div

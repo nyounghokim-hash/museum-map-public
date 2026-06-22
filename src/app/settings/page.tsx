@@ -1,9 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { useApp } from '@/components/AppContext';
-import { LOCALE_NAMES, type Locale } from '@/lib/i18n';
+import { LOCALE_NAMES, type Locale } from '@/lib/locale-core';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
 import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 
@@ -262,40 +263,11 @@ function Toggle({ on }: { on: boolean }) {
   return <span className={`mm-settings-toggle ${on ? 'is-on' : ''}`}><span /></span>;
 }
 
-const SETTINGS_SUBROUTE_PREFETCH_HREFS = ['/profile', '/notifications', '/privacy', '/terms', '/cookies', '/info', '/feedback'];
-
-let settingsRowNavigationPending = false;
-let settingsRowNavigationResetTimer: number | undefined;
-let settingsSubroutesPrefetched = false;
+// Ghost-click guard: tapping a map/theme/location toggle can emit a follow-up
+// synthetic click that lands on a nearby policy row. Toggles call
+// blockSettingsRowNavigation(); rows check isSettingsRowNavigationBlocked()
+// before allowing navigation. (Regression fix, 2026-06-21.)
 let settingsControlGuardUntil = 0;
-
-function resetSettingsRowNavigationPending() {
-  settingsRowNavigationPending = false;
-  if (typeof window !== 'undefined' && settingsRowNavigationResetTimer) {
-    window.clearTimeout(settingsRowNavigationResetTimer);
-    settingsRowNavigationResetTimer = undefined;
-  }
-}
-
-function markSettingsRowNavigationPending() {
-  settingsRowNavigationPending = true;
-  if (typeof window === 'undefined') return;
-  if (settingsRowNavigationResetTimer) window.clearTimeout(settingsRowNavigationResetTimer);
-  settingsRowNavigationResetTimer = window.setTimeout(resetSettingsRowNavigationPending, 1400);
-}
-
-function prefetchSettingsSubroutes() {
-  if (settingsSubroutesPrefetched || typeof document === 'undefined') return;
-  settingsSubroutesPrefetched = true;
-  SETTINGS_SUBROUTE_PREFETCH_HREFS.forEach((href) => {
-    if (document.head.querySelector(`link[rel="prefetch"][href="${href}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'prefetch';
-    link.href = href;
-    link.as = 'document';
-    document.head.appendChild(link);
-  });
-}
 
 function blockSettingsRowNavigation(ms = 650) {
   settingsControlGuardUntil = Date.now() + ms;
@@ -303,22 +275,6 @@ function blockSettingsRowNavigation(ms = 650) {
 
 function isSettingsRowNavigationBlocked() {
   return Date.now() < settingsControlGuardUntil;
-}
-
-function shouldUseDefaultNavigation(event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>) {
-  return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
-}
-
-function openSettingsRowNow(href: string, event: MouseEvent<HTMLAnchorElement> | PointerEvent<HTMLAnchorElement>) {
-  if (shouldUseDefaultNavigation(event)) return;
-  event.preventDefault();
-  if (isSettingsRowNavigationBlocked()) {
-    event.stopPropagation();
-    return;
-  }
-  if (settingsRowNavigationPending || typeof window === 'undefined') return;
-  markSettingsRowNavigationPending();
-  window.location.assign(href);
 }
 
 function SettingsRow({ icon, label, description, value, href, onClick }: { icon: ReactNode; label: string; description?: string; value?: string; href?: string; onClick?: () => void }) {
@@ -335,15 +291,19 @@ function SettingsRow({ icon, label, description, value, href, onClick }: { icon:
   );
   if (href) {
     return (
-      <a
+      <Link
         href={href}
         data-mm-route-pending="off"
-        onPointerDown={(event) => openSettingsRowNow(href, event)}
-        onClick={(event) => openSettingsRowNow(href, event)}
+        onClick={(event) => {
+          if (isSettingsRowNavigationBlocked()) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }}
         className="mm-settings-row"
       >
         {inner}
-      </a>
+      </Link>
     );
   }
   return <button type="button" onClick={onClick} className="mm-settings-row w-full text-left">{inner}</button>;
@@ -366,39 +326,6 @@ export default function SettingsPage() {
   const accountLocationEmail = isAuthenticatedUser && session?.user?.email
     ? session.user.email
     : null;
-
-  useEffect(() => {
-    resetSettingsRowNavigationPending();
-    const reset = () => resetSettingsRowNavigationPending();
-    const resetWhenVisible = () => {
-      if (!document.hidden) resetSettingsRowNavigationPending();
-    };
-    window.addEventListener('pageshow', reset);
-    window.addEventListener('pagehide', reset);
-    document.addEventListener('visibilitychange', resetWhenVisible);
-
-    const win = window as Window & typeof globalThis & {
-      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    };
-    let idleId: number | undefined;
-    let usedIdleCallback = false;
-    if (typeof win.requestIdleCallback === 'function') {
-      usedIdleCallback = true;
-      idleId = win.requestIdleCallback(prefetchSettingsSubroutes, { timeout: 900 });
-    } else {
-      idleId = window.setTimeout(prefetchSettingsSubroutes, 250);
-    }
-
-    return () => {
-      window.removeEventListener('pageshow', reset);
-      window.removeEventListener('pagehide', reset);
-      document.removeEventListener('visibilitychange', resetWhenVisible);
-      if (idleId === undefined) return;
-      if (usedIdleCallback && typeof win.cancelIdleCallback === 'function') win.cancelIdleCallback(idleId);
-      else window.clearTimeout(idleId);
-    };
-  }, []);
 
   useEffect(() => {
     const savedLocationSource = readMapLocationSourceForAccount(accountLocationEmail);
