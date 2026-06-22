@@ -17,6 +17,7 @@ const ROUTE_PENDING_LABELS: Record<string, string> = {
 };
 
 let slowTimer: number | undefined;
+let documentNavigationResetTimer: number | undefined;
 
 function getRoutePendingLabel(locale?: string | null) {
     return ROUTE_PENDING_LABELS[locale || ''] || ROUTE_PENDING_LABELS.en;
@@ -45,22 +46,52 @@ export function clearRoutePending() {
     }
 }
 
+export function clearDocumentNavigationStarted() {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.remove('mm-document-nav-started');
+    if (typeof window !== 'undefined' && documentNavigationResetTimer) {
+        window.clearTimeout(documentNavigationResetTimer);
+        documentNavigationResetTimer = undefined;
+    }
+}
+
+export function markDocumentNavigationStarted() {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.add('mm-document-nav-started');
+    if (typeof window === 'undefined') return;
+    if (documentNavigationResetTimer) window.clearTimeout(documentNavigationResetTimer);
+    documentNavigationResetTimer = window.setTimeout(() => {
+        clearDocumentNavigationStarted();
+    }, 1800);
+}
+
 function currentDocumentPath() {
     if (typeof window === 'undefined') return '';
     return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
+function openDocument(href: string, replace = false) {
+    markDocumentNavigationStarted();
+    const run = () => {
+        if (replace) window.location.replace(href);
+        else window.location.assign(href);
+    };
+    if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => window.setTimeout(run, 0));
+        return;
+    }
+    window.setTimeout(run, 0);
+}
+
 export function navigateWithPending(href: string, locale?: string | null, replace = false) {
     if (typeof window === 'undefined') return;
     startRoutePending(locale);
-    if (replace) window.location.replace(href);
-    else window.location.assign(href);
+    openDocument(href, replace);
 }
 
 export function navigateDocument(href: string, replace = false) {
     if (typeof window === 'undefined') return;
-    if (replace) window.location.replace(href);
-    else window.location.assign(href);
+    openDocument(href, replace);
 }
 
 export function backWithFallback(
@@ -73,6 +104,7 @@ export function backWithFallback(
     const shouldShowPending = options.pendingOnFallback === true;
     const currentPath = currentDocumentPath();
     if (window.history.length > 1) {
+        markDocumentNavigationStarted();
         window.history.back();
         window.setTimeout(() => {
             if (currentDocumentPath() === currentPath) {

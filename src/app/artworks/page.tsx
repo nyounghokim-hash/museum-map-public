@@ -130,14 +130,11 @@ export default function ArtworksPage() {
     const museumIdFilter = searchParams.get('museumId') || '';
     const museumNameFilter = searchParams.get('museumName') || '';
     const cacheKey = museumIdFilter ? `${CACHE_KEY}_${museumIdFilter}` : CACHE_KEY;
-    const initialCacheRef = useRef<ArtworkCachePayload | null | undefined>(undefined);
-    if (initialCacheRef.current === undefined) initialCacheRef.current = readArtworkCache(cacheKey);
-    const initialCache = initialCacheRef.current;
-    const [artworks, setArtworks] = useState<any[]>(() => initialCache?.items || []);
-    const [loading, setLoading] = useState(() => !(initialCache?.items?.length));
+    const [artworks, setArtworks] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMore, setHasMore] = useState(() => initialCache?.hasMore ?? true);
-    const [cursor, setCursor] = useState<string | null>(() => initialCache?.cursor ?? null);
+    const [hasMore, setHasMore] = useState(true);
+    const [cursor, setCursor] = useState<string | null>(null);
     const [selected, setSelected] = useState<any>(null);
     const [sheetClosing, setSheetClosing] = useState(false);
     const closeSheet = () => {
@@ -163,7 +160,7 @@ export default function ArtworksPage() {
     const sentinelRef = useRef<HTMLDivElement>(null);
     const restoredRef = useRef(false);
     const searchScrollLockRef = useRef(0);
-    const randomSeedRef = useRef(initialCache?.seed || `artworks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const randomSeedRef = useRef(`artworks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
     // Keep search responsive while still avoiding a full filter pass on every keystroke.
     useEffect(() => {
@@ -234,15 +231,15 @@ export default function ArtworksPage() {
     // On mount: try to restore from cache, otherwise fetch fresh
     useEffect(() => {
         try {
-            const cached = sessionStorage.getItem(cacheKey);
+            const cached = readArtworkCache(cacheKey);
             const savedScroll = sessionStorage.getItem(SCROLL_KEY);
             if (cached) {
-                const { items, hasMore: hm, cursor: c, seed } = JSON.parse(cached);
-                if (items?.length > 0) {
-                    if (typeof seed === 'string' && seed) randomSeedRef.current = seed;
-                    setArtworks(items);
-                    setHasMore(hm);
-                    setCursor(c);
+                const cachedItems = cached.items;
+                if (Array.isArray(cachedItems) && cachedItems.length > 0) {
+                    if (typeof cached.seed === 'string' && cached.seed) randomSeedRef.current = cached.seed;
+                    setArtworks(cachedItems);
+                    setHasMore(cached.hasMore ?? true);
+                    setCursor(cached.cursor ?? null);
                     setLoading(false);
                     restoredRef.current = true;
                     if (savedScroll) {
@@ -332,7 +329,7 @@ export default function ArtworksPage() {
 
     const handleArtworkClick = (event: MouseEvent<HTMLAnchorElement>, artwork: any) => {
         const suppressed = artworkSuppressClickRef.current;
-        if (suppressed?.id === artwork.id && Date.now() < suppressed.until) {
+        if (suppressed && suppressed.id === artwork.id && Date.now() < suppressed.until) {
             event.preventDefault();
             return;
         }
@@ -539,8 +536,8 @@ export default function ArtworksPage() {
                         </div>
                     </div>
 
-                    <div className="mm-artwork-grid2 stagger-children">
-                        {filteredArtworks.map((aw: any, idx: number) => {
+                    <div className="mm-artwork-grid2">
+                        {filteredArtworks.map((aw: any) => {
                             const museums = getMuseums(aw);
                             return (
                                 <a
@@ -548,7 +545,6 @@ export default function ArtworksPage() {
                                     href={`/artworks/${encodeURIComponent(aw.id)}`}
                                     data-mm-route-pending="off"
                                     className="mm-artwork-card2 block no-underline text-inherit group hover:-translate-y-0.5 transition-all duration-200 cursor-pointer active:scale-[0.98]"
-                                    style={{ animation: `fadeInUp 0.4s ${Math.min(idx, 11) * 50}ms both` }}
                                     onPointerDown={(event) => handleArtworkPointerDown(event, aw.id)}
                                     onPointerMove={(event) => handleArtworkPointerMove(event, aw.id)}
                                     onPointerCancel={() => handleArtworkPointerCancel(aw.id)}

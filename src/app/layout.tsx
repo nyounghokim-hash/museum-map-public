@@ -186,12 +186,11 @@ export default async function RootLayout({
               :root {
                 --mm-force-sans: "SUIT", "Noto Sans KR", "Noto Sans JP", "Noto Sans SC", "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
               }
-              html, body,
-              body *:not(svg):not(path):not(circle):not(rect):not(line):not(polyline):not(polygon):not(.mm-brand-word):not(.splash-title):not(.mm-login-brand-title) {
-                font-family: var(--mm-force-sans) !important;
+              html, body {
+                font-family: var(--mm-force-sans);
               }
               button, input, select, textarea, optgroup, option {
-                font-family: var(--mm-force-sans) !important;
+                font: inherit;
               }
             `,
           }}
@@ -1210,32 +1209,6 @@ export default async function RootLayout({
             u();window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',u);
           })();
         `}} />
-        <script dangerouslySetInnerHTML={{
-          __html: `(function(){
-          var started=false;
-          function start(){
-            if(started)return;started=true;
-            function m(i){if(!i||i.tagName!=='IMG'||i.classList.contains('no-dissolve')||i.getAttribute('data-loaded'))return;
-              if(i.complete&&i.naturalWidth>0){i.setAttribute('data-loaded','true');return;}
-              i.addEventListener('load',function(){this.setAttribute('data-loaded','true');},{once:true});
-              i.addEventListener('error',function(){this.setAttribute('data-loaded','true');},{once:true});}
-            document.addEventListener('load',function(e){if(e.target&&e.target.tagName==='IMG')m(e.target);},true);
-            var o=new MutationObserver(function(ml){ml.forEach(function(mu){mu.addedNodes.forEach(function(n){
-              if(n.nodeType!==1)return;if(n.tagName==='IMG')m(n);
-              else if(n.querySelectorAll)n.querySelectorAll('img').forEach(m);});});});
-            var scanFrame=0;
-            function s(){document.querySelectorAll('img:not([data-loaded]):not(.no-dissolve)').forEach(m);}
-            function rs(){if(scanFrame)return;scanFrame=requestAnimationFrame(function(){scanFrame=0;s();});}
-            if(document.body){o.observe(document.body,{childList:true,subtree:true});s();}
-            else document.addEventListener('DOMContentLoaded',function(){o.observe(document.body,{childList:true,subtree:true});s();});
-            var c=0,iv=setInterval(function(){rs();if(++c>=4)clearInterval(iv);},650);
-          }
-          if(document.documentElement.getAttribute('data-mm-hydrated')==='true')start();
-          else{
-            window.addEventListener('mm:hydrated',start,{once:true});
-            setTimeout(start,2500);
-          }
-        })();`}} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

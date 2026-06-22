@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
-import { clearRoutePending, startRoutePending } from '@/lib/route-pending';
+import { clearDocumentNavigationStarted, clearRoutePending, startRoutePending } from '@/lib/route-pending';
 
 const TRANSIENT_NAVIGATION_KEYS = ['navigating-back', 'navigating-forward'];
 const LEFT_HANDED_STORAGE_KEY = 'mm_map_left_handed_mode';
@@ -23,6 +23,7 @@ function syncLeftHandedModeClass(nextValue?: boolean) {
 
 function clearBackForwardTransientState() {
     clearRoutePending();
+    clearDocumentNavigationStarted();
     syncLeftHandedModeClass();
     const html = document.documentElement;
     const body = document.body;

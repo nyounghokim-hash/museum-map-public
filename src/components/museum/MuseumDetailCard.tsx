@@ -26,6 +26,7 @@ import { findVisitorHoursItem, openingHoursToDisplaySource } from '@/lib/opening
 import { resolveMuseumOpenStatus } from '@/lib/openStatus';
 import { ACTIVE_TRIP_CHANGE_EVENT, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
 import { findTripStopForMuseum, isStopVisited, updateTripStopVisitState } from '@/lib/tripStatus';
+import { navigateDocument } from '@/lib/route-pending';
 
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 
@@ -2197,7 +2198,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             <button
                                 onClick={() => {
                                     setShowCompareToast(false);
-                                    window.location.assign('/compare');
+                                    navigateDocument('/compare');
                                 }}
                                 className="ml-1 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-colors active:scale-95 whitespace-nowrap"
                             >

@@ -55,18 +55,15 @@ function TranslatedTitle({ text, locale }: { text: string; locale: string }) {
 }
 
 export default function CollectionsPage() {
-    const initialPublicCollectionsRef = useRef<PublicCollectionsCache | null | undefined>(undefined);
-    if (initialPublicCollectionsRef.current === undefined) initialPublicCollectionsRef.current = readPublicCollectionsCache();
-    const initialPublicCollections = initialPublicCollectionsRef.current;
     const [tab, setTab] = useState<'my' | 'public'>('public');
     const [myCollections, setMyCollections] = useState<any[]>([]);
-    const [publicCollections, setPublicCollections] = useState<any[]>(() => initialPublicCollections?.data || []);
+    const [publicCollections, setPublicCollections] = useState<any[]>([]);
     const [loadingMy, setLoadingMy] = useState(true);
-    const [loadingPublic, setLoadingPublic] = useState(() => !(initialPublicCollections?.data?.length));
+    const [loadingPublic, setLoadingPublic] = useState(true);
     const [loadingMorePublic, setLoadingMorePublic] = useState(false);
-    const [publicHasMore, setPublicHasMore] = useState(() => initialPublicCollections?.hasMore ?? false);
-    const [publicNextOffset, setPublicNextOffset] = useState<number | null>(() => initialPublicCollections?.nextOffset ?? null);
-    const [publicTotal, setPublicTotal] = useState(() => initialPublicCollections?.total || initialPublicCollections?.data?.length || 0);
+    const [publicHasMore, setPublicHasMore] = useState(false);
+    const [publicNextOffset, setPublicNextOffset] = useState<number | null>(null);
+    const [publicTotal, setPublicTotal] = useState(0);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const { locale } = useApp();
     const { showConfirm } = useModal();
@@ -75,10 +72,9 @@ export default function CollectionsPage() {
     const isSignedInUser = status === 'authenticated' && !!session?.user && !session.user.name?.startsWith('guest_');
 
     useEffect(() => {
-        if (initialPublicCollections?.data?.length) return;
         try {
-            const cached = JSON.parse(sessionStorage.getItem(COLLECTIONS_PUBLIC_CACHE_KEY) || 'null') as PublicCollectionsCache | null;
-            if (cached?.data && Date.now() - (cached.ts || 0) < COLLECTIONS_CACHE_TTL_MS) {
+            const cached = readPublicCollectionsCache();
+            if (cached?.data) {
                 setPublicCollections(cached.data);
                 setPublicHasMore(cached.hasMore ?? false);
                 setPublicNextOffset(cached.nextOffset ?? null);

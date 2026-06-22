@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
-import { clearRoutePending } from '@/lib/route-pending';
+import { clearRoutePending, navigateDocument } from '@/lib/route-pending';
 
 const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; artworks: string; story: string; collection: string; compare: string }> = {
     ko: { map: '홈', saved: '내 픽', plans: '내 여행', artworks: '작품', story: 'MM스토리', collection: '컬렉션', compare: '비교' },
@@ -109,7 +109,7 @@ function navigateDocumentNow(href: string) {
     if (typeof window === 'undefined') return;
     if (window.location.pathname + window.location.search + window.location.hash === href) return;
     clearRoutePending();
-    window.location.assign(href);
+    navigateDocument(href);
 }
 
 const styles = {

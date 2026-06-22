@@ -74,6 +74,21 @@ html.mm-route-pending body {
   cursor: progress;
 }
 
+html.mm-document-nav-started body {
+  cursor: progress;
+  overscroll-behavior: none;
+}
+
+@media (max-width: 767px) {
+  html.mm-document-nav-started body {
+    touch-action: none;
+  }
+
+  html.mm-document-nav-started .mobile-bottom-nav {
+    pointer-events: none !important;
+  }
+}
+
 html.mm-route-pending-slow body::after {
   content: "";
   position: fixed;
@@ -390,15 +405,11 @@ html.mm-route-pending-slow body::after {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  body *:not(svg):not(path):not(circle):not(rect):not(line):not(polyline):not(polygon):not(.mm-brand-word):not(.splash-title):not(.mm-login-brand-title) {
-    font-family: var(--font-mm-sans) !important;
-  }
-
   button,
   [role="button"],
   [role="tab"],
   [role="menuitem"] {
-    font-family: var(--font-mm-sans) !important;
+    font-family: inherit;
     font-weight: 600;
   }
 
@@ -2847,8 +2858,8 @@ button,
   }
 }
 
-/* Image dissolve — hidden until loaded, then smooth fade-in */
-img:not(.no-dissolve) {
+/* Image dissolve is opt-in. A global img selector caused costly mobile style recalculation. */
+img.mm-dissolve-img:not(.no-dissolve) {
   opacity: 0;
   filter: blur(4px);
   transition: opacity 0.5s ease-out, filter 0.5s ease-out;
@@ -2856,13 +2867,13 @@ img:not(.no-dissolve) {
 
 /* Mobile: faster dissolve (snappy) */
 @media (max-width: 1024px) {
-  img:not(.no-dissolve) {
+  img.mm-dissolve-img:not(.no-dissolve) {
     filter: blur(2px);
     transition: opacity 0.25s ease-out, filter 0.25s ease-out;
   }
 }
 
-img[data-loaded="true"]:not(.no-dissolve) {
+img.mm-dissolve-img[data-loaded="true"]:not(.no-dissolve) {
   opacity: 1;
   filter: blur(0);
 }
@@ -2875,7 +2886,7 @@ img[data-loaded="true"]:not(.no-dissolve) {
   }
 }
 
-img:not(.no-dissolve):not([data-loaded]) {
+img.mm-dissolve-img:not(.no-dissolve):not([data-loaded]) {
   animation: imgSafety 0s 3s forwards;
 }
 
@@ -2968,6 +2979,16 @@ img:not(.no-dissolve):not([data-loaded]) {
 
 .stagger-children>*:nth-child(6) {
   animation-delay: 250ms;
+}
+
+@media (max-width: 767px) {
+  .mm-nav-page-enter,
+  .mm-editorial-page2 .animate-fadeInUp,
+  .mm-editorial-page2 .stagger-children > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* Smooth expand/collapse */

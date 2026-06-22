@@ -261,7 +261,7 @@ export default function NavHeader() {
         markHeaderDocumentNavigationPending();
         if (options?.rememberSettings) rememberSettingsReturn();
         if (options?.closeMobile) setMobileOpen(false);
-        window.location.assign(href);
+        navigateDocument(href);
     };
 
     // Close transient header UI only when the route changes.

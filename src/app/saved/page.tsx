@@ -10,6 +10,7 @@ import { useCompare } from '@/hooks/useCompare';
 import { useAccountSaves } from '@/hooks/useAccountSaves';
 import * as gtag from '@/lib/gtag';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
+import { navigateDocument } from '@/lib/route-pending';
 
 /* ── i18n for tabs & sort ── */
 type L = Record<string, string>;
@@ -59,7 +60,10 @@ export default function SavedPage() {
     const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
     const { locale } = useApp();
     const { showAlert, showConfirm } = useModal();
-    const { compareIds, replaceCompare, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare();
+    const { compareIds, replaceCompare, isAuthenticated: isCompareAuthenticated, isReady: isCompareReady } = useCompare({
+        initialFetch: 'idle',
+        idleTimeout: 1500,
+    });
     const handleSavesUnauthorized = useCallback(() => goLogin('/saved'), []);
     const { saves, loading, refresh: refreshSaves, setCachedSaves } = useAccountSaves({ onUnauthorized: handleSavesUnauthorized });
 
@@ -223,7 +227,7 @@ export default function SavedPage() {
             }
             setSelectedMuseums(new Set());
             setIsSelectMode(false);
-            window.location.assign('/compare');
+            navigateDocument('/compare');
         } catch {
             showAlert(locale === 'ko' ? '비교 목록을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.' : 'Could not save the compare list. Please try again.');
         }
@@ -240,7 +244,7 @@ export default function SavedPage() {
     const getMuseum = (item: any) => activeTab === 'saved' ? item.museum : item;
 
     return (
-        <div className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div data-mm-page="saved" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             {/* Header */}
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
                 {isLoading && activeTab === 'saved' && saves.length === 0 ? (
@@ -324,7 +328,12 @@ export default function SavedPage() {
                                 setDeletingIds(idsToDelete);
                                 await new Promise(r => setTimeout(r, 300));
                                 try {
-                                    const saveIds = saves.filter(s => idsToDelete.has(s.museum.id)).map(s => s.id);
+                                    const saveIds = saves
+                                        .filter(s => {
+                                            const museumId = s.museum?.id || s.museumId;
+                                            return typeof s.id === 'string' && typeof museumId === 'string' && idsToDelete.has(museumId);
+                                        })
+                                        .map(s => s.id as string);
                                     const responses = await Promise.all(saveIds.map(id => fetch(`/api/me/saves/${id}`, { method: 'DELETE' })));
                                     const unauthorized = responses.some(response => response.status === 401);
                                     if (unauthorized) {
@@ -332,7 +341,10 @@ export default function SavedPage() {
                                         return;
                                     }
                                     if (responses.some(response => !response.ok)) throw new Error('Failed to delete saves');
-                                    setCachedSaves(prev => prev.filter(s => !idsToDelete.has(s.museum?.id || s.museumId)));
+                                    setCachedSaves(prev => prev.filter(s => {
+                                        const museumId = s.museum?.id || s.museumId;
+                                        return typeof museumId !== 'string' || !idsToDelete.has(museumId);
+                                    }));
                                     setSelectedMuseums(new Set());
                                 } catch {
                                     showAlert(locale === 'ko' ? '선택한 장소를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.' : 'Could not delete the selected places. Please try again.');
@@ -365,7 +377,7 @@ export default function SavedPage() {
                 </div>
             ) : displayItems.length > 0 ? (
                 <div className="mm-list-surface mm-saved-list-surface">
-                    {displayItems.map((item: any, i: number) => {
+                    {displayItems.map((item: any) => {
                         const museum = getMuseum(item);
                         const itemId = activeTab === 'saved' ? item.id : museum.id;
                         const cached = Array.isArray(museum.cachedPhotoUrls) ? museum.cachedPhotoUrls : (typeof museum.cachedPhotoUrls === 'string' ? (() => { try { return JSON.parse(museum.cachedPhotoUrls); } catch { return []; } })() : []);
@@ -374,7 +386,6 @@ export default function SavedPage() {
                         return (
                             <button
                                 key={`${activeTab}-${sortBy}-${itemId}`}
-                                style={{ animation: `fadeInUp 0.4s ${Math.min(i, 15) * 50}ms both` }}
                                 className={`mm-list-row2 group w-full text-left transition-all duration-200 ${isSelectMode && activeTab === 'saved' ? 'mm-list-row-selectable' : ''} ${selectedMuseums.has(museum.id) ? 'is-selected' : ''} ${deletingIds.has(museum.id) ? 'animate-slideOutLeft' : ''}`}
                                 onClick={() => {
                                     if (isSelectMode && activeTab === 'saved') toggleSelect(museum.id);
