@@ -2,14 +2,7 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
-const SPLASH_BACKGROUNDS = [
-    '/splash/gallery-splash.jpg',
-    '/splash/gallery-splash-2.jpg',
-    '/splash/gallery-splash-3.jpg',
-    '/splash/gallery-splash-4.jpg',
-    '/splash/gallery-splash-5.jpg',
-    '/splash/gallery-splash-6.jpg',
-] as const;
+const SPLASH_SEEN_KEY = 'mmSplashSeenV2';
 
 const SPLASH_SUBTITLES: Record<string, string> = {
     ko: '예술과 여행이 만나는 지도',
@@ -113,10 +106,10 @@ const SPLASH_LABELS: Record<string, { kicker: string; loading: string; madeBy: s
     },
 };
 
-const MIN_SHOW_MS = 620;
-const MAX_SHOW_MS = 900;
-const FADE_MS = 180;
-const COMPLETE_HOLD_MS = 60;
+const MIN_SHOW_MS = 240;
+const MAX_SHOW_MS = 460;
+const FADE_MS = 120;
+const COMPLETE_HOLD_MS = 0;
 
 function finishFoucOverlay() {
     if (typeof document === 'undefined') return;
@@ -130,15 +123,11 @@ function finishFoucOverlay() {
 function shouldShowSplash(): boolean {
     if (typeof window === 'undefined') return false;
     try {
-        return window.innerWidth <= 1024 && window.location.pathname === '/' && !sessionStorage.getItem('splashShown');
+        const alreadyShown = sessionStorage.getItem('splashShown') || localStorage.getItem(SPLASH_SEEN_KEY);
+        return window.innerWidth <= 1024 && window.location.pathname === '/' && !alreadyShown;
     } catch {
         return window.innerWidth <= 1024 && window.location.pathname === '/';
     }
-}
-
-function getSplashBackground(): string {
-    if (typeof window === 'undefined') return SPLASH_BACKGROUNDS[0];
-    return SPLASH_BACKGROUNDS[Math.floor(Math.random() * SPLASH_BACKGROUNDS.length)] || SPLASH_BACKGROUNDS[0];
 }
 
 function getDeviceLang(): string {
@@ -152,7 +141,8 @@ function getDeviceLang(): string {
         }
     } catch { }
 
-    const lang = navigator.language || (navigator as any).userLanguage || 'en';
+    const legacyNavigator = navigator as Navigator & { userLanguage?: string };
+    const lang = navigator.language || legacyNavigator.userLanguage || 'en';
     const short = lang.split('-')[0].toLowerCase();
     return SPLASH_LABELS[short] ? short : 'en';
 }
@@ -164,7 +154,6 @@ export default function SplashScreen() {
     const [complete, setComplete] = useState(false);
     const [lang, setLang] = useState('en');
     const [progress, setProgress] = useState(0);
-    const [background, setBackground] = useState<string>(SPLASH_BACKGROUNDS[0]);
 
     useEffect(() => {
         if (!shouldShowSplash()) {
@@ -172,7 +161,6 @@ export default function SplashScreen() {
             return;
         }
 
-        setBackground(getSplashBackground());
         setVisible(true);
     }, []);
 
@@ -181,7 +169,10 @@ export default function SplashScreen() {
 
         setLang(getDeviceLang());
         setComplete(false);
-        try { sessionStorage.setItem('splashShown', '1'); } catch { }
+        try {
+            sessionStorage.setItem('splashShown', '1');
+            localStorage.setItem(SPLASH_SEEN_KEY, '1');
+        } catch { }
 
         const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (prefersReduced) {
@@ -258,7 +249,7 @@ export default function SplashScreen() {
             <div
                 className="splash-bg"
                 aria-hidden="true"
-                style={{ '--splash-bg-image': `url("${background}")` } as CSSProperties}
+                style={{ '--splash-bg-image': 'none' } as CSSProperties}
             >
                 <div className="splash-map-lines" />
                 <div className="splash-map-nodes" />

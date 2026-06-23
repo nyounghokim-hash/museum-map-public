@@ -211,20 +211,18 @@ export default async function RootLayout({
             `,
           }}
         />
-        {/* FOUC prevention: 2.0 gallery-photo mobile splash overlay until React takes over */}
+        {/* FOUC prevention: stable mobile splash overlay until React takes over */}
         <script dangerouslySetInnerHTML={{
           __html: `
           (function(){
             var shown=false;
-            try{shown=!!sessionStorage.getItem('splashShown');}catch(e){}
+            try{shown=!!(sessionStorage.getItem('splashShown')||localStorage.getItem('mmSplashSeenV2'));}catch(e){}
             if(window.innerWidth<768 && window.location.pathname==='/' && !shown){
-              var splashImages=['/splash/gallery-splash.jpg','/splash/gallery-splash-2.jpg','/splash/gallery-splash-3.jpg','/splash/gallery-splash-4.jpg','/splash/gallery-splash-5.jpg','/splash/gallery-splash-6.jpg'];
-              var splashImage=splashImages[Math.floor(Math.random()*splashImages.length)]||splashImages[0];
               var s=document.createElement('style');
               s.id='splash-fouc';
-              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background-color:#071426;background-image:linear-gradient(180deg,rgba(1,15,38,.76) 0%,rgba(15,70,162,.56) 42%,rgba(2,8,23,.86) 100%),linear-gradient(115deg,rgba(37,99,235,.34) 0%,rgba(14,165,233,.16) 46%,rgba(2,8,23,.22) 100%),url("'+splashImage+'");background-position:center;background-repeat:no-repeat;background-size:cover,cover,cover;pointer-events:none;transition:opacity .28s ease}body.splash-done::before{opacity:0;pointer-events:none}';
+              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background:#071426;background-image:linear-gradient(180deg,rgba(1,15,38,.86) 0%,rgba(15,70,162,.56) 48%,rgba(2,8,23,.88) 100%);pointer-events:none;transition:opacity .16s ease}body.splash-done::before{opacity:0;pointer-events:none}';
               document.head.appendChild(s);
-              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},320);},3200);
+              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},180);},900);
             }
           })();
         `}} />

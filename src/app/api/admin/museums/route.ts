@@ -1,14 +1,149 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
-import { adminLimiter, getClientIp } from '@/lib/rate-limit';
+import { Prisma } from '@/generated_v2/client';
 
-function checkRate(req: NextRequest) {
-    const ip = getClientIp(req);
-    const { success } = adminLimiter.check(ip);
-    if (!success) return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-    return null;
+type MuseumPayload = Record<string, unknown>;
+
+const MUSEUM_WRITE_FIELDS = [
+    'name',
+    'nameKo',
+    'nameEn',
+    'description',
+    'descriptionKo',
+    'summary',
+    'summaryTranslations',
+    'country',
+    'city',
+    'cityKo',
+    'cityTranslations',
+    'type',
+    'latitude',
+    'longitude',
+    'imageUrl',
+    'website',
+    'phone',
+    'googleRating',
+    'googleRatingsTotal',
+    'placeId',
+    'placePhotos',
+    'cachedPhotoUrls',
+    'lastPhotoSync',
+    'lastSyncedAt',
+    'openingHours',
+    'visitorInfo',
+    'popularityScore',
+    'sourceAttribution',
+    'primaryImageSource',
+    'primaryImageLicense',
+    'primaryImageAttribution',
+] as const;
+
+const NUMERIC_FIELDS = new Set(['latitude', 'longitude', 'googleRating', 'popularityScore']);
+const INTEGER_FIELDS = new Set(['googleRatingsTotal']);
+const DATE_FIELDS = new Set(['lastPhotoSync', 'lastSyncedAt']);
+const JSON_ARRAY_FIELDS = new Set(['placePhotos', 'cachedPhotoUrls']);
+
+function isPayloadRecord(value: unknown): value is MuseumPayload {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function unwrapMuseumPayload(body: unknown): MuseumPayload {
+    if (!isPayloadRecord(body)) return {};
+    return isPayloadRecord(body.data) ? body.data : body;
+}
+
+function parseOptionalNumber(value: unknown) {
+    if (value === null) return null;
+    if (value === '') return null;
+    const num = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(num) ? num : undefined;
+}
+
+function parseOptionalInteger(value: unknown) {
+    const num = parseOptionalNumber(value);
+    if (num === undefined || num === null) return num;
+    return Math.trunc(num);
+}
+
+function parseOptionalDate(value: unknown) {
+    if (value === null) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;
+    if (typeof value !== 'string' && typeof value !== 'number') return undefined;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parsePhotoArray(value: unknown) {
+    const raw = typeof value === 'string' ? (() => {
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [value];
+        } catch {
+            return [value];
+        }
+    })() : value;
+
+    if (!Array.isArray(raw)) return undefined;
+    const photos = raw
+        .filter((url): url is string => typeof url === 'string')
+        .map(url => url.trim())
+        .filter(Boolean);
+    return Array.from(new Set(photos));
+}
+
+function normalizeMuseumPayload(input: MuseumPayload) {
+    const payload = { ...input };
+
+    if (payload.placeId === undefined && payload.place_id !== undefined) payload.placeId = payload.place_id;
+    if (payload.googleRating === undefined && payload.rating !== undefined) payload.googleRating = payload.rating;
+    if (payload.googleRatingsTotal === undefined && payload.ratingsTotal !== undefined) payload.googleRatingsTotal = payload.ratingsTotal;
+    if (payload.googleRatingsTotal === undefined && payload.userRatingCount !== undefined) payload.googleRatingsTotal = payload.userRatingCount;
+    if (payload.cachedPhotoUrls === undefined && payload.cached_photo_urls !== undefined) payload.cachedPhotoUrls = payload.cached_photo_urls;
+    if (payload.placePhotos === undefined && payload.photos !== undefined) payload.placePhotos = payload.photos;
+
+    const data: MuseumPayload = {};
+    for (const field of MUSEUM_WRITE_FIELDS) {
+        if (payload[field] === undefined) continue;
+
+        if (NUMERIC_FIELDS.has(field)) {
+            const num = parseOptionalNumber(payload[field]);
+            if (num !== undefined) data[field] = num;
+            continue;
+        }
+
+        if (INTEGER_FIELDS.has(field)) {
+            const intValue = parseOptionalInteger(payload[field]);
+            if (intValue !== undefined) data[field] = intValue;
+            continue;
+        }
+
+        if (DATE_FIELDS.has(field)) {
+            const date = parseOptionalDate(payload[field]);
+            if (date !== undefined) data[field] = date;
+            continue;
+        }
+
+        if (JSON_ARRAY_FIELDS.has(field)) {
+            const photos = parsePhotoArray(payload[field]);
+            if (photos !== undefined) data[field] = photos;
+            continue;
+        }
+
+        data[field] = payload[field];
+    }
+
+    const cachedPhotoUrls = parsePhotoArray(data.cachedPhotoUrls);
+    const placePhotos = parsePhotoArray(data.placePhotos);
+    if (cachedPhotoUrls?.length && !data.imageUrl) data.imageUrl = cachedPhotoUrls[0];
+    if (placePhotos?.length && !data.imageUrl) data.imageUrl = placePhotos[0];
+
+    return data;
+}
+
+function isAdminError(error: unknown, code: 'UNAUTHORIZED' | 'FORBIDDEN') {
+    return error instanceof Error && error.message === code;
 }
 
 export async function GET(req: NextRequest) {
@@ -20,7 +155,7 @@ export async function GET(req: NextRequest) {
         const limit = parseInt(searchParams.get('limit') || '20', 10);
         const offset = (page - 1) * limit;
 
-        const where: any = {};
+        const where: Prisma.MuseumWhereInput = {};
         if (query) {
             where.OR = [
                 { name: { contains: query, mode: 'insensitive' } },
@@ -46,9 +181,9 @@ export async function GET(req: NextRequest) {
         ]);
 
         return successResponse({ data, total, page, limit });
-    } catch (err: any) {
-        if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
-        if (err.message === 'FORBIDDEN') return errorResponse('FORBIDDEN', 'Admin access required', 403);
+    } catch (err: unknown) {
+        if (isAdminError(err, 'UNAUTHORIZED')) return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
+        if (isAdminError(err, 'FORBIDDEN')) return errorResponse('FORBIDDEN', 'Admin access required', 403);
         console.error('Admin Museum GET Error:', err);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to fetch museums', 500);
     }
@@ -57,8 +192,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         await requireAdmin();
-        const body = await req.json();
-        const { name, description, country, city, type, latitude, longitude, imageUrl, website } = body;
+        const body = unwrapMuseumPayload(await req.json());
+        const createData = normalizeMuseumPayload(body);
+        const { name, country, city, type, latitude, longitude } = createData;
 
         if (!name || !country || !city || !type || latitude === undefined || longitude === undefined) {
             return errorResponse('BAD_REQUEST', 'Missing required fields', 400);
@@ -66,23 +202,15 @@ export async function POST(req: NextRequest) {
 
         const museum = await prisma.museum.create({
             data: {
-                name,
-                description,
-                country,
-                city,
-                type,
-                latitude,
-                longitude,
-                imageUrl,
-                website,
-                popularityScore: 0,
-            },
+                ...createData,
+                popularityScore: createData.popularityScore ?? 0,
+            } as Prisma.MuseumUncheckedCreateInput,
         });
 
         return successResponse(museum, 201);
-    } catch (err: any) {
-        if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
-        if (err.message === 'FORBIDDEN') return errorResponse('FORBIDDEN', 'Admin access required', 403);
+    } catch (err: unknown) {
+        if (isAdminError(err, 'UNAUTHORIZED')) return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
+        if (isAdminError(err, 'FORBIDDEN')) return errorResponse('FORBIDDEN', 'Admin access required', 403);
         console.error('Admin Museum POST Error:', err);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to create museum', 500);
     }
@@ -91,31 +219,25 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
     try {
         await requireAdmin();
-        const body = await req.json();
-        const { id } = body;
+        const body = unwrapMuseumPayload(await req.json());
+        const id = typeof body.id === 'string' ? body.id : '';
 
         if (!id) return errorResponse('BAD_REQUEST', 'Museum ID is required', 400);
 
         // Explicitly pick only allowed Museum fields to avoid Prisma errors.
         // Prisma's @updatedAt keeps the public "최근 업데이트" chip in sync when
-        // visit information, operating hours, or photos change through admin.
-        const updateData: any = {};
-        const allowedFields = ['name', 'nameKo', 'description', 'descriptionKo', 'country', 'city', 'cityKo', 'type', 'latitude', 'longitude', 'imageUrl', 'website', 'popularityScore', 'visitorInfo', 'openingHours', 'placePhotos', 'cachedPhotoUrls', 'lastPhotoSync', 'lastSyncedAt', 'sourceAttribution', 'primaryImageSource', 'primaryImageLicense', 'primaryImageAttribution'];
-        for (const field of allowedFields) {
-            if (body[field] !== undefined) {
-                updateData[field] = body[field];
-            }
-        }
+        // visit information, operating hours, ratings, or photos change through admin.
+        const updateData = normalizeMuseumPayload(body);
 
         const updated = await prisma.museum.update({
             where: { id },
-            data: updateData,
+            data: updateData as Prisma.MuseumUncheckedUpdateInput,
         });
 
         return successResponse(updated);
-    } catch (err: any) {
-        if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
-        if (err.message === 'FORBIDDEN') return errorResponse('FORBIDDEN', 'Admin access required', 403);
+    } catch (err: unknown) {
+        if (isAdminError(err, 'UNAUTHORIZED')) return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
+        if (isAdminError(err, 'FORBIDDEN')) return errorResponse('FORBIDDEN', 'Admin access required', 403);
         console.error('Admin Museum PUT Error:', err);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to update museum', 500);
     }
@@ -131,9 +253,9 @@ export async function DELETE(req: NextRequest) {
 
         await prisma.museum.delete({ where: { id } });
         return successResponse({ success: true });
-    } catch (err: any) {
-        if (err.message === 'UNAUTHORIZED') return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
-        if (err.message === 'FORBIDDEN') return errorResponse('FORBIDDEN', 'Admin access required', 403);
+    } catch (err: unknown) {
+        if (isAdminError(err, 'UNAUTHORIZED')) return errorResponse('UNAUTHORIZED', 'Admin access required', 401);
+        if (isAdminError(err, 'FORBIDDEN')) return errorResponse('FORBIDDEN', 'Admin access required', 403);
         console.error('Admin Museum DELETE Error:', err);
         return errorResponse('INTERNAL_SERVER_ERROR', 'Failed to delete museum', 500);
     }

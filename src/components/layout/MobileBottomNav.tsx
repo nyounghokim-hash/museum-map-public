@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent, PointerEvent } from 'react';
-import { createPortal } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
@@ -161,6 +161,9 @@ const styles = {
         color: '#64748b',
         textAlign: 'center',
         textDecoration: 'none',
+        touchAction: 'manipulation',
+        userSelect: 'none',
+        WebkitTapHighlightColor: 'transparent',
         transition: 'background 180ms ease, color 180ms ease, transform 180ms ease',
     } satisfies CSSProperties,
     tabActive: {
@@ -206,6 +209,9 @@ const styles = {
         background: 'linear-gradient(180deg,#2563eb 0%,#123fbd 100%)',
         boxShadow: '0 18px 36px rgba(37,99,235,.34), inset 0 1px 0 rgba(255,255,255,.32)',
         color: '#fff',
+        touchAction: 'manipulation',
+        userSelect: 'none',
+        WebkitTapHighlightColor: 'transparent',
     } satisfies CSSProperties,
     centerInactive: {
         background: '#fff',
@@ -262,6 +268,9 @@ const styles = {
         border: 0,
         background: 'transparent',
         color: '#0f172a',
+        touchAction: 'manipulation',
+        userSelect: 'none',
+        WebkitTapHighlightColor: 'transparent',
     } satisfies CSSProperties,
     divider: {
         width: 1,
@@ -376,7 +385,7 @@ export default function MobileBottomNav() {
             routes.forEach(prefetchRouteDocument);
             stampSession(NAV_DOCUMENT_PREFETCH_KEY);
         };
-        const cancelDocumentWarmup = scheduleIdleTask(warmDocuments, pathname === '/' ? 1800 : 900);
+        const cancelDocumentWarmup = scheduleIdleTask(warmDocuments, pathname === '/' ? 5000 : 2200);
         return () => {
             cancelDocumentWarmup?.();
         };
@@ -456,6 +465,24 @@ export default function MobileBottomNav() {
         prefetchRouteDocument(href);
     };
 
+    const showPendingImmediately = (href: string, closeCenterMenu = true) => {
+        try {
+            flushSync(() => {
+                if (closeCenterMenu) {
+                    setMenuOpen(false);
+                    setMenuClosing(false);
+                }
+                setPendingHref(href);
+            });
+        } catch {
+            if (closeCenterMenu) {
+                setMenuOpen(false);
+                setMenuClosing(false);
+            }
+            setPendingHref(href);
+        }
+    };
+
     const openRoute = (href: string, immediate = false) => {
         if (immediate) {
             navigateDocumentNow(href);
@@ -474,6 +501,7 @@ export default function MobileBottomNav() {
             return;
         }
         if (immediate) {
+            showPendingImmediately(href);
             openRoute(href, true);
             return;
         }
@@ -494,6 +522,7 @@ export default function MobileBottomNav() {
         if (recent?.href === href && now - recent.ts < 650) return;
         recentNavigationRef.current = { href, ts: now };
         if (immediate) {
+            showPendingImmediately(href);
             openRoute(href, true);
             return;
         }

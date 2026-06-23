@@ -9,6 +9,7 @@
     "lint": "eslint",
     "hours:template": "tsx scripts/template-opening-hours.ts",
     "hours:audit": "tsx scripts/audit-official-opening-hours.ts",
+    "hours:weekly": "tsx scripts/weekly-museum-data-audit.ts --config=docs/weekly-museum-data-audit.md",
     "postinstall": "prisma generate"
   },
   "dependencies": {
