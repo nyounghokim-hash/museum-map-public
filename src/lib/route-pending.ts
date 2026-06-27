@@ -94,12 +94,30 @@ export function navigateDocument(href: string, replace = false) {
     openDocument(href, replace);
 }
 
+export function backLikeBrowser(
+    fallbackHref = '/',
+    options: { replaceFallback?: boolean } = {},
+) {
+    if (typeof window === 'undefined') return;
+
+    if (window.history.length > 1) {
+        window.history.back();
+        return;
+    }
+
+    navigateDocument(fallbackHref, options.replaceFallback ?? true);
+}
+
 export function backWithFallback(
     fallbackHref = '/',
     locale?: string | null,
     options: { timeoutMs?: number; pendingOnFallback?: boolean } = {},
 ) {
     if (typeof window === 'undefined') return;
+    // Flag the back navigation so the destination can play its back-direction
+    // entrance animation (page-slide-in-back). Destinations consume + clear this
+    // with a short freshness guard; see RoutePendingReset (it no longer wipes it).
+    try { sessionStorage.setItem('navigating-back', String(Date.now())); } catch { }
     const timeoutMs = options.timeoutMs ?? 650;
     const shouldShowPending = options.pendingOnFallback === true;
     const currentPath = currentDocumentPath();

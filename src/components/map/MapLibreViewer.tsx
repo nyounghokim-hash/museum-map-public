@@ -1008,7 +1008,9 @@ export default function MapLibreViewer({
                 className="mm-cluster-popup2-item"
                 style={{ animation: `fadeInUp 0.25s ease-out ${idx * 0.04}s both` }}
                 onClick={() => {
-                  if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+                  // Keep the cluster list popup open so it is still there after the
+                  // user opens a museum detail and presses back. (Replaced by a new
+                  // cluster click / map-overlay dismiss as usual.)
                   onMapInteractionRef.current?.();
                   if (p?.id) onMuseumClickRef.current(p.id);
                 }}
@@ -1352,7 +1354,9 @@ export default function MapLibreViewer({
                 className="mm-cluster-popup2-item"
                 style={{ animation: `fadeInUp 0.25s ease-out ${idx * 0.04}s both` }}
                 onClick={() => {
-                  if (activePopupRef.current) { activePopupRef.current.remove(); activePopupRef.current = null; }
+                  // Keep the cluster list popup open so it is still there after the
+                  // user opens a museum detail and presses back. (Replaced by a new
+                  // cluster click / map-overlay dismiss as usual.)
                   onMapInteractionRef.current?.();
                   if (p?.id) onMuseumClickRef.current(p.id);
                 }}

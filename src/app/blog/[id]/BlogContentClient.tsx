@@ -1,5 +1,5 @@
 'use client';
-import { useState, useCallback, useEffect, useRef, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslatedText, useTranslatedTexts } from '@/hooks/useTranslation';
 import { useCachedTranslation } from '@/hooks/useCachedTranslation';
@@ -14,7 +14,8 @@ import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { translateViLabel, translateViValue } from '@/lib/visitorInfoI18n';
 import ReportModal from '@/components/ui/ReportModal';
-import { backWithFallback } from '@/lib/route-pending';
+import { consumeDetailReturnState, recordDetailReturnState, restoreDetailReturnScroll, type DetailReturnState } from '@/lib/detail-return-state';
+import { backLikeBrowser } from '@/lib/route-pending';
 
 const STORY_TRANSLATION_TOAST: Record<string, string> = {
     ko: '다국어 번역 중이에요',
@@ -351,7 +352,7 @@ function ArtworkModal({ work, onClose, translations, locale }: { work: any; onCl
     );
 }
 
-function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
+function ArtworkCards({ data, locale, storyId }: { data: any[]; locale: string; storyId: string | number }) {
     const allTexts = data ? data.flatMap((w: any) => [w.title || '', w.description || '']) : [];
     const translations = useTranslatedTexts(allTexts, locale as Locale);
     const [selectedWork, setSelectedWork] = useState<any>(null);
@@ -372,7 +373,14 @@ function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
                     <div
                         key={i}
                         className="mm-card min-w-[260px] max-w-[280px] flex-shrink-0 snap-start group cursor-pointer"
-                        onClick={() => work.id ? window.location.assign(`/artworks/${work.id}`) : setSelectedWork(work)}
+                        onClick={() => {
+                            if (!work.id) {
+                                setSelectedWork(work);
+                                return;
+                            }
+                            recordDetailReturnState('story', storyId);
+                            window.location.assign(`/artworks/${work.id}?fromStory=${encodeURIComponent(String(storyId))}`);
+                        }}
                     >
                         <div className="h-[180px] overflow-hidden" style={{ background: 'var(--mm-surface-secondary)' }}>
                             <SafeImage
@@ -411,7 +419,7 @@ function ArtworkCards({ data, locale }: { data: any[]; locale: string }) {
     );
 }
 
-function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string }) {
+function RelatedMuseums({ museums, locale, storyId }: { museums: any[]; locale: string; storyId: string | number }) {
     const [showAll, setShowAll] = useState(false);
     if (!museums || museums.length === 0) return null;
     const VISIBLE = 2;
@@ -427,6 +435,7 @@ function RelatedMuseums({ museums, locale }: { museums: any[]; locale: string })
                             const museumRouteId = await resolveMuseumRouteId(m);
                             if (!museumRouteId) return;
                             if (typeof window !== 'undefined') {
+                                recordDetailReturnState('story', storyId);
                                 sessionStorage.setItem('navigating-forward', String(Date.now()));
                             }
                             window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=story`);
@@ -480,6 +489,18 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const searchParams = useSearchParams();
 
     const effectiveLocale = locale || serverLocale;
+    const returnStateRef = useRef<DetailReturnState | null>(null);
+    const [isRestoringReturn, setIsRestoringReturn] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        const returnState = consumeDetailReturnState('story', post.id);
+        if (!returnState) return false;
+        returnStateRef.current = returnState;
+        try {
+            sessionStorage.removeItem('navigating-forward');
+            sessionStorage.removeItem('navigating-back');
+        } catch { }
+        return true;
+    });
     const [isFromBack, setIsFromBack] = useState(false);
     const isBackingRef = useRef(false);
     const fromMuseum = searchParams.get('fromMuseum');
@@ -492,9 +513,45 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
     const [portalReady, setPortalReady] = useState(false);
     const backPointerHandledRef = useRef(false);
 
+    useLayoutEffect(() => {
+        if (typeof document === 'undefined') return;
+        document.body.setAttribute('data-detail-open', 'true');
+        return () => {
+            document.body.removeAttribute('data-detail-open');
+        };
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const hideFloatingControlsDuringBack = () => {
+            setStoryBackVisible(false);
+            document.body.setAttribute('data-detail-open', 'true');
+        };
+        window.addEventListener('pagehide', hideFloatingControlsDuringBack);
+        window.addEventListener('popstate', hideFloatingControlsDuringBack, true);
+        return () => {
+            window.removeEventListener('pagehide', hideFloatingControlsDuringBack);
+            window.removeEventListener('popstate', hideFloatingControlsDuringBack, true);
+        };
+    }, []);
+
     // Check if we arrived via back navigation
     useEffect(() => {
         if (typeof window !== 'undefined') {
+            const returnState = returnStateRef.current || consumeDetailReturnState('story', post.id);
+            if (returnState) {
+                returnStateRef.current = null;
+                setIsRestoringReturn(true);
+                setIsFromBack(false);
+                try {
+                    sessionStorage.removeItem('navigating-forward');
+                    sessionStorage.removeItem('navigating-back');
+                } catch { }
+                restoreDetailReturnScroll(returnState);
+                return;
+            }
+            setIsRestoringReturn(false);
+
             const backTs = sessionStorage.getItem('navigating-back');
             if (backTs && Date.now() - parseInt(backTs) < 500) {
                 setIsFromBack(true);
@@ -539,8 +596,8 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
             target = normalizeInternalReturnTarget(document.referrer, currentPath);
         }
 
-        backWithFallback(target || '/blog', effectiveLocale, { timeoutMs: 650 });
-    }, [artworkBackHref, backHref, effectiveLocale, fromMap, pathname, searchParams]);
+        backLikeBrowser(target || '/blog');
+    }, [artworkBackHref, backHref, fromMap, pathname, searchParams]);
 
     const handleBackPointerDown = useCallback((event: PointerEvent<HTMLButtonElement>) => {
         if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
@@ -635,8 +692,10 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
         return () => observer.disconnect();
     }, []);
 
+    const transitionClass = isRestoringReturn ? '' : isFromBack ? 'page-slide-in-back' : 'page-slide-in';
+
     return (
-        <div className={`mm-editorial-page2 mm-story-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div className={`mm-editorial-page2 mm-story-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${transitionClass}`}>
             {/* Preview Image with fallback */}
             <div className="mm-detail-hero2 mm-story-detail-hero2 h-[340px] sm:h-[420px] lg:h-[520px] lg:rounded-[32px]">
                 <div className="mm-detail-round-actions">
@@ -711,7 +770,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 </h1>
 
                 {/* Related Museums — right below title */}
-                <RelatedMuseums museums={post.museums} locale={effectiveLocale} />
+                <RelatedMuseums museums={post.museums} locale={effectiveLocale} storyId={post.id} />
 
                 {/* 컬렉션으로 이동하기 버튼 — 컬렉션이 연결된 스토리만 표시 */}
                 {post.collectionId && (
@@ -747,7 +806,7 @@ export default function BlogContentClient({ post, serverLocale }: { post: any; s
                 <InfoTable data={post.infoTable} locale={effectiveLocale} />
 
                 {/* Artwork Cards */}
-                <ArtworkCards data={post.artworks} locale={effectiveLocale} />
+                <ArtworkCards data={post.artworks} locale={effectiveLocale} storyId={post.id} />
 
                 {/* Report Info Update */}
                 <div className="mt-10 pt-6 border-t border-gray-100 dark:border-neutral-800">

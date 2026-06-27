@@ -1,5 +1,5 @@
 /**
- * Localized name helper functions for Museum and Artwork entities.
+ * Localized name helper functions for Museum, Artwork, and Exhibition entities.
  * Uses JSON translations columns (nameTranslations, cityTranslations, etc.)
  * with fallback to Ko/En specific fields.
  */
@@ -35,6 +35,22 @@ export function getLocalizedArtworkTitle(artwork: any, locale: string): string {
     if (locale === 'ko') return artwork.titleKo || artwork.title;
     if (locale === 'en') return artwork.titleEn || artwork.title;
     return artwork.titleTranslations?.[locale] || artwork.titleEn || artwork.title;
+}
+
+/**
+ * Get localized exhibition title.
+ * Priority: titleTranslations[locale] → titleTranslations.en → title
+ */
+export function getLocalizedExhibitionTitle(exhibition: any, locale: string): string {
+    if (!exhibition) return '';
+    const translations = exhibition.titleTranslations;
+    if (translations && typeof translations === 'object' && !Array.isArray(translations)) {
+        const localized = translations[locale];
+        if (typeof localized === 'string' && localized.trim()) return localized;
+        const english = translations.en;
+        if (locale !== 'ko' && typeof english === 'string' && english.trim()) return english;
+    }
+    return exhibition.title || '';
 }
 
 /**

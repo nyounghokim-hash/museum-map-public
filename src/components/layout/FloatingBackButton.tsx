@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
 import { useApp } from '@/components/AppContext';
-import { backWithFallback, navigateDocument } from '@/lib/route-pending';
+import { backLikeBrowser, backWithFallback, navigateDocument } from '@/lib/route-pending';
 
 const FLOATING_BACK_ROUTES = new Set([
     '/admin',
@@ -98,6 +98,14 @@ export default function FloatingBackButton() {
             backingRef.current = false;
             setHiddenDuringBack(false);
         }, 1400);
+        if (pathname?.startsWith('/museums/') && typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('mm:museum-detail-back'));
+            return;
+        }
+        if (pathname?.startsWith('/blog/')) {
+            backLikeBrowser('/blog');
+            return;
+        }
         if (pathname === '/admin') {
             navigateDocument('/profile');
             return;

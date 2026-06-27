@@ -164,7 +164,7 @@ export default function ComparePage() {
     };
 
     return (
-        <div data-mm-page="compare" className="no-back-swipe mm-editorial-page2 mm-travel-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10 overflow-visible">
+        <div data-mm-page="compare" className="mm-nav-page-enter no-back-swipe mm-editorial-page2 mm-travel-page2 w-full lg:max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10 overflow-visible">
             {/* Header */}
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 <div className="mm-gallery-kicker mb-3">
@@ -229,10 +229,10 @@ export default function ComparePage() {
                 </>
             )}
 
-            {/* Compare Grid — mobile: horizontal scroll, lg+: flex-wrap */}
+            {/* Compare Board — horizontal scroll, not a carousel */}
             {(museums.length > 0 || loading) && (
-                <div className="overflow-x-auto lg:overflow-visible scrollbar-hide -mx-4 lg:mx-0 px-4 lg:px-0 pb-4">
-                    <div className="flex lg:flex-wrap gap-3 lg:gap-5 min-w-min lg:min-w-0 pb-1">
+                <div className="mm-compare-scroll-board -mx-4 lg:mx-0 px-4 lg:px-0 pb-4" role="region" aria-label={locale === 'ko' ? '비교 항목 스크롤' : 'Scrollable compare items'}>
+                    <div className="mm-compare-scroll-row">
                         {/* Museum Columns */}
                         {museums.map((museum) => (
                             <CompareColumn
@@ -249,7 +249,7 @@ export default function ComparePage() {
 
                         {/* Loading placeholders */}
                         {loading && compareIds.length > museums.length && Array.from({ length: compareIds.length - museums.length }).map((_, i) => (
-                            <div key={`skel-${i}`} className="w-[224px] sm:w-[248px] shrink-0">
+                            <div key={`skel-${i}`} className="mm-compare-column w-[224px] sm:w-[248px] shrink-0">
                                 <GlassPanel className="p-3 h-full !rounded-3xl">
                                     <div className="mm-skel-block w-full h-[168px] mb-3" />
                                     <div className="mm-skel-line h-5 w-3/4 mb-1.5" />
@@ -265,7 +265,7 @@ export default function ComparePage() {
                         {!isFull && (
                             <button
                                 onClick={openSearch}
-                                className="w-[224px] sm:w-[248px] shrink-0"
+                                className="mm-compare-add-column w-[224px] sm:w-[248px] shrink-0"
                             >
                                 <GlassPanel className="p-3 h-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 dark:border-neutral-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer group">
                                     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-neutral-800 flex items-center justify-center group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
@@ -281,7 +281,7 @@ export default function ComparePage() {
                         )}
 
                         {/* right-side spacer to match left gutter in horizontal scroll */}
-                        <div className="shrink-0 w-4 lg:hidden" aria-hidden="true" />
+                        <div className="mm-compare-scroll-spacer shrink-0 w-4" aria-hidden="true" />
                     </div>
                 </div>
             )}
@@ -330,7 +330,7 @@ function CompareColumn({ museum, locale, rows, onRemove, isRatingMax, isReviewsM
 
     return (
         <article
-            className="w-[224px] sm:w-[248px] shrink-0"
+            className="mm-compare-column w-[224px] sm:w-[248px] shrink-0"
             aria-label={name}
         >
             <GlassPanel className="p-0 overflow-hidden h-full flex flex-col">

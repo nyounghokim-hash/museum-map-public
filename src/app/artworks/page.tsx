@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo, type MouseEvent, type PointerEvent } from 'react';
 import { useApp } from '@/components/AppContext';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { Locale } from '@/lib/i18n';
 
 import * as gtag from '@/lib/gtag';
@@ -9,13 +9,14 @@ import { buildShareUrl } from '@/lib/utm';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
-import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
+import { lockMobileSearchChrome, primeMobileSearchChrome } from '@/lib/mobileSearchChrome';
 import { navigateDocument } from '@/lib/route-pending';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
+import { Shuffle } from 'lucide-react';
 
 const PAGE_LABELS: Record<string, { title: string; subtitle: string; loading: string; empty: string; viewMuseum: string; listTitle: string; countUnit: string; searchPlaceholder: string }> = {
-    ko: { title: '작품', subtitle: '세계 곳곳의 작품을 둘러보세요', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점', searchPlaceholder: '작품, 작가, 미술관 검색' },
+    ko: { title: '작품', subtitle: '세계 곳곳의 대표 작품을 살펴보세요.', loading: '작품을 불러오는 중이에요', empty: '아직 볼 수 있는 작품이 없어요', viewMuseum: '미술관 보기', listTitle: '작품 목록', countUnit: '점', searchPlaceholder: '작품, 작가, 미술관 검색' },
     en: { title: 'Artworks', subtitle: 'Featured artworks from around the world', loading: 'Loading...', empty: 'No artworks yet', viewMuseum: 'View Museum', listTitle: 'Artwork list', countUnit: 'works', searchPlaceholder: 'Search artworks, artists, museums...' },
     ja: { title: '作品', subtitle: '世界の代表作品を一目で', loading: '読み込み中...', empty: '作品はまだありません', viewMuseum: '美術館を見る', listTitle: '作品リスト', countUnit: '点', searchPlaceholder: '作品・作家・美術館を検索...' },
     de: { title: 'Kunstwerke', subtitle: 'Ausgewählte Kunstwerke aus aller Welt', loading: 'Laden...', empty: 'Noch keine Kunstwerke', viewMuseum: 'Museum ansehen', listTitle: 'Werkverzeichnis', countUnit: 'Werke', searchPlaceholder: 'Kunstwerke, Künstler, Museen suchen...' },
@@ -56,7 +57,7 @@ function SkeletonCard() {
 
 function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
     return (
-        <div data-mm-page="artworks" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div data-mm-page="artworks" className="mm-nav-page-enter no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 <div className="mm-skel-line w-20 mb-4 opacity-40" />
                 <div className="mm-skel-line h-8 w-40 mb-3 opacity-50" />
@@ -127,6 +128,7 @@ function translationValues(value: any): string[] {
 export default function ArtworksPage() {
     const { locale } = useApp();
     const searchParams = useSearchParams();
+    const router = useRouter();
     const museumIdFilter = searchParams.get('museumId') || '';
     const museumNameFilter = searchParams.get('museumName') || '';
     const cacheKey = museumIdFilter ? `${CACHE_KEY}_${museumIdFilter}` : CACHE_KEY;
@@ -282,7 +284,7 @@ export default function ArtworksPage() {
             sessionStorage.setItem(`mm-scroll-position-lock:${routeKey}`, String(Date.now()));
             sessionStorage.setItem('artwork-list-return', window.location.pathname + window.location.search);
         } catch { }
-        navigateDocument(`/artworks/${encodeURIComponent(artworkId)}`);
+        router.push(`/artworks/${encodeURIComponent(artworkId)}`);
     };
 
     const suppressArtworkClick = (id: string) => {
@@ -454,7 +456,7 @@ export default function ArtworksPage() {
     }
 
     return (
-        <div data-mm-page="artworks" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10" style={{ scrollbarGutter: 'stable' }}>
+        <div data-mm-page="artworks" className="mm-nav-page-enter no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10" style={{ scrollbarGutter: 'stable' }}>
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 {loading ? (
                     <>
@@ -473,9 +475,7 @@ export default function ArtworksPage() {
                                     className="w-10 h-10 flex items-center justify-center rounded-full bg-white/12 text-blue-100 border border-white/15 hover:bg-white/18 active:scale-90 transition-all"
                                     aria-label="Shuffle"
                                 >
-                                    <svg className={`w-4 h-4 transition-transform duration-500 ${shuffleSpinning ? 'rotate-[360deg]' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
-                                    </svg>
+                                    <Shuffle className={`h-3.5 w-3.5 transition-transform duration-500 ${shuffleSpinning ? 'rotate-[360deg]' : ''}`} aria-hidden="true" />
                                 </button>
                             )}
                         </div>
@@ -495,6 +495,8 @@ export default function ArtworksPage() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            onPointerDown={() => primeMobileSearchChrome()}
+                            onTouchStart={() => primeMobileSearchChrome()}
                             onFocus={() => setIsSearchFocused(true)}
                             onBlur={() => setIsSearchFocused(false)}
                             placeholder={labels.searchPlaceholder}
@@ -570,8 +572,8 @@ export default function ArtworksPage() {
                                         {(aw.artist || aw.artistKo) && <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-0.5 truncate">{getLocalizedArtistName(aw, locale)}</p>}
                                         <h3 className="font-bold text-[15px] truncate dark:text-white leading-tight">{getLocalizedArtworkTitle(aw, locale)}</h3>
                                         {museums.length > 0 && (
-                                            <p className="text-xs text-gray-400 dark:text-neutral-500 truncate mt-1.5 flex items-center gap-1">
-                                                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            <p className="text-xs text-gray-400 dark:text-neutral-500 truncate mt-1.5 flex items-center gap-1.5">
+                                                <svg className="w-3.5 h-3.5 flex-shrink-0 text-[#3b82f6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M5.25 21V9.75L12 4.5l6.75 5.25V21M9 21v-6h6v6M8.25 10.5h.008v.008H8.25v-.008Zm3.75 0h.008v.008H12v-.008Zm3.75 0h.008v.008h-.008v-.008Z" /></svg>
                                                 {getLocalizedMuseumName(museums[0], locale)}
                                             </p>
                                         )}

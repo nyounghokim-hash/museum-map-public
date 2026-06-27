@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo, type MouseEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
 import { buildShareUrl } from '@/lib/utm';
 import { useApp } from '@/components/AppContext';
 
@@ -10,7 +11,8 @@ import type { Locale } from '@/lib/i18n';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
-import { backWithFallback, navigateDocument } from '@/lib/route-pending';
+import { consumeDetailReturnState, recordDetailReturnState, restoreDetailReturnScroll, type DetailReturnState } from '@/lib/detail-return-state';
+import { backLikeBrowser, navigateDocument } from '@/lib/route-pending';
 
 
 
@@ -44,11 +46,29 @@ interface ArtworkDetailClientProps {
 export default function ArtworkDetailClient({ artworkId, serverLocale, initialData }: ArtworkDetailClientProps) {
     const { locale: appLocale } = useApp();
     const locale = appLocale || serverLocale;
+    const searchParams = useSearchParams();
+    const fromMuseum = searchParams.get('fromMuseum');
+    const fromStory = searchParams.get('fromStory');
+    const museumBackHref = fromMuseum && /^[A-Za-z0-9_-]+$/.test(fromMuseum) ? `/museums/${fromMuseum}` : null;
+    const storyBackHref = fromStory && /^[A-Za-z0-9_-]+$/.test(fromStory) ? `/blog/${fromStory}` : null;
+    const fallbackHref = museumBackHref || storyBackHref || '/artworks';
 
     const [artwork, setArtwork] = useState<any>(initialData || null);
     const [loading, setLoading] = useState(!initialData);
     const [imgLoaded, setImgLoaded] = useState(false);
     const [lightboxOpen, setLightboxOpen] = useState(false);
+    const returnStateRef = useRef<DetailReturnState | null>(null);
+    const [isRestoringReturn, setIsRestoringReturn] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        const returnState = consumeDetailReturnState('artwork', artworkId);
+        if (!returnState) return false;
+        returnStateRef.current = returnState;
+        try {
+            sessionStorage.removeItem('navigating-forward');
+            sessionStorage.removeItem('navigating-back');
+        } catch { }
+        return true;
+    });
     const [isFromBack, setIsFromBack] = useState(false);
     const [portalReady, setPortalReady] = useState(false);
     const isBackingRef = useRef(false);
@@ -61,6 +81,20 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     useEffect(() => {
         setPortalReady(true);
         if (typeof window !== 'undefined') {
+            const returnState = returnStateRef.current || consumeDetailReturnState('artwork', artworkId);
+            if (returnState) {
+                returnStateRef.current = null;
+                setIsRestoringReturn(true);
+                setIsFromBack(false);
+                try {
+                    sessionStorage.removeItem('navigating-forward');
+                    sessionStorage.removeItem('navigating-back');
+                } catch { }
+                restoreDetailReturnScroll(returnState);
+                return;
+            }
+            setIsRestoringReturn(false);
+
             const returnPath = sessionStorage.getItem('artwork-to-museum-return');
             const here = window.location.pathname + window.location.search;
             if (returnPath === here) sessionStorage.removeItem('artwork-to-museum-return');
@@ -71,7 +105,7 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
             }
             sessionStorage.removeItem('navigating-back');
         }
-    }, []);
+    }, [artworkId]);
 
     const handleBack = useCallback(() => {
         if (isBackingRef.current) return;
@@ -85,16 +119,16 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                 return;
             }
             if (historyState?.backAnchor) {
-                navigateDocument('/artworks', true);
+                navigateDocument(fallbackHref, true);
                 return;
             }
             if (window.history.length <= 1) {
-                navigateDocument('/artworks', true);
+                navigateDocument(fallbackHref, true);
                 return;
             }
         }
-        backWithFallback('/artworks', locale);
-    }, [locale]);
+        backLikeBrowser(fallbackHref);
+    }, [fallbackHref]);
 
     const handleBackPointerDown = useCallback((event: PointerEvent<HTMLButtonElement>) => {
         if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
@@ -195,11 +229,12 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
         const museumRouteId = await resolveMuseumRouteId(museum);
         if (!museumRouteId) return;
         if (typeof window !== 'undefined') {
+            recordDetailReturnState('artwork', artworkId);
             sessionStorage.setItem('navigating-forward', String(Date.now()));
             sessionStorage.setItem('artwork-to-museum-return', window.location.pathname + window.location.search);
         }
         window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork`);
-    }, []);
+    }, [artworkId]);
 
     if (loading) {
         return (
@@ -262,8 +297,10 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
     const displayDesc = getDisplayDesc();
     const displayArtist = getDisplayArtist();
 
+    const transitionClass = isRestoringReturn ? '' : isFromBack ? 'page-slide-in-back' : 'page-slide-in';
+
     return (
-        <div ref={containerRef} className={`mm-editorial-page2 mm-artwork-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${isFromBack ? 'page-slide-in-back' : 'page-slide-in'}`}>
+        <div ref={containerRef} className={`mm-editorial-page2 mm-artwork-detail-page2 w-full lg:max-w-[860px] mx-auto px-0 sm:px-6 pb-32 lg:pb-10 ${transitionClass}`}>
             <div className="mm-detail-hero2 w-full h-[420px] sm:h-[520px] bg-gray-100 dark:bg-neutral-800 sm:rounded-b-[32px] relative mt-0">
                 <div className="mm-detail-round-actions">
                     <button onPointerDown={handleBackPointerDown} onClick={handleBackClick} aria-label="Back" className="mm-detail-top-back">
@@ -461,6 +498,8 @@ export default function ArtworkDetailClient({ artworkId, serverLocale, initialDa
                                 <a
                                     key={s.id}
                                     href={`/blog/${s.id}?fromArtwork=${encodeURIComponent(artworkId)}`}
+                                    onPointerDown={() => recordDetailReturnState('artwork', artworkId)}
+                                    onClick={() => recordDetailReturnState('artwork', artworkId)}
                                     className="mm-artwork-detail-card2 flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-[0.98]"
                                 >
                                     {s.previewImage && (

@@ -193,7 +193,7 @@ export default function TermsPage() {
 
             <div className="bg-white dark:bg-neutral-900 rounded-3xl border border-gray-100 dark:border-neutral-800 shadow-sm overflow-hidden">
                 <div className="p-6 sm:p-10">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-2 tracking-tight">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
                         {activeTab === 'terms' ? g('tabTerms', locale) : g('tabPrivacy', locale)}
                     </h1>
                     <p className="text-xs text-gray-400 dark:text-neutral-500 mb-8">{g('lastUpdated', locale)}</p>

@@ -172,6 +172,7 @@ model Exhibition {
   id          String    @id @default(cuid())
   museumId    String
   title       String
+  titleTranslations Json?
   description String?
   startDate   DateTime?
   endDate     DateTime?

@@ -4,8 +4,22 @@ import { requireAdmin } from '@/lib/auth';
 import { successResponse, errorResponse } from '@/lib/api-utils';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const ADMIN_STORY_REWRITE_ALLOWED =
+  process.env.ALLOW_BILLABLE_API === '1' &&
+  process.env.ALLOW_GEMINI_API === '1' &&
+  process.env.BILLABLE_API_APPROVAL === 'gemini:admin-story-rewrite';
+
+const BILLABLE_STORY_REWRITE_BLOCKED =
+  'Gemini story rewriting is blocked by default. MM Story writing and rewriting must be done directly/local-first unless the user explicitly approves this exact paid run.';
 
 async function callGemini(prompt: string): Promise<string> {
+  if (!ADMIN_STORY_REWRITE_ALLOWED) {
+    throw new Error(BILLABLE_STORY_REWRITE_BLOCKED);
+  }
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is required after explicit paid-run approval.');
+  }
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
   
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -35,7 +49,7 @@ async function callGemini(prompt: string): Promise<string> {
 function koPrompt(title: string, museums: { nameKo?: string; name: string; city?: string; country?: string }[]) {
   const list = museums.map(m => `- ${m.nameKo || m.name} (${m.city || ''}, ${m.country || ''})`).join('\n');
 
-  return `당신은 전 세계 미술관을 직접 방문한 문화 여행 작가입니다.
+  return `당신은 박물관 공개 정보와 검증 가능한 맥락을 바탕으로 글을 쓰는 문화 여행 편집자입니다.
 
 ## 기본 정보
 - 제목: ${title}
@@ -46,8 +60,9 @@ ${list}
 
 【문체】 반드시 존댓말(~습니다, ~입니다, ~했습니다, ~볼 수 있습니다). 반말(~다, ~이다) 절대 금지.
 【분량】 3500~4500자 (HTML 태그 제외)
-【구조】 각 미술관별 독립 섹션 + 마지막 '방문 팁' (입장료, 운영시간, 교통, 근처 맛집)
+【구조】 각 미술관별 독립 섹션 + 마지막 '방문 팁' (확실한 범위의 교통/관람 동선 중심. 입장료·운영시간은 모르면 공식 사이트 확인으로 안내)
 【서사】 각 섹션마다 다른 서사 방식 (건축체험/대표작품/방문감상/역사맥락/주변연계 중 택1, 반복금지)
+【사실성】 직접 방문했다고 말하지 말 것. 확인되지 않은 작품, 요금, 운영시간, 맛집, 체험담을 만들지 말 것.
 【금지 표현】 "예술의 의미", "마무리", "~하도록 하자", "~하도록 하세요", "~살펴보도록", "~둘러보도록", "~감상해 보도록", "~방문하도록", "~확인하도록", 모든 "~도록" 류 반복 어미, "~바랍니다", "도시의 역사와 문화를 대표하는", "정성스럽게 큐레이션된", "컬렉션을 충분히 감상하려면 최소 반나절"
 【금지 기호】 마크다운(#, **, __)
 
@@ -62,7 +77,7 @@ HTML과 텍스트만. 코드블록/설명 불가.`;
 function enPrompt(title: string, museums: { nameKo?: string; name: string; city?: string; country?: string }[], koPeek: string) {
   const list = museums.map(m => `- ${m.name || m.nameKo} (${m.city || ''}, ${m.country || ''})`).join('\n');
 
-  return `You are a travel writer who has visited these museums firsthand.
+  return `You are a museum editor writing from public, verifiable context.
 
 ## Info
 - Title: ${title}
@@ -74,6 +89,7 @@ ${list}
 ## Rules
 - 3500-4500 chars (excl. HTML). One section per museum + Practical Tips at end.
 - Each section uses DIFFERENT narrative angle (architecture/artwork/essay/history/neighborhood). Never repeat.
+- Do not claim firsthand visits. Do not invent artworks, prices, opening hours, restaurants, or personal experience.
 - FORBIDDEN: "Final Thoughts", "stands as one of the city's most significant", "Travel is not merely about moving", "premier museum committed to", markdown (#, **, __)
 - Be specific and vivid.
 
@@ -123,6 +139,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     await requireAdmin();
+    if (!ADMIN_STORY_REWRITE_ALLOWED) {
+      return errorResponse('BILLABLE_API_BLOCKED', BILLABLE_STORY_REWRITE_BLOCKED, 403);
+    }
+
     const url = new URL(req.url);
     const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '5', 10) || 5, 1), 10);
     const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
@@ -168,7 +188,7 @@ export async function POST(req: NextRequest) {
           await (prisma as any).translationCache.deleteMany({
             where: { entityType: 'story', entityId: s.id },
           });
-        } catch (e) { /* ignore */ }
+        } catch { /* ignore */ }
 
         results.push({ id: s.id, title: s.titleKo || s.title, koLen, enLen, status: 'success' });
         await new Promise(r => setTimeout(r, 2500));

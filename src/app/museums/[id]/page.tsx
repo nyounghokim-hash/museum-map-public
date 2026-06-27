@@ -5,6 +5,21 @@ import { headers } from 'next/headers';
 import { transformMuseumPhotos } from '@/lib/photo-proxy';
 
 const SITE_URL = 'https://museummap.app';
+const OFFICIAL_EXHIBITION_SOURCE_PREFIX = 'OFFICIAL_';
+
+function getKoreaDateStart() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date());
+    const year = parts.find(part => part.type === 'year')?.value;
+    const month = parts.find(part => part.type === 'month')?.value;
+    const day = parts.find(part => part.type === 'day')?.value;
+    if (!year || !month || !day) return new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z');
+    return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
     const resolvedParams = await params;
@@ -75,6 +90,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function MuseumDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const resolvedParams = await params;
+    const today = getKoreaDateStart();
 
     // Fetch full museum data server-side (shared for JSON-LD + initialData)
     const museum = await (prisma as any).museum.findUnique({
@@ -84,7 +100,17 @@ export default async function MuseumDetailPage({ params }: { params: Promise<{ i
                 select: { id: true, title: true, titleKo: true, titleTranslations: true, artist: true, artistKo: true, artistTranslations: true, image: true, description: true, descriptionKo: true, year: true },
                 orderBy: { createdAt: 'asc' }
             },
-            exhibitions: true,
+            exhibitions: {
+                where: {
+                    source: { startsWith: OFFICIAL_EXHIBITION_SOURCE_PREFIX },
+                    endDate: { gte: today },
+                },
+                orderBy: [
+                    { startDate: 'asc' },
+                    { endDate: 'asc' },
+                    { createdAt: 'desc' },
+                ],
+            },
             reviews: {
                 take: 5,
                 orderBy: { createdAt: 'desc' },

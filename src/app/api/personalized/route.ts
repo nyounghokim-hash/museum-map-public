@@ -11,6 +11,11 @@ const LOCALE_LANG: Record<string, string> = {
     da: 'Dansk', fi: 'Suomi', sv: 'Svenska', et: 'Eesti',
 };
 
+const GEMINI_PERSONALIZED_ALLOWED =
+    process.env.ALLOW_BILLABLE_API === '1' &&
+    process.env.ALLOW_GEMINI_API === '1' &&
+    process.env.BILLABLE_API_APPROVAL === 'gemini:personalized-recommend';
+
 // In-memory cache: userId -> { data, timestamp }
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
@@ -125,8 +130,8 @@ export async function GET(req: NextRequest) {
         });
 
         // 4. Generate AI reasons
-        let reasons: Record<string, string> = {};
-        const apiKey = process.env.GEMINI_API_KEY;
+        const reasons: Record<string, string> = {};
+        const apiKey = GEMINI_PERSONALIZED_ALLOWED ? process.env.GEMINI_API_KEY : undefined;
 
         if (apiKey && recommended.length > 0) {
             try {

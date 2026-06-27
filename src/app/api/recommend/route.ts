@@ -168,6 +168,11 @@ const LOCALE_LANG: Record<string, string> = {
     da: 'Dansk', fi: 'Suomi', sv: 'Svenska', et: 'Eesti',
 };
 
+const GEMINI_RECOMMEND_ALLOWED =
+    process.env.ALLOW_BILLABLE_API === '1' &&
+    process.env.ALLOW_GEMINI_API === '1' &&
+    process.env.BILLABLE_API_APPROVAL === 'gemini:recommend';
+
 const RECOMMEND_SELECT = {
     id: true,
     name: true,
@@ -250,7 +255,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Query too long' }, { status: 400 });
         }
 
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = GEMINI_RECOMMEND_ALLOWED ? process.env.GEMINI_API_KEY : undefined;
         let filters: any = null;
         let usedAI = false;
 
@@ -396,7 +401,7 @@ User query: "${query.substring(0, 100)}"`;
 
 async function generateResponse(results: any[], query: string, locale: string, apiKey: string | undefined, usedAI: boolean, filters: any) {
     // Generate recommendation reasons via Gemini
-    let reasons: Record<string, string> = {};
+    const reasons: Record<string, string> = {};
     if (apiKey && results.length > 0) {
         try {
             const lang = LOCALE_LANG[locale] || 'English';

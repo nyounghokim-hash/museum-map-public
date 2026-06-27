@@ -1,5 +1,6 @@
 .git
 .next
+.next*
 .next.bak-*
 .next.local-bak-*
 .next 2

@@ -1,34 +1,35 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, MouseEvent, PointerEvent } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/components/AppContext';
 import LoginRequiredModal from '@/components/ui/LoginRequiredModal';
-import { clearRoutePending, navigateDocument } from '@/lib/route-pending';
+import { clearRoutePending } from '@/lib/route-pending';
 
-const NAV_LABELS: Record<string, { map: string; saved: string; plans: string; artworks: string; story: string; collection: string; compare: string }> = {
-    ko: { map: '홈', saved: '내 픽', plans: '내 여행', artworks: '작품', story: 'MM스토리', collection: '컬렉션', compare: '비교' },
-    en: { map: 'Home', saved: 'My Pick', plans: 'My Trips', artworks: 'Artworks', story: 'MM Story', collection: 'Collection', compare: 'Compare' },
-    ja: { map: 'ホーム', saved: '保存', plans: '旅行', artworks: '作品', story: 'MMストーリー', collection: 'コレクション', compare: '比較' },
-    de: { map: 'Start', saved: 'Merkliste', plans: 'Reisen', artworks: 'Werke', story: 'MM Story', collection: 'Sammlung', compare: 'Vergleich' },
-    fr: { map: 'Accueil', saved: 'Favoris', plans: 'Voyages', artworks: 'Œuvres', story: 'MM Story', collection: 'Collection', compare: 'Comparer' },
-    es: { map: 'Inicio', saved: 'Guardados', plans: 'Viajes', artworks: 'Obras', story: 'MM Story', collection: 'Colección', compare: 'Comparar' },
-    pt: { map: 'Início', saved: 'Salvos', plans: 'Viagens', artworks: 'Obras', story: 'MM Story', collection: 'Coleção', compare: 'Comparar' },
-    'zh-CN': { map: '首页', saved: '收藏', plans: '我的旅行', artworks: '作品', story: 'MM故事', collection: '收藏集', compare: '比较' },
-    'zh-TW': { map: '首頁', saved: '收藏', plans: '我的旅行', artworks: '作品', story: 'MM故事', collection: '收藏集', compare: '比較' },
-    da: { map: 'Hjem', saved: 'Gemt', plans: 'Rejser', artworks: 'Værker', story: 'MM Story', collection: 'Samling', compare: 'Sammenlign' },
-    fi: { map: 'Koti', saved: 'Tallennettu', plans: 'Matkat', artworks: 'Teokset', story: 'MM Story', collection: 'Kokoelma', compare: 'Vertaile' },
-    sv: { map: 'Hem', saved: 'Sparade', plans: 'Resor', artworks: 'Konst', story: 'MM Story', collection: 'Samling', compare: 'Jämför' },
-    et: { map: 'Avaleht', saved: 'Salvestatud', plans: 'Reisid', artworks: 'Teosed', story: 'MM Story', collection: 'Kogu', compare: 'Võrdle' },
+const NAV_LABELS: Record<string, { map: string; exhibitions: string; saved: string; plans: string; artworks: string; story: string; collection: string; compare: string; menu: string }> = {
+    ko: { map: '홈', exhibitions: '전시', saved: '내 픽', plans: '내 여행', artworks: '작품', story: 'MM스토리', collection: '컬렉션', compare: '비교', menu: '내 메뉴' },
+    en: { map: 'Home', exhibitions: 'Exhibitions', saved: 'My Pick', plans: 'My Trips', artworks: 'Artworks', story: 'MM Story', collection: 'Collection', compare: 'Compare', menu: 'My menu' },
+    ja: { map: 'ホーム', exhibitions: '展覧会', saved: '保存', plans: '旅行', artworks: '作品', story: 'MMストーリー', collection: 'コレクション', compare: '比較', menu: 'マイメニュー' },
+    de: { map: 'Start', exhibitions: 'Ausstellungen', saved: 'Merkliste', plans: 'Reisen', artworks: 'Werke', story: 'MM Story', collection: 'Sammlung', compare: 'Vergleich', menu: 'Mein Menü' },
+    fr: { map: 'Accueil', exhibitions: 'Expositions', saved: 'Favoris', plans: 'Voyages', artworks: 'Œuvres', story: 'MM Story', collection: 'Collection', compare: 'Comparer', menu: 'Mon menu' },
+    es: { map: 'Inicio', exhibitions: 'Exposiciones', saved: 'Guardados', plans: 'Viajes', artworks: 'Obras', story: 'MM Story', collection: 'Colección', compare: 'Comparar', menu: 'Mi menú' },
+    pt: { map: 'Início', exhibitions: 'Exposições', saved: 'Salvos', plans: 'Viagens', artworks: 'Obras', story: 'MM Story', collection: 'Coleção', compare: 'Comparar', menu: 'Meu menu' },
+    'zh-CN': { map: '首页', exhibitions: '展览', saved: '收藏', plans: '我的旅行', artworks: '作品', story: 'MM故事', collection: '收藏集', compare: '比较', menu: '我的菜单' },
+    'zh-TW': { map: '首頁', exhibitions: '展覽', saved: '收藏', plans: '我的旅行', artworks: '作品', story: 'MM故事', collection: '收藏集', compare: '比較', menu: '我的選單' },
+    da: { map: 'Hjem', exhibitions: 'Udstillinger', saved: 'Gemt', plans: 'Rejser', artworks: 'Værker', story: 'MM Story', collection: 'Samling', compare: 'Sammenlign', menu: 'Min menu' },
+    fi: { map: 'Koti', exhibitions: 'Näyttelyt', saved: 'Tallennettu', plans: 'Matkat', artworks: 'Teokset', story: 'MM Story', collection: 'Kokoelma', compare: 'Vertaile', menu: 'Oma valikko' },
+    sv: { map: 'Hem', exhibitions: 'Utställningar', saved: 'Sparade', plans: 'Resor', artworks: 'Konst', story: 'MM Story', collection: 'Samling', compare: 'Jämför', menu: 'Min meny' },
+    et: { map: 'Avaleht', exhibitions: 'Näitused', saved: 'Salvestatud', plans: 'Reisid', artworks: 'Teosed', story: 'MM Story', collection: 'Kogu', compare: 'Võrdle', menu: 'Minu menüü' },
 };
 
-const PUBLIC_PREFETCH_ROUTES = ['/', '/blog', '/artworks', '/collections'];
+const PUBLIC_PREFETCH_ROUTES = ['/', '/exhibitions', '/blog', '/artworks', '/collections'];
 const ACCOUNT_PREFETCH_ROUTES = ['/saved', '/plans', '/compare'];
 const MAP_OVERLAY_DISMISS_EVENT = 'mm:map-overlays-dismiss';
 const NAV_DOCUMENT_PREFETCH_KEY = 'mm-nav-document-prefetch-ts';
+const NAV_DATA_WARM_KEY = 'mm-nav-data-warm-ts';
 const NAV_DOCUMENT_PREFETCH_TTL_MS = 5 * 60 * 1000;
 const prefetchedRoutes = new Set<string>();
 
@@ -86,6 +87,7 @@ function normalizeRoutePath(href: string) {
 
 function routeTabKey(path: string) {
     if (path === '/') return 'map';
+    if (path.startsWith('/exhibitions')) return 'exhibitions';
     if (path.startsWith('/saved')) return 'saved';
     if (path.startsWith('/blog')) return 'story';
     if (path.startsWith('/artworks')) return 'artworks';
@@ -105,11 +107,19 @@ function prepareClientRouteChange() {
     window.dispatchEvent(new Event('mm:client-route-change-start'));
 }
 
-function navigateDocumentNow(href: string) {
-    if (typeof window === 'undefined') return;
-    if (window.location.pathname + window.location.search + window.location.hash === href) return;
-    clearRoutePending();
-    navigateDocument(href);
+// After a touch nav from the bottom nav, the menu/tab closes instantly while
+// client navigation keeps the old page mounted for a beat. The follow-up
+// synthetic click then lands on whatever is now under the finger (e.g. a Story
+// or Artwork card), navigating somewhere unintended. Swallow that one ghost
+// click document-wide.
+function suppressNextGhostClick() {
+    if (typeof document === 'undefined') return;
+    const handler = (event: Event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    };
+    document.addEventListener('click', handler, { capture: true, once: true });
+    window.setTimeout(() => document.removeEventListener('click', handler, true), 450);
 }
 
 const styles = {
@@ -182,7 +192,7 @@ const styles = {
         overflow: 'hidden',
         color: 'currentColor',
         fontSize: 11,
-        fontWeight: 900,
+        fontWeight: 500,
         lineHeight: 1.1,
         letterSpacing: 0,
         textOverflow: 'ellipsis',
@@ -247,35 +257,65 @@ const styles = {
         transform: 'translateX(-50%)',
         zIndex: 9999,
         bottom: 'calc(80px + env(safe-area-inset-bottom, 0px) + 12px)',
-        minWidth: 270,
-        display: 'flex',
-        overflow: 'hidden',
-        borderRadius: 24,
-        background: 'rgba(255,255,255,.97)',
-        border: '1px solid rgba(226,232,240,.88)',
-        boxShadow: '0 28px 70px rgba(15,23,42,.22)',
+        width: 'min(348px, calc(100vw - 38px))',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: 12,
+        padding: 14,
+        overflow: 'visible',
+        borderRadius: 30,
+        background: 'radial-gradient(circle at 50% 0%, rgba(219,234,254,.78) 0%, rgba(255,255,255,0) 46%), linear-gradient(180deg, rgba(255,255,255,.99) 0%, rgba(248,251,255,.97) 100%)',
+        border: '1px solid rgba(226,232,240,.92)',
+        boxShadow: '0 34px 78px rgba(15,23,42,.24), 0 0 0 1px rgba(255,255,255,.66), inset 0 1px 0 rgba(255,255,255,.94)',
         WebkitBackdropFilter: 'blur(18px) saturate(170%)',
         backdropFilter: 'blur(18px) saturate(170%)',
     } satisfies CSSProperties,
     menuButton: {
         flex: '1 1 0',
-        minWidth: 86,
+        minWidth: 0,
+        minHeight: 78,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 6,
-        padding: '13px 10px',
-        border: 0,
-        background: 'transparent',
+        justifyContent: 'center',
+        gap: 7,
+        padding: '12px 10px',
+        border: '1px solid rgba(147,197,253,.62)',
+        borderRadius: 22,
+        background: 'linear-gradient(180deg, rgba(255,255,255,.96) 0%, rgba(239,246,255,.88) 100%)',
+        boxShadow: '0 14px 30px rgba(37,99,235,.10), inset 0 1px 0 rgba(255,255,255,.88)',
         color: '#0f172a',
+        position: 'relative',
+        overflow: 'hidden',
         touchAction: 'manipulation',
         userSelect: 'none',
         WebkitTapHighlightColor: 'transparent',
+        transition: 'transform 150ms ease, box-shadow 150ms ease, background 150ms ease',
     } satisfies CSSProperties,
-    divider: {
-        width: 1,
-        margin: '10px 0',
-        background: 'rgba(226,232,240,.92)',
+    menuIconShell: {
+        width: 40,
+        height: 40,
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 16,
+        color: '#2563eb',
+        background: 'linear-gradient(180deg, rgba(239,246,255,.98) 0%, rgba(219,234,254,.78) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.92), 0 10px 20px rgba(37,99,235,.15)',
+    } satisfies CSSProperties,
+    menuLabel: {
+        minWidth: 0,
+        maxWidth: '100%',
+        overflow: 'hidden',
+        color: 'currentColor',
+        fontSize: 13,
+        fontWeight: 700,
+        lineHeight: 1.2,
+        letterSpacing: 0,
+        textAlign: 'center',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
     } satisfies CSSProperties,
     badge: {
         position: 'absolute',
@@ -295,31 +335,57 @@ const styles = {
     } satisfies CSSProperties,
 };
 
-function TabIcon({ name, active, pending }: { name: 'map' | 'saved' | 'story' | 'artworks'; active: boolean; pending?: boolean }) {
+type NavKey = 'map' | 'exhibitions' | 'saved' | 'story' | 'artworks' | 'plans' | 'collection' | 'compare';
+
+function TabIcon({ name, active, pending }: { name: 'map' | 'exhibitions' | 'story' | 'artworks'; active: boolean; pending?: boolean }) {
     const className = `w-6 h-6 ${active ? 'text-white' : 'text-slate-500 dark:text-slate-300'}`;
     const iconStyle = active && pending ? { color: 'rgba(255,255,255,.5)' } : undefined;
     const inactiveStrokeWidth = 1.45;
     if (name === 'map') {
         return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
     }
-    if (name === 'saved') {
-        return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>;
+    if (name === 'exhibitions') {
+        if (active) {
+            return (
+                <svg className={className} style={iconStyle} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7.25 3.25a1 1 0 0 1 1 1v1h7.5v-1a1 1 0 1 1 2 0v1h.25a3 3 0 0 1 3 3v.9H3v-.9a3 3 0 0 1 3-3h.25v-1a1 1 0 0 1 1-1Z" />
+                    <path d="M3 10.65h18v7.1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-7.1Zm5 3.2a1 1 0 1 0 0 2h4.75a1 1 0 1 0 0-2H8Zm0 3.2a1 1 0 1 0 0 2h7.75a1 1 0 1 0 0-2H8Z" />
+                </svg>
+            );
+        }
+        return <svg className={className} style={iconStyle} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 3.75v2.5M16.5 3.75v2.5M4.75 8.5h14.5M6.25 5.5h11.5a2 2 0 012 2v10.25a2 2 0 01-2 2H6.25a2 2 0 01-2-2V7.5a2 2 0 012-2Zm3.25 6.25h5M9.5 15h3" /></svg>;
     }
     if (name === 'story') {
+        if (active) {
+            const storyAccent = pending ? 'rgba(37,99,235,.42)' : 'rgba(37,99,235,.78)';
+            return (
+                <svg className={className} style={iconStyle} viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                        fill="currentColor"
+                        d="M5.85 3.25h8.85c.52 0 1.02.2 1.39.58l2.08 2.08c.37.37.58.87.58 1.39v10.45a3 3 0 0 1-3 3h-9.9a3 3 0 0 1-3-3V6.25a3 3 0 0 1 3-3Z"
+                    />
+                    <path fill={storyAccent} d="M14.5 3.55v2.7a1.75 1.75 0 0 0 1.75 1.75h2.65a.4.4 0 0 0-.12-.2l-3.98-4a.4.4 0 0 0-.3-.25Z" />
+                    <path fill={storyAccent} d="M7 7.05a.9.9 0 0 1 .9-.9h3.8a.9.9 0 0 1 .9.9v3a.9.9 0 0 1-.9.9H7.9a.9.9 0 0 1-.9-.9v-3Z" />
+                    <path fill={storyAccent} d="M7.25 13.1a.82.82 0 0 1 .82-.82h8.2a.82.82 0 1 1 0 1.64h-8.2a.82.82 0 0 1-.82-.82ZM7.25 16.35a.82.82 0 0 1 .82-.82h5.9a.82.82 0 0 1 0 1.64h-5.9a.82.82 0 0 1-.82-.82Z" />
+                </svg>
+            );
+        }
         return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2M7 16h6M7 8h6v4H7V8z" /></svg>;
     }
     return <svg className={className} style={iconStyle} fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke={active ? 'none' : 'currentColor'} strokeWidth={inactiveStrokeWidth}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
 }
 
-function MenuIcon({ name }: { name: 'plans' | 'collection' | 'compare' }) {
-    const color = '#2563eb';
+function MenuIcon({ name }: { name: 'saved' | 'plans' | 'collection' | 'compare' }) {
+    if (name === 'saved') {
+        return <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 4.5h10.5a1.5 1.5 0 011.5 1.5v14.25L12 16.75l-6.75 3.5V6a1.5 1.5 0 011.5-1.5Z" /></svg>;
+    }
     if (name === 'plans') {
-        return <svg className="w-5 h-5" style={{ color }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>;
+        return <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>;
     }
     if (name === 'collection') {
-        return <svg className="w-5 h-5" style={{ color }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
+        return <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
     }
-    return <svg className="w-5 h-5" style={{ color }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5 5 0 006 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5 5 0 006 0M18 7l3 9m-3-9l-6-2m0-2v18m0 0H9m3 0h3" /></svg>;
+    return <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5 5 0 006 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5 5 0 006 0M18 7l3 9m-3-9l-6-2m0-2v18m0 0H9m3 0h3" /></svg>;
 }
 
 function CenterMuseumIcon({ active, pending }: { active: boolean; pending?: boolean }) {
@@ -348,6 +414,7 @@ function CenterMuseumIcon({ active, pending }: { active: boolean; pending?: bool
 
 export default function MobileBottomNav() {
     const pathname = usePathname();
+    const router = useRouter();
     const { locale, darkMode } = useApp();
     const { data: session } = useSession();
     const isGuest = !session || session.user?.name?.startsWith('guest_');
@@ -381,9 +448,18 @@ export default function MobileBottomNav() {
         if (typeof window === 'undefined') return;
         const routes = isGuest ? PUBLIC_PREFETCH_ROUTES : [...PUBLIC_PREFETCH_ROUTES, ...ACCOUNT_PREFETCH_ROUTES];
         const warmDocuments = () => {
-            if (hasRecentSessionStamp(NAV_DOCUMENT_PREFETCH_KEY, NAV_DOCUMENT_PREFETCH_TTL_MS)) return;
-            routes.forEach(prefetchRouteDocument);
-            stampSession(NAV_DOCUMENT_PREFETCH_KEY);
+            if (!hasRecentSessionStamp(NAV_DOCUMENT_PREFETCH_KEY, NAV_DOCUMENT_PREFETCH_TTL_MS)) {
+                routes.forEach(prefetchRouteDocument);
+                stampSession(NAV_DOCUMENT_PREFETCH_KEY);
+            }
+            // Warm the public, cacheable Story list (/api/blog?view=list is
+            // public + s-maxage) so the Story tab shows data instantly on first
+            // visit. fetch() HTTP caching works on iOS where <link rel=prefetch>
+            // is ignored. Skipped on the Story tab itself (it fetches anyway).
+            if (pathname !== '/blog' && !hasRecentSessionStamp(NAV_DATA_WARM_KEY, NAV_DOCUMENT_PREFETCH_TTL_MS)) {
+                try { fetch('/api/blog?view=list').catch(() => { }); } catch { }
+                stampSession(NAV_DATA_WARM_KEY);
+            }
         };
         const cancelDocumentWarmup = scheduleIdleTask(warmDocuments, pathname === '/' ? 5000 : 2200);
         return () => {
@@ -409,7 +485,7 @@ export default function MobileBottomNav() {
         return () => window.clearTimeout(timer);
     }, [pathname, pendingHref]);
 
-    const showNavPages = ['/', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
+    const showNavPages = ['/', '/exhibitions', '/saved', '/blog', '/artworks', '/plans', '/collections', '/compare'];
     if (!showNavPages.includes(pathname) || detailOpen) return null;
 
     const labels = NAV_LABELS[locale] || NAV_LABELS.en;
@@ -418,10 +494,10 @@ export default function MobileBottomNav() {
     const visualTabKey = routeTabKey(visualPath);
     const pendingTargetPath = pendingHref ? normalizeRoutePath(pendingHref) : null;
     const pendingTabKey = pendingTargetPath ? routeTabKey(pendingTargetPath) : null;
-    const isVisuallyActive = (key: 'map' | 'saved' | 'story' | 'artworks' | 'plans' | 'collection' | 'compare') => visualTabKey === key;
-    const isLoadingActive = (key: 'map' | 'saved' | 'story' | 'artworks' | 'plans' | 'collection' | 'compare') => pendingTabKey === key && pendingTargetPath !== currentPath;
-    const isCenterActive = isVisuallyActive('plans') || isVisuallyActive('collection') || isVisuallyActive('compare');
-    const isCenterLoadingActive = isLoadingActive('plans') || isLoadingActive('collection') || isLoadingActive('compare');
+    const isVisuallyActive = (key: NavKey) => visualTabKey === key;
+    const isLoadingActive = (key: NavKey) => pendingTabKey === key && pendingTargetPath !== currentPath;
+    const isCenterActive = isVisuallyActive('saved') || isVisuallyActive('plans') || isVisuallyActive('collection') || isVisuallyActive('compare');
+    const isCenterLoadingActive = isLoadingActive('saved') || isLoadingActive('plans') || isLoadingActive('collection') || isLoadingActive('compare');
     const themedShellStyle = darkMode ? {
         background: 'rgba(7,20,38,.94)',
         borderTop: '1px solid rgba(96,165,250,.22)',
@@ -435,12 +511,21 @@ export default function MobileBottomNav() {
         border: '1px solid rgba(96,165,250,.22)',
     } satisfies CSSProperties : null;
     const themedMenuStyle = darkMode ? {
-        background: 'rgba(7,20,38,.96)',
+        background: 'radial-gradient(circle at 50% 0%, rgba(37,99,235,.24) 0%, rgba(37,99,235,0) 48%), linear-gradient(180deg, rgba(7,20,38,.98) 0%, rgba(5,15,30,.96) 100%)',
         border: '1px solid rgba(96,165,250,.22)',
-        boxShadow: '0 28px 70px rgba(0,0,0,.42)',
+        boxShadow: '0 30px 74px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.08)',
     } satisfies CSSProperties : null;
-    const themedMenuButtonStyle = darkMode ? { color: '#e2e8f0' } satisfies CSSProperties : null;
-    const themedDividerStyle = darkMode ? { background: 'rgba(96,165,250,.18)' } satisfies CSSProperties : null;
+    const themedMenuButtonStyle = darkMode ? {
+        color: '#e2e8f0',
+        background: 'linear-gradient(180deg, rgba(15,42,85,.76) 0%, rgba(8,22,44,.84) 100%)',
+        border: '1px solid rgba(96,165,250,.30)',
+        boxShadow: '0 14px 30px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08)',
+    } satisfies CSSProperties : null;
+    const themedMenuIconShellStyle = darkMode ? {
+        color: '#dbeafe',
+        background: 'linear-gradient(180deg, rgba(37,99,235,.48) 0%, rgba(15,23,42,.72) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,.12), 0 10px 20px rgba(0,0,0,.30)',
+    } satisfies CSSProperties : null;
 
     const closeMenu = () => {
         if (!menuOpen || menuClosing) return;
@@ -462,6 +547,7 @@ export default function MobileBottomNav() {
     };
 
     const prefetchRoute = (href: string) => {
+        try { router.prefetch(href); } catch { }
         prefetchRouteDocument(href);
     };
 
@@ -483,17 +569,22 @@ export default function MobileBottomNav() {
         }
     };
 
-    const openRoute = (href: string, immediate = false) => {
-        if (immediate) {
-            navigateDocumentNow(href);
-            return;
-        }
+    const openRoute = (href: string) => {
+        // All bottom-nav transitions use client navigation now (the theme-color
+        // meta removeChild crash is fixed). prepareClientRouteChange() fires
+        // mm:client-route-change-start so the map (when leaving it) tears down
+        // its overlays/renderer before React unmounts it. Entering the map just
+        // mounts MapLibre fresh on the client.
+        dismissMapOverlays();
         prepareClientRouteChange();
-        navigateDocumentNow(href);
+        clearRoutePending();
+        startTransition(() => {
+            router.push(href);
+        });
     };
 
     const goProtected = (href: string, immediate = false) => {
-        if (!immediate) dismissMapOverlays();
+        dismissMapOverlays();
         if (isGuest) {
             closeMenu();
             setLoginCallbackUrl(href);
@@ -502,7 +593,7 @@ export default function MobileBottomNav() {
         }
         if (immediate) {
             showPendingImmediately(href);
-            openRoute(href, true);
+            openRoute(href);
             return;
         }
         if (!immediate) {
@@ -511,11 +602,11 @@ export default function MobileBottomNav() {
         }
         setPendingHref(href);
         prefetchRoute(href);
-        openRoute(href, immediate);
+        openRoute(href);
     };
 
     const goRoute = (href: string, immediate = false) => {
-        if (!immediate) dismissMapOverlays();
+        dismissMapOverlays();
         if (href === pathname) return;
         const now = Date.now();
         const recent = recentNavigationRef.current;
@@ -523,7 +614,7 @@ export default function MobileBottomNav() {
         recentNavigationRef.current = { href, ts: now };
         if (immediate) {
             showPendingImmediately(href);
-            openRoute(href, true);
+            openRoute(href);
             return;
         }
         if (!immediate) {
@@ -532,7 +623,7 @@ export default function MobileBottomNav() {
         }
         setPendingHref(href);
         prefetchRoute(href);
-        openRoute(href, immediate);
+        openRoute(href);
     };
 
     const goPublic = (href: string, immediate = false) => {
@@ -548,7 +639,7 @@ export default function MobileBottomNav() {
 
     const tabsLeft = [
         { href: '/', key: 'map' as const, label: labels.map, active: isVisuallyActive('map') },
-        { href: '/saved', key: 'saved' as const, label: labels.saved, active: isVisuallyActive('saved'), auth: true },
+        { href: '/exhibitions', key: 'exhibitions' as const, label: labels.exhibitions, active: isVisuallyActive('exhibitions') },
     ];
     const tabsRight = [
         { href: '/blog', key: 'story' as const, label: labels.story, active: isVisuallyActive('story') },
@@ -559,7 +650,6 @@ export default function MobileBottomNav() {
         if (event.pointerType !== 'touch' && event.pointerType !== 'pen') {
             dismissMapOverlays();
             if (tab.href === pathname) return;
-            if ('auth' in tab && tab.auth && isGuest) return;
             setPendingHref(tab.href);
             prefetchRoute(tab.href);
             return;
@@ -567,18 +657,14 @@ export default function MobileBottomNav() {
 
         if (tab.href === pathname) {
             event.preventDefault();
+            dismissMapOverlays();
             return;
         }
 
         event.preventDefault();
-        if ('auth' in tab && tab.auth && isGuest) {
-            setLoginCallbackUrl(tab.href);
-            setLoginModalOpen(true);
-            return;
-        }
-
         tabTouchHandledRef.current = tab.href;
         goRoute(tab.href, true);
+        suppressNextGhostClick();
     };
 
     const handleTabClick = (tab: typeof tabsLeft[number] | typeof tabsRight[number]) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -588,12 +674,6 @@ export default function MobileBottomNav() {
             return;
         }
         dismissMapOverlays();
-        if ('auth' in tab && tab.auth && isGuest) {
-            event.preventDefault();
-            setLoginCallbackUrl(tab.href);
-            setLoginModalOpen(true);
-            return;
-        }
         if (tab.href === pathname) {
             event.preventDefault();
             return;
@@ -621,7 +701,7 @@ export default function MobileBottomNav() {
             style={{ ...styles.tab, ...(!tab.active || menuOpen ? themedInactiveTabStyle : null), ...(active ? styles.tabActive : null), ...(pendingHref === tab.href && !tab.active ? styles.tabPending : null) }}
         >
             <TabIcon name={tab.key} active={active} pending={loadingActive} />
-            <span style={{ ...styles.label, fontWeight: active ? 850 : 600, color: loadingActive ? 'rgba(255,255,255,.5)' : 'currentColor' }}>{tab.label}</span>
+            <span style={{ ...styles.label, fontWeight: active ? 600 : 500, color: loadingActive ? 'rgba(255,255,255,.5)' : 'currentColor' }}>{tab.label}</span>
         </a>
         );
     };
@@ -632,6 +712,7 @@ export default function MobileBottomNav() {
             menuTouchHandledRef.current = href;
             if (protectedRoute) goProtected(href, true);
             else goPublic(href, true);
+            suppressNextGhostClick();
             return;
         }
         primeMenuNavigation(href, protectedRoute);
@@ -653,19 +734,21 @@ export default function MobileBottomNav() {
                 <>
                     <div className={`mobile-nav-menu-overlay ${menuClosing ? 'is-closing' : ''}`} style={styles.overlay} onClick={closeMenu} />
                     <div className={`mobile-nav-center-menu ${menuClosing ? 'is-closing' : ''}`} style={{ ...styles.menu, ...themedMenuStyle }}>
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/plans', true)} onClick={handleMenuClick('/plans', true)}>
-                            <MenuIcon name="plans" />
-                            <span style={{ ...styles.label, fontWeight: 650 }}>{labels.plans}</span>
+                        <button type="button" className="mobile-nav-menu-action" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/plans', true)} onClick={handleMenuClick('/plans', true)}>
+                            <span style={{ ...styles.menuIconShell, ...themedMenuIconShellStyle }}><MenuIcon name="plans" /></span>
+                            <span className="mobile-nav-menu-label" style={styles.menuLabel}>{labels.plans}</span>
                         </button>
-                        <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/collections')} onClick={handleMenuClick('/collections')}>
-                            <MenuIcon name="collection" />
-                            <span style={{ ...styles.label, fontWeight: 650 }}>{labels.collection}</span>
+                        <button type="button" className="mobile-nav-menu-action" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/saved', true)} onClick={handleMenuClick('/saved', true)}>
+                            <span style={{ ...styles.menuIconShell, ...themedMenuIconShellStyle }}><MenuIcon name="saved" /></span>
+                            <span className="mobile-nav-menu-label" style={styles.menuLabel}>{labels.saved}</span>
                         </button>
-                        <div style={{ ...styles.divider, ...themedDividerStyle }} />
-                        <button type="button" style={{ ...styles.menuButton, ...themedMenuButtonStyle, position: 'relative' }} onPointerDown={handleMenuPointerDown('/compare', true)} onClick={handleMenuClick('/compare', true)}>
-                            <MenuIcon name="compare" />
-                            <span style={{ ...styles.label, fontWeight: 650 }}>{labels.compare}</span>
+                        <button type="button" className="mobile-nav-menu-action" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/collections')} onClick={handleMenuClick('/collections')}>
+                            <span style={{ ...styles.menuIconShell, ...themedMenuIconShellStyle }}><MenuIcon name="collection" /></span>
+                            <span className="mobile-nav-menu-label" style={styles.menuLabel}>{labels.collection}</span>
+                        </button>
+                        <button type="button" className="mobile-nav-menu-action" style={{ ...styles.menuButton, ...themedMenuButtonStyle }} onPointerDown={handleMenuPointerDown('/compare', true)} onClick={handleMenuClick('/compare', true)}>
+                            <span style={{ ...styles.menuIconShell, ...themedMenuIconShellStyle }}><MenuIcon name="compare" /></span>
+                            <span className="mobile-nav-menu-label" style={styles.menuLabel}>{labels.compare}</span>
                         </button>
                     </div>
                 </>
@@ -681,9 +764,10 @@ export default function MobileBottomNav() {
                             <button
                                 type="button"
                                 aria-expanded={menuOpen}
-                                aria-label={labels.plans}
+                                aria-pressed={isCenterActive || menuOpen}
+                                aria-label={labels.menu}
                                 className="mobile-nav-center-button"
-                                style={{ ...styles.centerButton, ...(!isCenterActive ? styles.centerInactive : null), ...(!isCenterActive ? themedCenterInactiveStyle : null), ...(menuOpen ? styles.centerPressed : null) }}
+                                style={{ ...styles.centerButton, ...(!isCenterActive ? styles.centerInactive : null), ...(!isCenterActive ? themedCenterInactiveStyle : null), ...((menuOpen || isCenterActive) ? styles.centerPressed : null) }}
                                 onPointerDown={(event) => {
                                     if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
                                     event.preventDefault();
@@ -710,7 +794,7 @@ export default function MobileBottomNav() {
             {(menuOpen || menuClosing) && (
                 <button
                     type="button"
-                    aria-label={labels.plans}
+                    aria-label={labels.menu}
                     className={`mobile-nav-center-button mobile-nav-center-button-floating md:hidden ${menuClosing ? 'is-closing' : ''}`}
                     style={{ ...styles.centerButton, ...styles.centerPressed, ...styles.centerFloatingButton }}
                     onClick={closeMenu}

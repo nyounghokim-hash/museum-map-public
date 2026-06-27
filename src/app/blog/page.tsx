@@ -6,7 +6,8 @@ import { useCachedTranslation } from '@/hooks/useCachedTranslation';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import { getMuseumImageSrc, isRenderableUrl } from '@/lib/getMuseumImage';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
-import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
+import { lockMobileSearchChrome, primeMobileSearchChrome } from '@/lib/mobileSearchChrome';
+import { useRouter } from 'next/navigation';
 import { navigateDocument } from '@/lib/route-pending';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import * as gtag from '@/lib/gtag';
@@ -535,7 +536,7 @@ function SmallStoryCard({ post, locale, onNavigate }: { post: any; locale: Local
 
 function BlogPageSkeleton() {
     return (
-        <div data-mm-page="blog" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
+        <div data-mm-page="blog" className="mm-nav-page-enter no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
                 <div className="mm-skel-line w-20 mb-4 opacity-40" />
                 <div className="mm-skel-line h-8 w-52 mb-3 opacity-50" />
@@ -677,6 +678,7 @@ function readBlogListCache(): any[] | null {
 }
 
 export default function BlogListPage() {
+    const router = useRouter();
     const { locale } = useApp();
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -713,7 +715,7 @@ const SORT_KEY = 'blog_sort';
             sessionStorage.setItem(SORT_KEY, sortMode);
             sessionStorage.setItem(STORY_RETURN_TO_KEY, `${window.location.pathname}${window.location.search}`);
         } catch { }
-        if (navigate) navigateDocument(`/blog/${id}`);
+        if (navigate) router.push(`/blog/${id}`);
     };
 
     useEffect(() => {
@@ -852,7 +854,7 @@ const SORT_KEY = 'blog_sort';
     if (loading) return <BlogPageSkeleton />;
 
     return (
-        <div data-mm-page="blog" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div data-mm-page="blog" className="mm-nav-page-enter no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6 animate-fadeInUp">
                 <div className="mm-gallery-kicker mb-3">{locale === 'ko' ? 'Curated' : 'Curated'}</div>
                 <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
@@ -895,6 +897,8 @@ const SORT_KEY = 'blog_sort';
                                 setSearchQuery(e.target.value);
                                 setPage(1);
                             }}
+                            onPointerDown={() => primeMobileSearchChrome()}
+                            onTouchStart={() => primeMobileSearchChrome()}
                             onFocus={() => setIsSearchFocused(true)}
                             onBlur={() => setIsSearchFocused(false)}
                             placeholder={searchLabels.placeholder}

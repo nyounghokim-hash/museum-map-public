@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { CircleCheck, ExternalLink, GalleryHorizontalEnd } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/glass';
 import PhotoCarousel from '@/components/ui/PhotoCarousel';
 import { buildMapLinks, isAndroidDevice, isAppleDevice, isKoreanMapTarget } from '@/lib/mapLinks';
@@ -15,7 +16,7 @@ import { useCachedTranslation } from '@/hooks/useCachedTranslation';
 import * as gtag from '@/lib/gtag';
 import { addMuseumView } from '@/lib/museum-history';
 import { getCountryName, getCityName } from '@/lib/countries';
-import { getLocalizedMuseumName, getLocalizedCityName, getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
+import { getLocalizedMuseumName, getLocalizedCityName, getLocalizedArtworkTitle, getLocalizedArtistName, getLocalizedExhibitionTitle } from '@/lib/getLocalizedName';
 import ReportModal from '@/components/ui/ReportModal';
 import { CameraIcon } from '@/components/ui/Icons';
 import { useCompare } from '@/hooks/useCompare';
@@ -26,7 +27,9 @@ import { findVisitorHoursItem, openingHoursToDisplaySource } from '@/lib/opening
 import { resolveMuseumOpenStatus } from '@/lib/openStatus';
 import { ACTIVE_TRIP_CHANGE_EVENT, getActiveTripForAccount, setActiveTripForAccount } from '@/lib/accountStorage';
 import { findTripStopForMuseum, isStopVisited, updateTripStopVisitState } from '@/lib/tripStatus';
+import { recordDetailReturnState } from '@/lib/detail-return-state';
 import { navigateDocument } from '@/lib/route-pending';
+import detailStyles from './MuseumDetailCard.module.css';
 
 import LoadingAnimation from '@/components/ui/LoadingAnimation';
 
@@ -47,6 +50,52 @@ const DETAIL_TRIP_VISIT_LABELS: Record<string, { title: string; mark: string; un
     fi: { title: 'Tämä matka', mark: 'Merkitse käydyksi', unmark: 'Kumoa käynti', saved: 'Käynti tallennettu', removed: 'Käyntimerkintä poistettu', failed: 'Käyntiä ei voitu tallentaa', removeFailed: 'Käyntimerkintää ei voitu poistaa', pending: 'Käytössä matkan alettua' },
     sv: { title: 'Den här resan', mark: 'Markera som besökt', unmark: 'Ångra besök', saved: 'Besök sparat', removed: 'Besöksmarkering borttagen', failed: 'Kunde inte spara besök', removeFailed: 'Kunde inte ta bort besöksmarkering', pending: 'Tillgängligt när resan startar' },
     et: { title: 'See reis', mark: 'Märgi külastatuks', unmark: 'Võta külastus tagasi', saved: 'Külastus salvestatud', removed: 'Külastuse märge eemaldati', failed: 'Külastust ei saanud salvestada', removeFailed: 'Külastuse märget ei saanud eemaldada', pending: 'Saadaval reisi alguses' },
+};
+
+type ExhibitionLabels = {
+    title: string;
+    count: (value: number) => string;
+    ongoing: string;
+    upcoming: string;
+    endsToday: string;
+    endsIn: (days: number) => string;
+    startsToday: string;
+    startsIn: (days: number) => string;
+    official: string;
+    period: string;
+    source: string;
+};
+
+const DETAIL_EXHIBITION_LABELS: Record<string, ExhibitionLabels> = {
+    ko: { title: '전시 소식', count: (value) => `${value}개`, ongoing: '전시 중', upcoming: '전시 예정', endsToday: '오늘 종료', endsIn: (days) => `종료 D-${days}`, startsToday: '오늘 시작', startsIn: (days) => `시작 D-${days}`, official: '공식 페이지', period: '전시 기간', source: '공식 확인' },
+    en: { title: 'Exhibitions', count: (value) => `${value}`, ongoing: 'On view', upcoming: 'Upcoming', endsToday: 'Ends today', endsIn: (days) => `Ends in ${days}d`, startsToday: 'Starts today', startsIn: (days) => `Starts in ${days}d`, official: 'Open exhibition page', period: 'Dates', source: 'Official' },
+    ja: { title: '展覧会', count: (value) => `${value}件`, ongoing: '開催中', upcoming: '開催予定', endsToday: '本日終了', endsIn: (days) => `終了まで${days}日`, startsToday: '本日開始', startsIn: (days) => `開始まで${days}日`, official: '展覧会ページへ', period: '会期', source: '公式確認' },
+    de: { title: 'Ausstellungen', count: (value) => `${value}`, ongoing: 'Läuft', upcoming: 'Demnächst', endsToday: 'Endet heute', endsIn: (days) => `Endet in ${days} T.`, startsToday: 'Beginnt heute', startsIn: (days) => `Beginnt in ${days} T.`, official: 'Ausstellungsseite öffnen', period: 'Zeitraum', source: 'Offiziell' },
+    fr: { title: 'Expositions', count: (value) => `${value}`, ongoing: 'En cours', upcoming: 'À venir', endsToday: 'Dernier jour', endsIn: (days) => `Fin dans ${days} j`, startsToday: 'Débute aujourd’hui', startsIn: (days) => `Débute dans ${days} j`, official: 'Ouvrir la page', period: 'Dates', source: 'Officiel' },
+    es: { title: 'Exposiciones', count: (value) => `${value}`, ongoing: 'En curso', upcoming: 'Próxima', endsToday: 'Termina hoy', endsIn: (days) => `Termina en ${days} d`, startsToday: 'Empieza hoy', startsIn: (days) => `Empieza en ${days} d`, official: 'Abrir página', period: 'Fechas', source: 'Oficial' },
+    pt: { title: 'Exposições', count: (value) => `${value}`, ongoing: 'Em cartaz', upcoming: 'Em breve', endsToday: 'Termina hoje', endsIn: (days) => `Termina em ${days} d`, startsToday: 'Começa hoje', startsIn: (days) => `Começa em ${days} d`, official: 'Abrir página', period: 'Período', source: 'Oficial' },
+    'zh-CN': { title: '展览', count: (value) => `${value}个`, ongoing: '展出中', upcoming: '即将展出', endsToday: '今日结束', endsIn: (days) => `${days}天后结束`, startsToday: '今日开始', startsIn: (days) => `${days}天后开始`, official: '打开展览页面', period: '展期', source: '官方确认' },
+    'zh-TW': { title: '展覽', count: (value) => `${value}個`, ongoing: '展出中', upcoming: '即將展出', endsToday: '今日結束', endsIn: (days) => `${days}天後結束`, startsToday: '今日開始', startsIn: (days) => `${days}天後開始`, official: '開啟展覽頁面', period: '展期', source: '官方確認' },
+    da: { title: 'Udstillinger', count: (value) => `${value}`, ongoing: 'Vises nu', upcoming: 'Kommende', endsToday: 'Slutter i dag', endsIn: (days) => `Slutter om ${days} d`, startsToday: 'Starter i dag', startsIn: (days) => `Starter om ${days} d`, official: 'Åbn udstillingsside', period: 'Periode', source: 'Officiel' },
+    fi: { title: 'Näyttelyt', count: (value) => `${value}`, ongoing: 'Käynnissä', upcoming: 'Tulossa', endsToday: 'Päättyy tänään', endsIn: (days) => `Päättyy ${days} pv`, startsToday: 'Alkaa tänään', startsIn: (days) => `Alkaa ${days} pv`, official: 'Avaa näyttelysivu', period: 'Aika', source: 'Virallinen' },
+    sv: { title: 'Utställningar', count: (value) => `${value}`, ongoing: 'Pågår', upcoming: 'Kommande', endsToday: 'Slutar idag', endsIn: (days) => `Slutar om ${days} d`, startsToday: 'Börjar idag', startsIn: (days) => `Börjar om ${days} d`, official: 'Öppna utställningssida', period: 'Period', source: 'Officiell' },
+    et: { title: 'Näitused', count: (value) => `${value}`, ongoing: 'Avatud', upcoming: 'Tulekul', endsToday: 'Lõpeb täna', endsIn: (days) => `Lõpeb ${days} p`, startsToday: 'Algab täna', startsIn: (days) => `Algab ${days} p`, official: 'Ava näituse leht', period: 'Aeg', source: 'Ametlik' },
+};
+
+const DATE_FORMAT_LOCALES: Record<string, string> = {
+    ko: 'ko-KR',
+    en: 'en-US',
+    ja: 'ja-JP',
+    de: 'de-DE',
+    fr: 'fr-FR',
+    es: 'es-ES',
+    pt: 'pt-PT',
+    'zh-CN': 'zh-CN',
+    'zh-TW': 'zh-TW',
+    da: 'da-DK',
+    fi: 'fi-FI',
+    sv: 'sv-SE',
+    et: 'et-EE',
 };
 
 // Skeleton pulse component for translation loading
@@ -89,6 +138,25 @@ const DAY_ALIASES: Record<string, keyof typeof DAY_LABELS> = {
     토요일: 'Saturday',
     일요일: 'Sunday',
 };
+
+function ExhibitionVenueGlyph({ className = '' }: { className?: string }) {
+    return (
+        <svg
+            className={className}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.7}
+            aria-hidden="true"
+        >
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3.75 21h16.5M5.25 21V9.75L12 4.5l6.75 5.25V21M9 21v-6h6v6M8.25 10.5h.008v.008H8.25v-.008Zm3.75 0h.008v.008H12v-.008Zm3.75 0h.008v.008h-.008v-.008Z"
+            />
+        </svg>
+    );
+}
 
 const HOURS_STATUS: Record<string, Record<string, string>> = {
     closed: {
@@ -701,6 +769,23 @@ function shuffleWithImagesFirst(artworks: any[]) {
     return [...shuffle(withImages), ...shuffle(withoutImages)];
 }
 
+function stabilizeMuseumDetailHistoryEntry(museumId: string) {
+    if (typeof window === 'undefined') return;
+    if (!/^[A-Za-z0-9_-]+$/.test(museumId)) return;
+    try {
+        const currentPath = window.location.pathname;
+        const isMapPanelEntry = currentPath === '/' || Boolean(window.history.state?.museumPanel);
+        if (!isMapPanelEntry) return;
+        const detailPath = `/museums/${encodeURIComponent(museumId)}`;
+        if (`${window.location.pathname}${window.location.search}` === detailPath) return;
+        window.history.replaceState(
+            { ...(window.history.state || {}), museumDetailReturn: true },
+            '',
+            detailPath,
+        );
+    } catch { }
+}
+
 function getViewAllLabel(locale: string) {
     const labels: Record<string, string> = {
         ko: '전체보기',
@@ -718,6 +803,155 @@ function getViewAllLabel(locale: string) {
         et: 'Vaata kõiki',
     };
     return labels[locale] || labels.en;
+}
+
+type MuseumExhibition = {
+    id?: string;
+    title?: string | null;
+    titleTranslations?: Record<string, string> | null;
+    description?: string | null;
+    startDate?: string | Date | null;
+    endDate?: string | Date | null;
+    imageUrl?: string | null;
+    link?: string | null;
+    source?: string | null;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const KOREAN_EXHIBITION_VENUE_REPLACEMENTS: Array<[RegExp, string]> = [
+    [/\bSpecial Exhibitions Central\b/gi, '특별전 중앙 갤러리'],
+    [/\bSpecial Exhibition Galleries\b/gi, '특별전 갤러리'],
+    [/\bSpecial Exhibition Gallery\b/gi, '특별전 갤러리'],
+    [/\bTemporary Exhibition Gallery\b/gi, '기획전시실'],
+    [/\bExhibition Galleries\b/gi, '전시 갤러리'],
+    [/\bGalleries\b/gi, '갤러리'],
+    [/\bGallery\b/gi, '갤러리'],
+];
+
+function escapeRegExp(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeDisplayText(value: string | null | undefined) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function removeMuseumNamePrefix(value: string, museumNames: string[]) {
+    let cleaned = normalizeDisplayText(value);
+    for (const rawName of museumNames) {
+        const museumName = normalizeDisplayText(rawName);
+        if (!museumName) continue;
+        if (cleaned === museumName) return '';
+        const next = cleaned.replace(new RegExp(`^${escapeRegExp(museumName)}(?:\\s*[-–—:·,]\\s*|\\s+)`, 'i'), '').trim();
+        if (next !== cleaned) {
+            cleaned = next;
+            break;
+        }
+    }
+    return cleaned;
+}
+
+function getLocalizedExhibitionVenue(description: string | null | undefined, locale: string, museumNames: string[]) {
+    let venue = removeMuseumNamePrefix(description || '', museumNames);
+    if (!venue) return '';
+    if (locale === 'ko') {
+        KOREAN_EXHIBITION_VENUE_REPLACEMENTS.forEach(([pattern, replacement]) => {
+            venue = venue.replace(pattern, replacement);
+        });
+    }
+    return normalizeDisplayText(venue);
+}
+
+function getKoreaDateOnly(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(date);
+    const year = parts.find(part => part.type === 'year')?.value;
+    const month = parts.find(part => part.type === 'month')?.value;
+    const day = parts.find(part => part.type === 'day')?.value;
+    return year && month && day ? `${year}-${month}-${day}` : date.toISOString().slice(0, 10);
+}
+
+function getDateOnly(value: string | Date | null | undefined) {
+    if (!value) return null;
+    if (typeof value === 'string') {
+        const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dateOnly) return `${dateOnly[1]}-${dateOnly[2]}-${dateOnly[3]}`;
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+    }
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+    return null;
+}
+
+function dateOnlyToMs(value: string | null) {
+    if (!value) return null;
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+    return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function formatExhibitionDate(value: string | Date | null | undefined, locale: string) {
+    const dateOnly = getDateOnly(value);
+    const dateMs = dateOnlyToMs(dateOnly);
+    if (dateMs == null) return '';
+    return new Intl.DateTimeFormat(DATE_FORMAT_LOCALES[locale] || DATE_FORMAT_LOCALES.en, {
+        timeZone: 'UTC',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    }).format(new Date(dateMs));
+}
+
+function formatExhibitionDateRange(exhibition: MuseumExhibition, locale: string) {
+    const start = formatExhibitionDate(exhibition.startDate, locale);
+    const end = formatExhibitionDate(exhibition.endDate, locale);
+    if (start && end) return `${start} - ${end}`;
+    return start || end || '';
+}
+
+function getExhibitionTiming(exhibition: MuseumExhibition, labels: ExhibitionLabels, todayDateOnly: string) {
+    const startMs = dateOnlyToMs(getDateOnly(exhibition.startDate));
+    const endMs = dateOnlyToMs(getDateOnly(exhibition.endDate));
+    const todayMs = dateOnlyToMs(todayDateOnly) || Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+    const isUpcoming = startMs != null && startMs > todayMs;
+    if (isUpcoming) {
+        const startsIn = Math.ceil((startMs - todayMs) / DAY_MS);
+        return {
+            isUpcoming,
+            status: labels.upcoming,
+            tag: startsIn <= 0 ? labels.startsToday : labels.startsIn(startsIn),
+        };
+    }
+    const endsIn = endMs == null ? null : Math.ceil((endMs - todayMs) / DAY_MS);
+    return {
+        isUpcoming,
+        status: labels.ongoing,
+        tag: endsIn == null ? '' : endsIn <= 0 ? labels.endsToday : labels.endsIn(endsIn),
+    };
+}
+
+function getVisibleExhibitions(exhibitions: MuseumExhibition[] | undefined, todayDateOnly: string) {
+    const todayMs = dateOnlyToMs(todayDateOnly) || 0;
+    return (Array.isArray(exhibitions) ? exhibitions : [])
+        .filter((exhibition) => {
+            const endMs = dateOnlyToMs(getDateOnly(exhibition.endDate));
+            return Boolean(getLocalizedExhibitionTitle(exhibition, 'ko') && endMs != null && endMs >= todayMs);
+        })
+        .sort((a, b) => {
+            const aStart = dateOnlyToMs(getDateOnly(a.startDate)) ?? Number.MAX_SAFE_INTEGER;
+            const bStart = dateOnlyToMs(getDateOnly(b.startDate)) ?? Number.MAX_SAFE_INTEGER;
+            if (aStart !== bStart) return aStart - bStart;
+            return String(a.title || '').localeCompare(String(b.title || ''));
+        });
+}
+
+function hasVerifiedOfficialExhibitionBadge(exhibition: MuseumExhibition) {
+    const source = String(exhibition.source || '');
+    return source.startsWith('OFFICIAL_') && !/(NEEDS_RECHECK|UNVERIFIED|PENDING|HOLD)/i.test(source);
 }
 
 // Sub-component for rendering a single artwork card with translated text
@@ -761,6 +995,83 @@ function ArtworkCard({ work, locale, cachedTranslations, index, onClick, fullWid
     );
 }
 
+function ExhibitionCard({ exhibition, labels, locale, todayDateOnly, fullWidth, museumName, museumNameAliases }: { exhibition: MuseumExhibition; labels: ExhibitionLabels; locale: string; todayDateOnly: string; fullWidth?: boolean; museumName?: string; museumNameAliases?: string[] }) {
+    const [imgError, setImgError] = useState(false);
+    const timing = getExhibitionTiming(exhibition, labels, todayDateOnly);
+    const dateRange = formatExhibitionDateRange(exhibition, locale);
+    const imageSrc = exhibition.imageUrl && !imgError ? exhibition.imageUrl : '/logo.svg';
+    const title = getLocalizedExhibitionTitle(exhibition, locale);
+    const showOfficialBadge = hasVerifiedOfficialExhibitionBadge(exhibition);
+    const endMs = dateOnlyToMs(getDateOnly(exhibition.endDate));
+    const todayMs = dateOnlyToMs(todayDateOnly) || 0;
+    const daysUntilEnd = endMs == null ? null : Math.ceil((endMs - todayMs) / DAY_MS);
+    const endingSoon = !timing.isUpcoming && daysUntilEnd != null && daysUntilEnd >= 0 && daysUntilEnd <= 20;
+    const venue = getLocalizedExhibitionVenue(exhibition.description, locale, museumNameAliases || []);
+    const cardContent = (
+        <>
+            <div className="mm-exhibition-image">
+                <img
+                    src={imageSrc}
+                    alt={title}
+                    onError={() => setImgError(true)}
+                    className={exhibition.imageUrl && !imgError ? '' : 'mm-empty-logo dark:invert'}
+                />
+                {showOfficialBadge && (
+                    <span className="mm-exhibition-source-badge" aria-label={labels.source} title={labels.source}>
+                        <CircleCheck aria-hidden="true" />
+                    </span>
+                )}
+                {exhibition.link && (
+                    <a
+                        href={exhibition.link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mm-exhibition-link"
+                        aria-label={labels.official}
+                        title={labels.official}
+                    >
+                        <ExternalLink aria-hidden="true" />
+                    </a>
+                )}
+                <div className="mm-exhibition-topline">
+                    <span className={`mm-exhibition-status ${timing.isUpcoming ? 'is-upcoming' : 'is-ongoing'}`}>
+                        {timing.status}
+                    </span>
+                    {timing.tag && (
+                        <span className="mm-exhibition-dday">{timing.tag}</span>
+                    )}
+                </div>
+            </div>
+            <div className="mm-exhibition-copy">
+                <h4>{title}</h4>
+                {dateRange && (
+                    <p className="mm-exhibition-period" aria-label={`${labels.period}: ${dateRange}`}>
+                        <span>{dateRange}</span>
+                    </p>
+                )}
+                {museumName && (
+                    <p className="mm-exhibition-museum">
+                        <ExhibitionVenueGlyph className="mm-exhibition-museum-icon" />
+                        <strong>{museumName}</strong>
+                    </p>
+                )}
+                {venue && (
+                    <p className="mm-exhibition-description">{venue}</p>
+                )}
+            </div>
+        </>
+    );
+
+    return (
+        <article
+            className={`mm-exhibition-card ${fullWidth ? 'is-single-card' : ''} ${exhibition.link ? 'has-official-link' : ''} ${timing.isUpcoming ? 'is-upcoming-card' : 'is-ongoing-card'} ${endingSoon ? 'is-ending-soon' : ''}`}
+            style={{ borderRadius: 'var(--mm-art-card-radius)' }}
+        >
+            <div className="mm-exhibition-card-main">{cardContent}</div>
+        </article>
+    );
+}
+
 export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSaveChange, onMoveToLocation, initialData }: { museumId: string; onClose?: () => void; isMapContext?: boolean; onSaveChange?: () => void; onMoveToLocation?: () => void; initialData?: any }) {
     const [data, setData] = useState<any>(initialData || null);
     const { locale } = useApp();
@@ -798,6 +1109,8 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         if (!artworkId) return;
         if (typeof window !== 'undefined') {
             try {
+                stabilizeMuseumDetailHistoryEntry(museumId);
+                recordDetailReturnState('museum', museumId);
                 sessionStorage.setItem(RETURN_TO_MUSEUM_DETAIL_KEY, JSON.stringify({
                     museumId,
                     fromMap: !!isMapContext,
@@ -817,12 +1130,13 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         if (museumName) params.set('museumName', museumName);
         if (typeof window !== 'undefined') {
             try {
+                stabilizeMuseumDetailHistoryEntry(museumId);
+                recordDetailReturnState('museum', museumId);
                 sessionStorage.setItem(RETURN_TO_MUSEUM_DETAIL_KEY, JSON.stringify({
                     museumId,
                     fromMap: !!isMapContext,
                     ts: Date.now(),
                 }));
-                sessionStorage.setItem('navigating-forward', String(Date.now()));
             } catch { }
         }
         window.location.assign(`/artworks?${params.toString()}`);
@@ -1038,6 +1352,13 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         } catch { }
     };
 
+    const todayDateOnly = getKoreaDateOnly();
+    const exhibitionLabels = DETAIL_EXHIBITION_LABELS[locale] || DETAIL_EXHIBITION_LABELS.en;
+    const activeExhibitions = useMemo(
+        () => getVisibleExhibitions(data?.exhibitions, todayDateOnly),
+        [data?.exhibitions, todayDateOnly],
+    );
+
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-20 min-h-[400px]">
             <LoadingAnimation size={120} />
@@ -1048,6 +1369,16 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
     const featuredArtworks = shuffledArtworks.slice(0, FEATURED_ARTWORK_PREVIEW_LIMIT);
     const totalArtworkCount = Number(data?._count?.artworks) || Number(data?.artworkCount) || data?.artworks?.length || featuredArtworks.length;
     const hasMoreFeaturedArtworks = totalArtworkCount > featuredArtworks.length;
+    const exhibitionMuseumName = getLocalizedMuseumName(data, locale) || data?.nameKo || data?.name || '';
+    const exhibitionMuseumNameAliases = Array.from(new Set([
+        exhibitionMuseumName,
+        data?.nameKo,
+        data?.name,
+        data?.nameEn,
+        ...(data?.nameTranslations && typeof data.nameTranslations === 'object' && !Array.isArray(data.nameTranslations)
+            ? Object.values(data.nameTranslations).map((value) => typeof value === 'string' ? value : '')
+            : []),
+    ].map(normalizeDisplayText).filter(Boolean)));
     const isKoreanDestination = isKoreanMapTarget(data.country);
     const mapTargetName = isKoreanDestination
         ? (data.nameKo || data.name || getLocalizedMuseumName(data, locale))
@@ -1311,6 +1642,21 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
         sv: 'Öppettider kan ändras beroende på läget på plats eller officiella meddelanden.',
         et: 'Lahtiolekuajad võivad muutuda kohapealsete olude või ametlike teadete järgi.',
     } as Record<string, string>)[locale] || 'Hours may change depending on onsite conditions or official notices.';
+    const lastAdmissionNote = ({
+        ko: '운영 종료 30분~1시간 전 입장마감인 곳이 있을 수 있어요.',
+        en: 'Some places may close admission 30 minutes to 1 hour before closing time.',
+        ja: '閉館30分〜1時間前に入場締切となる場合があります。',
+        de: 'Manche Häuser schließen den Einlass 30 Minuten bis 1 Stunde vor der Schließzeit.',
+        fr: 'Certains lieux peuvent arrêter les entrées 30 minutes à 1 heure avant la fermeture.',
+        es: 'Algunos lugares pueden cerrar el acceso entre 30 minutos y 1 hora antes del cierre.',
+        pt: 'Alguns locais podem encerrar a entrada de 30 minutos a 1 hora antes do fechamento.',
+        'zh-CN': '部分场馆可能会在闭馆前30分钟至1小时停止入场。',
+        'zh-TW': '部分場館可能會在閉館前30分鐘至1小時停止入場。',
+        da: 'Nogle steder kan lukke for indgang 30 minutter til 1 time før lukketid.',
+        fi: 'Joissakin kohteissa sisäänpääsy voi päättyä 30 minuuttia - 1 tunti ennen sulkemista.',
+        sv: 'Vissa platser kan stänga insläppet 30 minuter till 1 timme före stängning.',
+        et: 'Mõnes kohas võib sissepääs lõppeda 30 minutit kuni 1 tund enne sulgemist.',
+    } as Record<string, string>)[locale] || 'Some places may close admission 30 minutes to 1 hour before closing time.';
     const directionsSheetLabels = ({
         ko: { title: '지도 앱 선택', desc: '어떤 지도에서 길찾기를 볼까요?', apple: 'Apple 지도', google: 'Google 지도', kakao: '카카오맵', naver: '네이버지도' },
         en: { title: 'Choose a map app', desc: 'Which map would you like to use?', apple: 'Apple Maps', google: 'Google Maps', kakao: 'Kakao Map', naver: 'NAVER Map' },
@@ -1437,7 +1783,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
     return (
         <div
-            className="mm-museum-detail2 w-full max-w-full overflow-hidden flex flex-col relative"
+            className={`mm-museum-detail2 ${detailStyles.museumDetailSafety} w-full max-w-full overflow-hidden flex flex-col relative`}
             ref={scrollContainerRef}
             onScroll={handleDetailScroll}
         >
@@ -1702,13 +2048,43 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
 
                     {/* Updated date chip */}
                     {data.updatedAt && (
-                        <div className="mb-3 flex items-center">
+                        <div className="mb-3 mt-4 flex items-center">
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gray-50 dark:bg-neutral-800/60 text-[10px] font-bold text-gray-400 dark:text-neutral-500">
                                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 {getUpdatedLabel(locale)} {new Date(data.updatedAt).toLocaleDateString(locale === 'ko' ? 'ko-KR' : locale === 'ja' ? 'ja-JP' : locale === 'zh-CN' ? 'zh-CN' : locale === 'zh-TW' ? 'zh-TW' : locale === 'de' ? 'de-DE' : locale === 'fr' ? 'fr-FR' : locale === 'es' ? 'es-ES' : locale === 'pt' ? 'pt-PT' : locale === 'da' ? 'da-DK' : locale === 'fi' ? 'fi-FI' : locale === 'sv' ? 'sv-SE' : locale === 'et' ? 'et-EE' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                             </span>
+                        </div>
+                    )}
+
+                    {activeExhibitions.length > 0 && (
+                        <div className="mm-detail-section mm-detail-content-section mm-exhibition-section mt-7 pt-5 border-t border-gray-100 dark:border-neutral-800">
+                            <div className="mm-detail-section-head mb-2 flex items-center justify-between gap-3">
+                                <h3 className="mm-section-title mb-0">
+                                    <span className="mm-exhibition-section-icon">
+                                        <GalleryHorizontalEnd aria-hidden="true" />
+                                    </span>
+                                    <span>{exhibitionLabels.title}</span>
+                                </h3>
+                                <span className="mm-exhibition-count">
+                                    {exhibitionLabels.count(activeExhibitions.length)}
+                                </span>
+                            </div>
+                            <div className={`mm-exhibition-rail scrollbar-hide ${activeExhibitions.length === 1 ? 'is-single' : ''}`} data-no-swipe-back>
+                                {activeExhibitions.map((exhibition) => (
+                                    <ExhibitionCard
+                                        key={exhibition.id || `${exhibition.title}-${getDateOnly(exhibition.startDate)}`}
+                                        exhibition={exhibition}
+                                        labels={exhibitionLabels}
+                                        locale={locale}
+                                        todayDateOnly={todayDateOnly}
+                                        fullWidth={activeExhibitions.length === 1}
+                                        museumName={exhibitionMuseumName}
+                                        museumNameAliases={exhibitionMuseumNameAliases}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     )}
 
@@ -1789,7 +2165,7 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                         <div className="mm-detail-section mm-detail-content-section mt-7 pt-5 border-t border-gray-100 dark:border-neutral-800">
                             <div className="mm-detail-section-head mb-1.5 flex items-center justify-between gap-3">
                                 <h3 className="mm-section-title mb-0">
-                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--mm-brand-bg)', color: 'var(--mm-brand)' }}>
+                                    <span className="mm-exhibition-section-icon mm-detail-section-icon">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
                                         </svg>
@@ -1809,12 +2185,12 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                             </svg>
                                         </button>
                                     )}
-                                    <span className="mm-chip mm-chip--muted px-2.5 py-1 text-[10px] leading-none">
-                                        {totalArtworkCount}
+                                    <span className="mm-exhibition-count mm-detail-section-count">
+                                        {exhibitionLabels.count(totalArtworkCount)}
                                     </span>
                                 </div>
                             </div>
-                            <div key={shuffleKey} className={`mm-featured-art-rail scrollbar-hide ${featuredArtworks.length === 1 ? 'is-single' : ''}`}>
+                            <div key={shuffleKey} className={`mm-featured-art-rail scrollbar-hide ${featuredArtworks.length === 1 ? 'is-single' : ''}`} data-no-swipe-back>
                                 {featuredArtworks.map((work: any, i: number) => (
                                     <div key={work.id || i} style={{ animation: `fadeInUp 0.4s ${i * 60}ms both` }}>
                                         <ArtworkCard work={work} locale={locale} cachedTranslations={cachedMuseum} index={i} fullWidth={featuredArtworks.length === 1} onClick={() => openArtworkDetail(work.id)} />
@@ -1829,18 +2205,18 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                         <div className="mm-detail-section mm-detail-content-section mt-7 pt-5 border-t border-gray-100 dark:border-neutral-800">
                             <div className="mm-detail-section-head mb-1.5 flex items-center justify-between gap-3">
                                 <h3 className="mm-section-title mb-0">
-                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" style={{ background: 'var(--mm-brand-bg)', color: 'var(--mm-brand)' }}>
+                                    <span className="mm-exhibition-section-icon mm-detail-section-icon">
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
                                         </svg>
                                     </span>
                                     <span>{locale === 'ko' ? '관련 스토리' : locale === 'ja' ? '関連ストーリー' : locale === 'zh-CN' ? '相关故事' : locale === 'zh-TW' ? '相關故事' : locale === 'de' ? 'Verwandte Geschichten' : locale === 'fr' ? 'Histoires liées' : locale === 'es' ? 'Historias relacionadas' : locale === 'pt' ? 'Histórias relacionadas' : locale === 'da' ? 'Relaterede historier' : locale === 'fi' ? 'Liittyvät tarinat' : locale === 'sv' ? 'Relaterade berättelser' : locale === 'et' ? 'Seotud lood' : 'Related stories'}</span>
                                 </h3>
-                                <span className="mm-chip mm-chip--muted px-2.5 py-1 text-[10px] leading-none">
-                                    {relatedStories.length}
+                                <span className="mm-exhibition-count mm-detail-section-count">
+                                    {exhibitionLabels.count(relatedStories.length)}
                                 </span>
                             </div>
-                            <div className={`mm-detail-story-rail flex gap-3.5 overflow-x-auto pb-3 snap-x snap-mandatory scrollbar-hide -mx-2 px-2 ${relatedStories.length === 1 ? 'is-single' : ''}`}>
+                            <div className={`mm-detail-story-rail flex gap-3.5 overflow-x-auto snap-x snap-mandatory scrollbar-hide ${relatedStories.length === 1 ? 'is-single' : ''}`} data-no-swipe-back>
                                 {relatedStories.map((story: any) => {
                                     const storyTitle = getDisplayStoryTitle(locale === 'ko' ? story.title : (story.titleTranslations?.[locale] || story.titleEn || story.title), [data]);
                                     const storyHref = `/blog/${story.id}?fromMuseum=${encodeURIComponent(museumId)}`;
@@ -1850,7 +2226,13 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                                         key={story.id}
                                         onPointerDown={() => {
                                             try {
-                                                sessionStorage.setItem('navigating-forward', String(Date.now()));
+                                                recordDetailReturnState('museum', museumId);
+                                            } catch { }
+                                        }}
+                                        onClick={() => {
+                                            stabilizeMuseumDetailHistoryEntry(museumId);
+                                            try {
+                                                recordDetailReturnState('museum', museumId);
                                             } catch { }
                                         }}
                                         className="mm-card mm-detail-story-card w-[260px] sm:w-[300px] flex-shrink-0 snap-start p-0 text-left group cursor-pointer appearance-none"
@@ -1980,9 +2362,10 @@ export default function MuseumDetailCard({ museumId, onClose, isMapContext, onSa
                             </div>
                         )}
                         {visitInfoSheet === 'hours' && (
-                            <p className="mm-hours-sheet-note">
-                                {visitInfoDisclaimer}
-                            </p>
+                            <div className="mm-hours-sheet-note">
+                                <p>{visitInfoDisclaimer}</p>
+                                <p>{lastAdmissionNote}</p>
+                            </div>
                         )}
                     </div>
                 </div>,

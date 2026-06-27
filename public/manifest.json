@@ -3,8 +3,8 @@
     "short_name": "Museum Map",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#f8fbff",
-    "theme_color": "#f8fbff",
+    "background_color": "#ffffff",
+    "theme_color": "#ffffff",
     "icons": [
         {
             "src": "/android-icon-36x36.png",

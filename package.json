@@ -1,6 +1,6 @@
 {
   "name": "dev2",
-  "version": "1.6.1",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
@@ -10,6 +10,10 @@
     "hours:template": "tsx scripts/template-opening-hours.ts",
     "hours:audit": "tsx scripts/audit-official-opening-hours.ts",
     "hours:weekly": "tsx scripts/weekly-museum-data-audit.ts --config=docs/weekly-museum-data-audit.md",
+    "exhibitions:seed:korea": "node scripts/seed-korea-official-exhibitions-2026-06-24.js",
+    "exhibitions:seed:global": "node scripts/seed-global-official-exhibitions-2026-06-24.js",
+    "exhibitions:expire": "node scripts/expire-exhibitions.js",
+    "audit:billable": "node scripts/audit-billable-api-guards.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {

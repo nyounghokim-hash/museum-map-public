@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 
 const ADSENSE_SCRIPT_ID = 'adsbygoogle-js';
 const ADSENSE_SRC = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5736725257134757';
-const MOBILE_DELAY_MS = 8000;
-const DESKTOP_DELAY_MS = 3500;
+const MOBILE_DELAY_MS = 25000;
+const DESKTOP_DELAY_MS = 8000;
 
 type IdleWindow = Window & typeof globalThis & {
     requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;

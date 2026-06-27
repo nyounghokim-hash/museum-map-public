@@ -21,11 +21,24 @@ type NotificationCacheEntry = {
     items: NotificationItem[];
 };
 
-type NotificationItem = Record<string, unknown>;
+type NotificationItem = {
+    id: string | number;
+    title?: string | null;
+    titleEn?: string | null;
+    message?: string | null;
+    messageEn?: string | null;
+    isRead?: boolean | null;
+    createdAt?: string | number | Date | null;
+};
+
+type HeaderActiveTrip = {
+    pending?: boolean | null;
+};
 
 type HeaderLabels = {
     mapExplore: string;
     favorites: string;
+    exhibitions: string;
     compare: string;
     myPlans: string;
     myCollections: string;
@@ -47,6 +60,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     ko: {
         mapExplore: '지도',
         favorites: '내 픽',
+        exhibitions: '전시',
         compare: '비교',
         myPlans: '내 여행',
         myCollections: '컬렉션',
@@ -66,6 +80,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     en: {
         mapExplore: 'Map',
         favorites: 'My Pick',
+        exhibitions: 'Exhibitions',
         compare: 'Compare',
         myPlans: 'My Trips',
         myCollections: 'Collections',
@@ -85,6 +100,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     ja: {
         mapExplore: '地図',
         favorites: 'マイピック',
+        exhibitions: '展覧会',
         compare: '比較',
         myPlans: '旅程',
         myCollections: 'コレクション',
@@ -104,6 +120,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     de: {
         mapExplore: 'Karte',
         favorites: 'Meine Auswahl',
+        exhibitions: 'Ausstellungen',
         compare: 'Vergleichen',
         myPlans: 'Meine Reisen',
         myCollections: 'Sammlungen',
@@ -123,6 +140,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     fr: {
         mapExplore: 'Carte',
         favorites: 'Mes choix',
+        exhibitions: 'Expositions',
         compare: 'Comparer',
         myPlans: 'Mes voyages',
         myCollections: 'Collections',
@@ -142,6 +160,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     es: {
         mapExplore: 'Mapa',
         favorites: 'Mi selección',
+        exhibitions: 'Exposiciones',
         compare: 'Comparar',
         myPlans: 'Mis viajes',
         myCollections: 'Colecciones',
@@ -161,6 +180,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     pt: {
         mapExplore: 'Mapa',
         favorites: 'Minhas escolhas',
+        exhibitions: 'Exposições',
         compare: 'Comparar',
         myPlans: 'Minhas viagens',
         myCollections: 'Coleções',
@@ -180,6 +200,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     'zh-CN': {
         mapExplore: '地图',
         favorites: '我的精选',
+        exhibitions: '展览',
         compare: '比较',
         myPlans: '我的旅行',
         myCollections: '合集',
@@ -199,6 +220,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     'zh-TW': {
         mapExplore: '地圖',
         favorites: '我的精選',
+        exhibitions: '展覽',
         compare: '比較',
         myPlans: '我的旅行',
         myCollections: '合集',
@@ -218,6 +240,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     da: {
         mapExplore: 'Kort',
         favorites: 'Mine valg',
+        exhibitions: 'Udstillinger',
         compare: 'Sammenlign',
         myPlans: 'Mine ture',
         myCollections: 'Samlinger',
@@ -237,6 +260,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     fi: {
         mapExplore: 'Kartta',
         favorites: 'Omat valinnat',
+        exhibitions: 'Näyttelyt',
         compare: 'Vertaa',
         myPlans: 'Omat matkat',
         myCollections: 'Kokoelmat',
@@ -256,6 +280,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     sv: {
         mapExplore: 'Karta',
         favorites: 'Mina val',
+        exhibitions: 'Utställningar',
         compare: 'Jämför',
         myPlans: 'Mina resor',
         myCollections: 'Samlingar',
@@ -275,6 +300,7 @@ const HEADER_LABELS: Record<Locale, HeaderLabels> = {
     et: {
         mapExplore: 'Kaart',
         favorites: 'Minu valikud',
+        exhibitions: 'Näitused',
         compare: 'Võrdle',
         myPlans: 'Minu reisid',
         myCollections: 'Kogud',
@@ -328,6 +354,18 @@ function isNotificationCacheEntry(value: unknown): value is NotificationCacheEnt
         && typeof value === 'object'
         && typeof (value as NotificationCacheEntry).ts === 'number'
         && Array.isArray((value as NotificationCacheEntry).items);
+}
+
+function isNotificationItem(value: unknown): value is NotificationItem {
+    if (!value || typeof value !== 'object') return false;
+    const id = (value as { id?: unknown }).id;
+    return typeof id === 'string' || typeof id === 'number';
+}
+
+function getUserRole(user: unknown) {
+    if (!user || typeof user !== 'object') return undefined;
+    const role = (user as { role?: unknown }).role;
+    return typeof role === 'string' ? role : undefined;
 }
 
 function readNotificationCache(cacheKey: string): NotificationCacheEntry | null {
@@ -384,7 +422,7 @@ function fetchNotificationsCached(cacheKey: string) {
             return res.text().then(text => text ? JSON.parse(text) : []);
         })
         .then((data: unknown) => {
-            const items = Array.isArray(data) ? data : [];
+            const items = Array.isArray(data) ? data.filter(isNotificationItem) : [];
             writeNotificationCache(cacheKey, items);
             return items;
         })
@@ -407,7 +445,7 @@ export default function NavHeader() {
     const [langOpen, setLangOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
-    const [notifications, setNotifications] = useState<any[]>([]);
+    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [loginModalOpen, setLoginModalOpen] = useState(false);
     const [loginCallbackUrl, setLoginCallbackUrl] = useState('');
     const pathname = usePathname();
@@ -423,7 +461,8 @@ export default function NavHeader() {
     const labels = HEADER_LABELS[locale] || HEADER_LABELS.en;
     const [isMapMobileHome, setIsMapMobileHome] = useState(false);
     const [isDesktopViewport, setIsDesktopViewport] = useState(false);
-    const [activeTrip, setActiveTrip] = useState<any>(null);
+    const [activeTrip, setActiveTrip] = useState<HeaderActiveTrip | null>(null);
+    const isAdmin = getUserRole(session?.user) === 'ADMIN';
 
     useEffect(() => {
         try {
@@ -469,7 +508,7 @@ export default function NavHeader() {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const refresh = () => setActiveTrip(getActiveTripForAccount());
+        const refresh = () => setActiveTrip(getActiveTripForAccount<HeaderActiveTrip>());
         refresh();
         window.addEventListener('storage', refresh);
         window.addEventListener('focus', refresh);
@@ -482,17 +521,17 @@ export default function NavHeader() {
     }, [session?.user?.email]);
 
     // Translate notification texts for dropdown
-    const notifTexts = notifications.flatMap((n: any) => [
+    const notifTexts = notifications.flatMap((n) => [
         n.titleEn || n.title || '',
         n.messageEn || n.message || ''
     ]);
     const notifTranslations = useTranslatedTexts(notifTexts, locale);
-    const getNotifTitle = (n: any) => {
+    const getNotifTitle = (n: NotificationItem) => {
         if (locale === 'ko') return n.title;
         const src = n.titleEn || n.title || '';
         return notifTranslations.get(src) || src;
     };
-    const getNotifMessage = (n: any) => {
+    const getNotifMessage = (n: NotificationItem) => {
         if (locale === 'ko') return n.message;
         const src = n.messageEn || n.message || '';
         return notifTranslations.get(src) || src;
@@ -500,6 +539,7 @@ export default function NavHeader() {
 
     const NAV_LINKS = [
         { href: '/', label: labels.mapExplore },
+        { href: '/exhibitions', label: labels.exhibitions },
         { href: '/saved', label: labels.favorites },
         { href: '/compare', label: labels.compare },
         { href: '/plans', label: labels.myPlans },
@@ -665,22 +705,43 @@ export default function NavHeader() {
     // Scroll direction: hide header on scroll down, show on scroll up
     // On detail pages (mobile/tablet only), header hides more aggressively
     const [headerHidden, setHeaderHidden] = useState(false);
+    const headerHiddenRef = useRef(false);
     const lastScrollY = useRef(0);
+    const headerScrollFrame = useRef(0);
     const isDetailPage = (pathname?.startsWith('/museums/') || pathname?.startsWith('/artworks/') || (pathname?.startsWith('/blog/') && pathname !== '/blog')) ?? false;
 
     useEffect(() => {
+        const updateHeaderHidden = (nextHidden: boolean) => {
+            if (headerHiddenRef.current === nextHidden) return;
+            headerHiddenRef.current = nextHidden;
+            setHeaderHidden(nextHidden);
+        };
         const onScroll = () => {
-            const y = window.scrollY;
-            // On detail pages (mobile/tablet), use lower threshold for snappier hide
-            const isNarrow = window.innerWidth < 1280; // below xl breakpoint
-            const threshold = (isDetailPage && isNarrow) ? 30 : 100;
-            if (y < threshold) { setHeaderHidden(false); lastScrollY.current = y; return; }
-            if (y > lastScrollY.current + 10) setHeaderHidden(true);
-            else if (y < lastScrollY.current - 10) setHeaderHidden(false);
-            lastScrollY.current = y;
+            if (headerScrollFrame.current) return;
+            headerScrollFrame.current = window.requestAnimationFrame(() => {
+                headerScrollFrame.current = 0;
+                const y = window.scrollY;
+                // On detail pages (mobile/tablet), use lower threshold for snappier hide
+                const isNarrow = window.innerWidth < 1280; // below xl breakpoint
+                const threshold = (isDetailPage && isNarrow) ? 30 : 100;
+                if (y < threshold) {
+                    updateHeaderHidden(false);
+                    lastScrollY.current = y;
+                    return;
+                }
+                if (y > lastScrollY.current + 10) updateHeaderHidden(true);
+                else if (y < lastScrollY.current - 10) updateHeaderHidden(false);
+                lastScrollY.current = y;
+            });
         };
         window.addEventListener('scroll', onScroll, { passive: true });
-        return () => window.removeEventListener('scroll', onScroll);
+        return () => {
+            if (headerScrollFrame.current) {
+                window.cancelAnimationFrame(headerScrollFrame.current);
+                headerScrollFrame.current = 0;
+            }
+            window.removeEventListener('scroll', onScroll);
+        };
     }, [isDetailPage]);
 
     const isStandaloneDetailRoute = pathname?.startsWith('/museums/')
@@ -688,6 +749,7 @@ export default function NavHeader() {
         || (pathname?.startsWith('/blog/') && pathname !== '/blog');
 
     const isHeaderlessEditorialRoute = pathname === '/saved'
+        || pathname === '/exhibitions'
         || pathname === '/blog'
         || pathname?.startsWith('/blog/')
         || pathname === '/artworks'
@@ -774,6 +836,8 @@ export default function NavHeader() {
                                 className="hidden lg:flex p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors text-gray-500 dark:text-gray-400 relative focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 title={labels.notifTitle}
                                 aria-label={labels.notifTitle}
+                                aria-haspopup="dialog"
+                                aria-expanded={notifOpen}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -783,7 +847,7 @@ export default function NavHeader() {
                                 )}
                             </button>
                             {notifOpen && (
-                                <div className="absolute right-[-8px] top-full mt-1 glass-popup gradient-border rounded-2xl py-0 min-w-[300px] max-w-[350px] z-50 overflow-hidden mx-4" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+                                <div className="mm-header-notification-popover glass-popup gradient-border rounded-2xl py-0" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
                                     <div className="px-4 py-3 border-b border-gray-100 dark:border-neutral-700 flex items-center justify-between">
                                         <span className="text-sm font-bold dark:text-white">{labels.notifTitle}</span>
                                         {notifications.length > 0 && (
@@ -814,7 +878,7 @@ export default function NavHeader() {
                                                             setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, isRead: true } : notif));
                                                         }
                                                         setNotifOpen(false);
-                                                        navigateDocument('/notifications');
+                                                        navigateDocument(`/notifications/${n.id}`);
                                                     }}
                                                 >
                                                     <div className="flex items-start gap-3">
@@ -897,7 +961,7 @@ export default function NavHeader() {
                         {session ? (
                             <div className="flex items-center gap-2">
                                 {/* Admin button - left of profile */}
-                                {(session.user as any)?.role === 'ADMIN' && (
+                                {isAdmin && (
                                     <a
                                         href="/admin"
                                         data-mm-route-pending="off"
@@ -927,6 +991,7 @@ export default function NavHeader() {
                                         >
                                             <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs overflow-hidden">
                                                 {session.user?.image ? (
+                                                    // eslint-disable-next-line @next/next/no-img-element
                                                     <img src={session.user.image} alt={session.user.name || 'User'} className="w-full h-full object-cover" />
                                                 ) : (
                                                     <span>{session.user?.name ? session.user.name.charAt(0).toUpperCase() : 'U'}</span>
@@ -1026,14 +1091,17 @@ export default function NavHeader() {
                                     className="mb-1 flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all"
                                 >
                                     <span className="h-8 w-8 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-xs font-semibold text-blue-700 dark:text-blue-300">
-                                        {session.user?.image ? <img src={session.user.image} alt="" className="h-full w-full object-cover" /> : (session.user?.name?.charAt(0).toUpperCase() || 'U')}
+                                        {session.user?.image ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={session.user.image} alt="" className="h-full w-full object-cover" />
+                                        ) : (session.user?.name?.charAt(0).toUpperCase() || 'U')}
                                     </span>
                                     <span className="min-w-0 flex-1 truncate">
                                         {session.user?.name || labels.profile}
                                     </span>
                                 </a>
                             )}
-                            {(session?.user as any)?.role === 'ADMIN' && (
+                            {isAdmin && (
                                 <a
                                     href="/admin"
                                     data-mm-route-pending="off"
@@ -1108,7 +1176,7 @@ export default function NavHeader() {
                             </button>
 
                             {/* Delete account - only for non-admin authenticated users */}
-                            {session && (session.user as any)?.role !== 'ADMIN' && !session.user?.name?.startsWith('guest_') && (
+                            {session && !isAdmin && !session.user?.name?.startsWith('guest_') && (
                                 <button
                                     onClick={() => {
                                         setMobileOpen(false);

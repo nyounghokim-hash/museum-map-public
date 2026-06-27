@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
+import { useDragDownDismiss } from '@/hooks/useDragDownDismiss';
 import type { Locale } from '@/lib/i18n';
 import { fetchLocationLabel } from '@/lib/locationLabel';
 
@@ -212,6 +213,7 @@ export default function WeatherPopup({ isOpen, closing = false, onClose, anchor 
     const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties | null>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const loadedLocationKeyRef = useRef<string | null>(null);
+    const dragDismiss = useDragDownDismiss(onClose, { enabled: isOpen && !closing });
 
     useEffect(() => {
         if (!isOpen) return;
@@ -337,6 +339,7 @@ export default function WeatherPopup({ isOpen, closing = false, onClose, anchor 
                     : commonClass
             }
             data-weather-popup
+            {...dragDismiss}
         >
             <div className="mm-weather-popup2-head relative flex items-center justify-between px-4 py-3">
                 <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'var(--gradient-border-subtle)' }} />

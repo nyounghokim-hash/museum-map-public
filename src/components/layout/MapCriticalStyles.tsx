@@ -133,12 +133,18 @@ export default function MapCriticalStyles() {
                   align-items: flex-start !important;
                   justify-self: start !important;
                 }
-                .mm-map2-top.is-left-handed .mm-map2-trip-anchor {
+                .mm-map2-trip-cluster.is-left-handed {
+                  left: auto !important;
+                  right: 18px !important;
+                  flex-direction: row-reverse !important;
+                  justify-content: flex-end !important;
+                }
+                .mm-map2-top.is-left-handed > .mm-map2-trip-anchor {
                   left: auto !important;
                   right: 18px !important;
                   justify-content: flex-end !important;
                 }
-                .mm-map2-top.is-left-handed .mm-map2-trip-anchor.has-new-museums {
+                .mm-map2-top.is-left-handed > .mm-map2-trip-anchor.has-new-museums {
                   left: auto !important;
                   right: 82px !important;
                   width: calc(100vw - 100px) !important;
@@ -223,7 +229,7 @@ export default function MapCriticalStyles() {
                   max-width: calc(100vw - 104px) !important;
                 }
                 .mm-map2-floating-list {
-                  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 61px) !important;
+                  top: calc(max(12px, env(safe-area-inset-top, 0px)) + 58px) !important;
                   z-index: 150 !important;
                   max-height: 290px !important;
                   overflow-y: auto !important;
@@ -238,6 +244,13 @@ export default function MapCriticalStyles() {
                 .mm-map2-search-result-title {
                   color: #0f172a !important;
                   font-weight: 650 !important;
+                }
+                .mm-cluster-popup2-title-row strong {
+                  color: #0f172a !important;
+                  font-size: 15px !important;
+                  font-weight: 650 !important;
+                  line-height: 1.25 !important;
+                  letter-spacing: 0 !important;
                 }
                 .mm-map2-search-result-subtitle {
                   color: #64748b !important;
@@ -277,7 +290,7 @@ export default function MapCriticalStyles() {
                   color: #475569 !important;
                   background: #f8fafc !important;
                   font-size: 12px !important;
-                  font-weight: 600 !important;
+                  font-weight: 500 !important;
                   text-align: left !important;
                   word-break: keep-all !important;
                 }
@@ -607,8 +620,15 @@ export default function MapCriticalStyles() {
                 }
                 :is(.dark, [data-theme="dark"]) .mm-map2-search input,
                 :is(.dark, [data-theme="dark"]) .mm-map2-search-result-title,
+                :is(.dark, [data-theme="dark"]) .mm-cluster-popup2-title-row strong,
                 :is(.dark, [data-theme="dark"]) .mm-map2-side-head strong {
                   color: #f8fafc !important;
+                }
+                :is(.dark, [data-theme="dark"]) .mm-map2-search input {
+                  background: transparent !important;
+                  background-color: transparent !important;
+                  border-color: transparent !important;
+                  box-shadow: none !important;
                 }
                 :is(.dark, [data-theme="dark"]) .mm-map2-tool-pill-icon svg {
                   color: #93c5fd !important;
@@ -675,7 +695,7 @@ export default function MapCriticalStyles() {
               .mm-nearby-popup2 h3 {
                 color: #0f172a !important;
                 font-size: 14px !important;
-                font-weight: 650 !important;
+                font-weight: 500 !important;
                 line-height: 1.2 !important;
                 letter-spacing: 0 !important;
               }
@@ -714,10 +734,13 @@ export default function MapCriticalStyles() {
                 border: 1px solid rgba(226,232,240,.74) !important;
                 box-shadow: none !important;
                 font-size: 13px !important;
-                font-weight: 600 !important;
+                font-weight: 500 !important;
                 line-height: 1.2 !important;
                 text-align: left !important;
                 word-break: keep-all !important;
+              }
+              .mm-map2-new-museum-title {
+                font-weight: 600 !important;
               }
               .mm-map2-category-menu-grid button.is-active {
                 color: #fff !important;
@@ -752,13 +775,13 @@ export default function MapCriticalStyles() {
               .mm-nearby-popup2 h4 {
                 color: #0f172a !important;
                 font-size: 13px !important;
-                font-weight: 650 !important;
+                font-weight: 500 !important;
                 line-height: 1.25 !important;
               }
               .mm-nearby-popup2 p {
                 color: #64748b !important;
                 font-size: 11.5px !important;
-                font-weight: 520 !important;
+                font-weight: 400 !important;
               }
               .mm-map2-pc-control {
                 width: 54px !important;

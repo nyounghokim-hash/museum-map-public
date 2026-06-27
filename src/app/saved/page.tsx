@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
 import { t, translateCategory } from '@/lib/i18n';
@@ -50,6 +51,7 @@ function sameIds(a: string[], b: string[]) {
 }
 
 export default function SavedPage() {
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<'saved' | 'history'>('saved');
     const [historyMuseums, setHistoryMuseums] = useState<any[]>([]);
     const [selectedMuseums, setSelectedMuseums] = useState<Set<string>>(new Set());
@@ -240,11 +242,20 @@ export default function SavedPage() {
         });
     };
 
+    const openMuseumDetail = useCallback((museumId: string) => {
+        if (typeof window !== 'undefined') {
+            try {
+                sessionStorage.setItem('navigating-forward', String(Date.now()));
+            } catch { }
+        }
+        router.push(`/museums/${museumId}?from=saved`);
+    }, [router]);
+
     // Get museum object from item (save or history museum)
     const getMuseum = (item: any) => activeTab === 'saved' ? item.museum : item;
 
     return (
-        <div data-mm-page="saved" className="no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
+        <div data-mm-page="saved" className="mm-nav-page-enter no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             {/* Header */}
             <div className="mm-gallery-hero p-5 sm:p-7 mb-4 sm:mb-6">
                 {isLoading && activeTab === 'saved' && saves.length === 0 ? (
@@ -389,7 +400,7 @@ export default function SavedPage() {
                                 className={`mm-list-row2 group w-full text-left transition-all duration-200 ${isSelectMode && activeTab === 'saved' ? 'mm-list-row-selectable' : ''} ${selectedMuseums.has(museum.id) ? 'is-selected' : ''} ${deletingIds.has(museum.id) ? 'animate-slideOutLeft' : ''}`}
                                 onClick={() => {
                                     if (isSelectMode && activeTab === 'saved') toggleSelect(museum.id);
-                                    else window.location.assign(`/museums/${museum.id}`);
+                                    else openMuseumDetail(museum.id);
                                 }}
                             >
                                 <div className="mm-saved-row-thumb relative">

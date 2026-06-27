@@ -56,30 +56,62 @@ function getEffectiveDarkMode(mode: ThemeMode) {
     return mode === 'system' ? getSystemDarkMode() : mode === 'dark';
 }
 
+const LIGHT_CHROME_COLOR = '#ffffff';
+const DARK_CHROME_COLOR = '#020617';
+
+function ensureMeta(id: string, name: string) {
+    let meta = document.getElementById(id) as HTMLMetaElement | null;
+    if (!meta) {
+        meta = document.createElement('meta');
+        meta.id = id;
+        meta.setAttribute('name', name);
+        document.head.appendChild(meta);
+    }
+    return meta;
+}
+
 function applyEffectiveTheme(isDark: boolean) {
     if (typeof document === 'undefined') return;
     const root = document.documentElement;
-    const themeColor = isDark ? '#020617' : '#f8fbff';
+    const themeColor = isDark ? DARK_CHROME_COLOR : LIGHT_CHROME_COLOR;
+    const colorScheme = isDark ? 'dark' : 'light';
+    const statusBarStyle = isDark ? 'black-translucent' : 'default';
     root.classList.toggle('dark', isDark);
-    root.dataset.theme = isDark ? 'dark' : 'light';
+    root.dataset.theme = colorScheme;
     if (root.classList.contains('mm-search-locking')) return;
-    root.style.colorScheme = isDark ? 'dark' : 'light';
+    root.style.setProperty('color-scheme', colorScheme, 'important');
+    root.style.setProperty('background-color', themeColor, 'important');
+    root.style.setProperty('background', themeColor, 'important');
 
-    const themeColorMetas = Array.from(document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]'));
-    const primaryThemeColorMeta = themeColorMetas[0] || document.createElement('meta');
-    primaryThemeColorMeta.setAttribute('name', 'theme-color');
-    primaryThemeColorMeta.setAttribute('content', themeColor);
-    primaryThemeColorMeta.removeAttribute('media');
-    if (!primaryThemeColorMeta.parentNode) document.head.appendChild(primaryThemeColorMeta);
-    themeColorMetas.slice(1).forEach((meta) => meta.remove());
+    // Own a single dedicated, media-less theme-color meta (React/Next never
+    // renders this id), appended last so it overrides the layout's media-based
+    // metas. We must NOT mutate or remove the React/Next-managed theme-color
+    // metas: imperatively removing them makes Next's <head> reconciliation on a
+    // client route change crash with `removeChild` on a null parent.
+    const dynamicThemeColorMeta = ensureMeta('mm-dynamic-theme-color', 'theme-color');
+    dynamicThemeColorMeta.setAttribute('content', themeColor);
 
-    let statusBarMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]');
-    if (!statusBarMeta) {
-        statusBarMeta = document.createElement('meta');
-        statusBarMeta.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
-        document.head.appendChild(statusBarMeta);
-    }
-    statusBarMeta.setAttribute('content', isDark ? 'black-translucent' : 'default');
+    // iOS can pick a media-matched or first theme-color meta when a search input
+    // focuses. Keep all existing nodes aligned to the in-app theme, not the
+    // phone's system theme. Content-only mutation avoids Next head crashes.
+    document
+        .querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')
+        .forEach((m) => m.setAttribute('content', themeColor));
+
+    const dynamicColorSchemeMeta = ensureMeta('mm-dynamic-color-scheme', 'color-scheme');
+    dynamicColorSchemeMeta.setAttribute('content', colorScheme);
+    document
+        .querySelectorAll<HTMLMetaElement>('meta[name="color-scheme"]')
+        .forEach((m) => m.setAttribute('content', colorScheme));
+
+    const dynamicStatusBarMeta = ensureMeta('mm-dynamic-status-bar-style', 'apple-mobile-web-app-status-bar-style');
+    dynamicStatusBarMeta.setAttribute('content', statusBarStyle);
+    document
+        .querySelectorAll<HTMLMetaElement>('meta[name="apple-mobile-web-app-status-bar-style"]')
+        .forEach((m) => m.setAttribute('content', statusBarStyle));
+    document.body.style.setProperty('color-scheme', colorScheme, 'important');
+    document.body.style.setProperty('background-color', isDark ? DARK_CHROME_COLOR : LIGHT_CHROME_COLOR, 'important');
+    document.body.style.setProperty('background', isDark ? DARK_CHROME_COLOR : LIGHT_CHROME_COLOR, 'important');
 }
 
 export function useApp() {
@@ -182,7 +214,7 @@ export function AppProvider({ children, initialLocale = 'en' }: { children: Reac
 
     // Persist locale to DB when it changes or on first load
     useEffect(() => {
-        if (initialized && session?.user && !(session.user as any).name?.startsWith('guest_')) {
+        if (initialized && session?.user && !session.user.name?.startsWith('guest_')) {
             fetch('/api/me/preferences', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },

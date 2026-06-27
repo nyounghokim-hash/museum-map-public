@@ -1,20 +1,39 @@
 /**
  * Gemini Flash-based batch translation utility.
- * Translates multiple fields in a single API call to save tokens.
- * Falls back to Google Translate on failure.
+ * Billable Gemini calls are blocked by default and require explicit approval.
+ * Without approval, this returns the source fields so runtime requests do not
+ * trigger external translation spend.
  */
 
 import { prisma } from '@/lib/prisma';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_TRANSLATION_ALLOWED =
+    process.env.ALLOW_BILLABLE_API === '1' &&
+    process.env.ALLOW_GEMINI_API === '1' &&
+    process.env.BILLABLE_API_APPROVAL === 'gemini:runtime-translation';
+
+type GeminiUsageData = {
+    usageMetadata?: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        totalTokenCount?: number;
+    };
+};
+
+type TokenUsageClient = {
+    tokenUsage: {
+        create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
+    };
+};
 
 /** Log token usage to DB (fire-and-forget) */
-async function logTokenUsage(data: any, feature: string, locale?: string, entityType?: string) {
+async function logTokenUsage(data: GeminiUsageData, feature: string, locale?: string, entityType?: string) {
     try {
         const usage = data?.usageMetadata;
         if (!usage) return;
-        await (prisma as any).tokenUsage.create({
+        await (prisma as unknown as TokenUsageClient).tokenUsage.create({
             data: {
                 feature,
                 model: GEMINI_MODEL,
@@ -25,7 +44,7 @@ async function logTokenUsage(data: any, feature: string, locale?: string, entity
                 entityType: entityType || null,
             },
         });
-    } catch (e) {
+    } catch {
         // Silently fail — don't break translation for logging
     }
 }
@@ -49,6 +68,10 @@ export async function batchTranslateWithGemini(
     if (!GEMINI_API_KEY) {
         console.warn('[GeminiTranslate] No API key, falling back');
         return fields;
+    }
+    if (!GEMINI_TRANSLATION_ALLOWED) {
+        console.warn('[GeminiTranslate] Gemini is blocked by billable API policy; using local fallback');
+        return fallbackTranslate(fields, sourceLang, targetLang);
     }
 
     const sourceLanguage = LANG_NAMES[sourceLang] || sourceLang;
@@ -130,31 +153,19 @@ export async function translateWithGemini(
 }
 
 /**
- * Fallback: Google Translate free API (for when Gemini fails)
+ * Local fallback: keep source fields rather than calling another external API.
  */
 async function fallbackTranslate(
     fields: Record<string, string>,
-    sourceLang: string,
-    targetLang: string
+    _sourceLang: string,
+    _targetLang: string
 ): Promise<Record<string, string>> {
+    void _sourceLang;
+    void _targetLang;
+
     const result: Record<string, string> = {};
     for (const [key, text] of Object.entries(fields)) {
-        if (!text) { result[key] = text; continue; }
-        try {
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text.slice(0, 5000))}`;
-            const res = await fetch(url, {
-                headers: { 'User-Agent': 'Mozilla/5.0' },
-                signal: AbortSignal.timeout(8000),
-            });
-            const data = await res.json();
-            if (data?.[0]) {
-                result[key] = data[0].map((item: any) => item[0]).join('');
-            } else {
-                result[key] = text;
-            }
-        } catch {
-            result[key] = text;
-        }
+        result[key] = text;
     }
     return result;
 }

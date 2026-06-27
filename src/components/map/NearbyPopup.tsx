@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '@/components/AppContext';
+import { useDragDownDismiss } from '@/hooks/useDragDownDismiss';
 import { getLocalizedMuseumName, getLocalizedCityName } from '@/lib/getLocalizedName';
 import { resolveMuseumOpenStatus } from '@/lib/openStatus';
 
@@ -73,6 +74,7 @@ export default function NearbyPopup({ isOpen, closing = false, onClose, museums,
     const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties | null>(null);
     const [statusDetailsById, setStatusDetailsById] = useState<Record<string, { openingHours?: unknown; visitorInfo?: unknown }>>({});
     const panelRef = useRef<HTMLDivElement>(null);
+    const dragDismiss = useDragDownDismiss(onClose, { enabled: isOpen && !closing });
 
     // Close on outside press (ignores the panel itself and the trigger button)
     useEffect(() => {
@@ -224,6 +226,7 @@ export default function NearbyPopup({ isOpen, closing = false, onClose, museums,
                     ? `fixed bottom-[calc(env(safe-area-inset-bottom,0px)+104px)] left-3 right-3 w-auto max-w-[400px] mx-auto ${commonClass}`
                     : commonClass
             }
+            {...dragDismiss}
         >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-neutral-700">
                 <h3 className="font-semibold text-sm text-gray-900 dark:text-white flex items-center gap-2">
@@ -244,7 +247,7 @@ export default function NearbyPopup({ isOpen, closing = false, onClose, museums,
                 </button>
             </div>
 
-            <div className="max-h-[380px] overflow-y-auto">
+            <div className="mm-nearby-popup2-scroll max-h-[380px] overflow-y-auto">
                 {state === 'loading' && (
                     <div className="py-10 flex flex-col items-center gap-2 text-gray-500 dark:text-gray-300">
                         <div className="w-5 h-5 rounded-full border-2 border-blue-300 dark:border-blue-600 border-t-blue-600 dark:border-t-blue-300 animate-spin" />

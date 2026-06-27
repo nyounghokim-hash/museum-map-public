@@ -2,7 +2,19 @@
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 
-const SPLASH_SEEN_KEY = 'mmSplashSeenV2';
+const SPLASH_SESSION_KEY = 'splashShown';
+const SPLASH_IMAGE_SESSION_KEY = 'splashImageUrl';
+const LEGACY_SPLASH_SEEN_KEY = 'mmSplashSeenV2';
+const SPLASH_IMAGE_POOL = [
+    '/splash/museum-experience-01.webp',
+    '/splash/museum-experience-02.webp',
+    '/splash/museum-experience-03.webp',
+    '/splash/museum-experience-04.webp',
+    '/splash/museum-experience-05.webp',
+    '/splash/museum-experience-06.webp',
+    '/splash/museum-experience-07.webp',
+    '/splash/museum-experience-08.webp',
+] as const;
 
 const SPLASH_SUBTITLES: Record<string, string> = {
     ko: '예술과 여행이 만나는 지도',
@@ -106,10 +118,10 @@ const SPLASH_LABELS: Record<string, { kicker: string; loading: string; madeBy: s
     },
 };
 
-const MIN_SHOW_MS = 240;
-const MAX_SHOW_MS = 460;
-const FADE_MS = 120;
-const COMPLETE_HOLD_MS = 0;
+const MIN_SHOW_MS = 3000;
+const MAX_SHOW_MS = 3600;
+const FADE_MS = 180;
+const COMPLETE_HOLD_MS = 120;
 
 function finishFoucOverlay() {
     if (typeof document === 'undefined') return;
@@ -123,10 +135,23 @@ function finishFoucOverlay() {
 function shouldShowSplash(): boolean {
     if (typeof window === 'undefined') return false;
     try {
-        const alreadyShown = sessionStorage.getItem('splashShown') || localStorage.getItem(SPLASH_SEEN_KEY);
+        const alreadyShown = sessionStorage.getItem(SPLASH_SESSION_KEY);
         return window.innerWidth <= 1024 && window.location.pathname === '/' && !alreadyShown;
     } catch {
         return window.innerWidth <= 1024 && window.location.pathname === '/';
+    }
+}
+
+function pickSplashImage(): string {
+    if (typeof window === 'undefined') return SPLASH_IMAGE_POOL[0];
+    try {
+        const existing = sessionStorage.getItem(SPLASH_IMAGE_SESSION_KEY);
+        if (existing && SPLASH_IMAGE_POOL.includes(existing as typeof SPLASH_IMAGE_POOL[number])) return existing;
+        const next = SPLASH_IMAGE_POOL[Math.floor(Math.random() * SPLASH_IMAGE_POOL.length)] || SPLASH_IMAGE_POOL[0];
+        sessionStorage.setItem(SPLASH_IMAGE_SESSION_KEY, next);
+        return next;
+    } catch {
+        return SPLASH_IMAGE_POOL[Math.floor(Math.random() * SPLASH_IMAGE_POOL.length)] || SPLASH_IMAGE_POOL[0];
     }
 }
 
@@ -153,7 +178,7 @@ export default function SplashScreen() {
     const [fadeOut, setFadeOut] = useState(false);
     const [complete, setComplete] = useState(false);
     const [lang, setLang] = useState('en');
-    const [progress, setProgress] = useState(0);
+    const [backgroundImage, setBackgroundImage] = useState(SPLASH_IMAGE_POOL[0]);
 
     useEffect(() => {
         if (!shouldShowSplash()) {
@@ -168,17 +193,17 @@ export default function SplashScreen() {
         if (!visible) return;
 
         setLang(getDeviceLang());
+        setBackgroundImage(pickSplashImage());
         setComplete(false);
         try {
-            sessionStorage.setItem('splashShown', '1');
-            localStorage.setItem(SPLASH_SEEN_KEY, '1');
+            sessionStorage.setItem(SPLASH_SESSION_KEY, '1');
+            localStorage.removeItem(LEGACY_SPLASH_SEEN_KEY);
         } catch { }
 
         const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (prefersReduced) {
             setEntered(true);
             setComplete(true);
-            setProgress(100);
             const quick = setTimeout(() => {
                 finishFoucOverlay();
                 setFadeOut(true);
@@ -190,16 +215,6 @@ export default function SplashScreen() {
         const startTs = performance.now();
         const enterFrame = requestAnimationFrame(() => setEntered(true));
 
-        let progressFrame = 0;
-        const animateProgress = (now: number) => {
-            const elapsed = now - startTs;
-            const t = Math.min(1, elapsed / MAX_SHOW_MS);
-            const eased = 1 - Math.pow(1 - t, 2.8);
-            setProgress(prev => Math.max(prev, Math.min(96, eased * 96)));
-            progressFrame = requestAnimationFrame(animateProgress);
-        };
-        progressFrame = requestAnimationFrame(animateProgress);
-
         let ended = false;
         let completeTimer: ReturnType<typeof setTimeout> | null = null;
         let hideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -207,8 +222,6 @@ export default function SplashScreen() {
             if (ended) return;
             ended = true;
             setComplete(true);
-            setProgress(100);
-            if (progressFrame) cancelAnimationFrame(progressFrame);
             completeTimer = setTimeout(() => {
                 finishFoucOverlay();
                 setFadeOut(true);
@@ -227,7 +240,6 @@ export default function SplashScreen() {
 
         return () => {
             cancelAnimationFrame(enterFrame);
-            if (progressFrame) cancelAnimationFrame(progressFrame);
             clearTimeout(maxCap);
             if (completeTimer) clearTimeout(completeTimer);
             if (hideTimer) clearTimeout(hideTimer);
@@ -249,7 +261,7 @@ export default function SplashScreen() {
             <div
                 className="splash-bg"
                 aria-hidden="true"
-                style={{ '--splash-bg-image': 'none' } as CSSProperties}
+                style={{ '--splash-bg-image': `url("${backgroundImage}")` } as CSSProperties}
             >
                 <div className="splash-map-lines" />
                 <div className="splash-map-nodes" />
@@ -273,7 +285,7 @@ export default function SplashScreen() {
                         role="progressbar"
                         aria-valuemin={0}
                         aria-valuemax={100}
-                        aria-valuenow={Math.round(progress)}
+                        aria-valuenow={complete ? 100 : 0}
                         aria-label={labels.progress}
                         className="splash-progress"
                     >
@@ -284,7 +296,7 @@ export default function SplashScreen() {
                     </div>
                     <div className="splash-progress-meta">
                         <span>{labels.loading}</span>
-                        <span>{Math.round(progress)}%</span>
+                        <span>{complete ? 100 : 0}%</span>
                     </div>
                 </div>
             </main>

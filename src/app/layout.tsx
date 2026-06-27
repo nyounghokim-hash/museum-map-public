@@ -18,10 +18,10 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f8fbff' },
-    { media: '(prefers-color-scheme: dark)', color: '#020617' },
-  ],
+  // Single, non-media theme-color: the status bar must follow the in-app theme,
+  // not the OS color scheme. Light/dark is applied at runtime by AppContext via
+  // the media-less #mm-dynamic-theme-color meta (which, being last, wins).
+  themeColor: '#ffffff',
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -166,9 +166,10 @@ export default async function RootLayout({
   return (
     <html lang={lang} className={brandDisplayFont.variable} suppressHydrationWarning>
       <head>
-        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f8fbff" />
-        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#020617" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="color-scheme" content="light" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -216,13 +217,19 @@ export default async function RootLayout({
           __html: `
           (function(){
             var shown=false;
-            try{shown=!!(sessionStorage.getItem('splashShown')||localStorage.getItem('mmSplashSeenV2'));}catch(e){}
-            if(window.innerWidth<768 && window.location.pathname==='/' && !shown){
+            try{
+              shown=!!sessionStorage.getItem('splashShown');
+              localStorage.removeItem('mmSplashSeenV2');
+            }catch(e){}
+            if(window.innerWidth<=1024 && window.location.pathname==='/' && !shown){
+              var imgs=['/splash/museum-experience-01.webp','/splash/museum-experience-02.webp','/splash/museum-experience-03.webp','/splash/museum-experience-04.webp','/splash/museum-experience-05.webp','/splash/museum-experience-06.webp','/splash/museum-experience-07.webp','/splash/museum-experience-08.webp'];
+              var img=imgs[0];
+              try{var saved=sessionStorage.getItem('splashImageUrl');if(saved&&imgs.indexOf(saved)>=0){img=saved;}else{img=imgs[Math.floor(Math.random()*imgs.length)]||imgs[0];sessionStorage.setItem('splashImageUrl',img);}}catch(e){img=imgs[Math.floor(Math.random()*imgs.length)]||imgs[0];}
               var s=document.createElement('style');
               s.id='splash-fouc';
-              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background:#071426;background-image:linear-gradient(180deg,rgba(1,15,38,.86) 0%,rgba(15,70,162,.56) 48%,rgba(2,8,23,.88) 100%);pointer-events:none;transition:opacity .16s ease}body.splash-done::before{opacity:0;pointer-events:none}';
+              s.textContent='body::before{content:"";position:fixed;inset:0;z-index:99998;background:#071426;background-image:linear-gradient(180deg,rgba(1,15,38,.52) 0%,rgba(29,78,216,.50) 48%,rgba(2,8,23,.58) 100%),linear-gradient(0deg,rgba(37,99,235,.18),rgba(37,99,235,.18)),url("'+img+'");background-position:center;background-size:cover;background-repeat:no-repeat;pointer-events:none;transition:opacity .18s ease}body.splash-done::before{opacity:0;pointer-events:none}';
               document.head.appendChild(s);
-              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},180);},900);
+              setTimeout(function(){var b=document.body;if(b)b.classList.add('splash-done');var el=document.getElementById('splash-fouc');if(el)setTimeout(function(){el.remove()},220);},3600);
             }
           })();
         `}} />
@@ -233,17 +240,42 @@ export default async function RootLayout({
             var ua=navigator.userAgent||'';
             var isTelegram=/Telegram|TelegramBot|Telegram-iOS|TelegramAndroid/i.test(ua)||!!(window.Telegram&&window.Telegram.WebApp);
             var isInApp=/Telegram|TelegramBot|Telegram-iOS|TelegramAndroid|KAKAOTALK|Line\\/|NAVER\\(inapp|FBAN|FBAV|Instagram|DaumApps|wv\\)|; wv/i.test(ua)||isTelegram;
+            var appDark=(function(){try{var m=localStorage.getItem('themeMode');if(m==='dark')return true;if(m==='light')return false;if(m==='system')return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var d=localStorage.getItem('darkMode');if(d==='true')return true;if(d==='false')return false;}catch(e){}return false;})();
+            var chromeColor=appDark?'#020617':'#ffffff';
+            var colorScheme=appDark?'dark':'light';
+            var statusBarStyle=appDark?'black-translucent':'default';
+            root.classList.toggle('dark',appDark);
+            root.setAttribute('data-theme',colorScheme);
+            root.style.colorScheme=colorScheme;
+            root.style.backgroundColor=chromeColor;
+            root.style.background=chromeColor;
+            function applyBodyChrome(){
+              if(!document.body)return;
+              document.body.style.colorScheme=colorScheme;
+              document.body.style.backgroundColor=chromeColor;
+              document.body.style.background=chromeColor;
+            }
+            applyBodyChrome();
+            if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyBodyChrome,{once:true});
+            function ensureMeta(id,name){
+              var meta=document.getElementById(id);
+              if(!meta){
+                meta=document.createElement('meta');
+                meta.id=id;
+                meta.setAttribute('name',name);
+                document.head.appendChild(meta);
+              }
+              return meta;
+            }
+            ensureMeta('mm-dynamic-theme-color','theme-color').setAttribute('content',chromeColor);
+            document.querySelectorAll('meta[name="theme-color"]').forEach(function(meta){meta.setAttribute('content',chromeColor);});
+            ensureMeta('mm-dynamic-color-scheme','color-scheme').setAttribute('content',colorScheme);
+            document.querySelectorAll('meta[name="color-scheme"]').forEach(function(meta){meta.setAttribute('content',colorScheme);});
+            ensureMeta('mm-dynamic-status-bar-style','apple-mobile-web-app-status-bar-style').setAttribute('content',statusBarStyle);
+            document.querySelectorAll('meta[name="apple-mobile-web-app-status-bar-style"]').forEach(function(meta){meta.setAttribute('content',statusBarStyle);});
             if(isTelegram) root.classList.add('is-telegram-webview');
             if(isInApp){
               root.classList.add('is-inapp-browser');
-              var meta=document.querySelector('meta[name="theme-color"]');
-              if(!meta){
-                meta=document.createElement('meta');
-                meta.setAttribute('name','theme-color');
-                document.head.appendChild(meta);
-              }
-              var prefersDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
-              meta.setAttribute('content',prefersDark?'#020617':'#f8fbff');
             }
             var lastH=0,lastW=0,viewportFrame=0;
             function setViewportVars(){

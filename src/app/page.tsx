@@ -4,8 +4,10 @@ import type { ChangeEvent, CSSProperties, RefObject, SyntheticEvent, UIEvent } f
 import { useCompare } from '@/hooks/useCompare';
 import { useAccountSaves } from '@/hooks/useAccountSaves';
 import { useDragReorder } from '@/hooks/useDragReorder';
+import { useDragDownDismiss } from '@/hooks/useDragDownDismiss';
 import { createPortal } from 'react-dom';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useApp } from '@/components/AppContext';
 import { useModal } from '@/components/ui/Modal';
@@ -21,7 +23,7 @@ import { clearClientAccountStateForLogout } from '@/lib/client-account-state';
 import { getMuseumImageSrc } from '@/lib/getMuseumImage';
 import { fetchLocationLabel } from '@/lib/locationLabel';
 import { MUSEUM_CATEGORY_FILTERS, getMuseumCategoryIconSrc } from '@/lib/museumCategories';
-import { lockMobileSearchChrome } from '@/lib/mobileSearchChrome';
+import { lockMobileSearchChrome, primeMobileSearchChrome } from '@/lib/mobileSearchChrome';
 import { navigateDocument } from '@/lib/route-pending';
 import { getTripVisitStats, isStopVisited, isTripEnded, updateTripStopVisitState } from '@/lib/tripStatus';
 
@@ -564,7 +566,7 @@ const mm2 = {
     position: 'absolute',
     left: 18,
     right: 18,
-    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 64px)',
+    top: 'calc(max(12px, env(safe-area-inset-top, 0px)) + 58px)',
     zIndex: 120,
     maxHeight: 290,
     overflowY: 'auto',
@@ -943,6 +945,7 @@ const NEW_MUSEUM_BATCH_SIZE = 36;
 const MOBILE_MAP_RENDER_DELAY_MS = 1400;
 
 export default function MainPage() {
+  const router = useRouter();
   const { compareIds: compareIdsArr } = useCompare({
     initialFetch: 'idle',
     idleTimeout: 3500,
@@ -1142,8 +1145,8 @@ export default function MainPage() {
     window.setTimeout(() => {
       settingsNavPendingRef.current = false;
     }, 1400);
-    navigateDocument('/settings');
-  }, [prepareMapForClientRoute]);
+    router.push('/settings');
+  }, [prepareMapForClientRoute, router]);
 
   const navigateToAdminNow = useCallback((event?: SyntheticEvent<HTMLElement>) => {
     event?.preventDefault();
@@ -1580,6 +1583,9 @@ export default function MainPage() {
     const fid = searchParams?.get('flyToId');
     window.history.replaceState({}, '', '/');
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    // '위치 이동하기'로 들어올 땐 이전에 열려있던 클러스터 팝업을 닫는다.
+    // (뒤로가기 복원 경로는 flyTo를 거치지 않으므로 영향 없음)
+    dismissClusterPopup();
     setMapFlyTo({ lat, lng, zoom: 15, key: Date.now() });
     if (fid) {
       setHighlightedMuseumId(fid);
@@ -1587,7 +1593,7 @@ export default function MainPage() {
         setHighlightedMuseumId((current) => current === fid ? null : current);
       }, 3200);
     }
-  }, [searchParams]);
+  }, [searchParams, dismissClusterPopup]);
 
   const handleAiRecommend = async () => {
     if (!aiQuery.trim() || aiLoading) return;
@@ -1849,6 +1855,9 @@ export default function MainPage() {
       setWeatherPopupTriggerRef(null);
     }, 180);
   }, [weatherOpen]);
+  const categoryDragDismiss = useDragDownDismiss(closeCategoryDropdown, { enabled: categoryDropdownOpen && !categoryDropdownClosing });
+  const newMuseumsDragDismiss = useDragDownDismiss(closeNewMuseums, { enabled: newMuseumsOpen && !newMuseumsClosing });
+  const sideMenuDragDismiss = useDragDownDismiss(() => setMapSideMenuOpen(false), { enabled: mapSideMenuOpen });
   useEffect(() => { nearbyOpenRef.current = nearbyOpen; }, [nearbyOpen]);
   useEffect(() => { weatherOpenRef.current = weatherOpen; }, [weatherOpen]);
   useEffect(() => {
@@ -2752,7 +2761,7 @@ export default function MainPage() {
   return (
     <div
       data-mm-page="home"
-      className="mm-map-shell relative w-full flex overflow-hidden"
+      className="mm-nav-page-enter mm-map-shell relative w-full flex overflow-hidden"
       style={{
         position: 'relative',
         display: 'flex',
@@ -2801,6 +2810,8 @@ export default function MainPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onPointerDown={() => primeMobileSearchChrome()}
+                  onTouchStart={() => primeMobileSearchChrome()}
                   onFocus={() => { setSearchFocused(true); dismissClusterPopup(); closeCategoryDropdown(); closeNewMuseums(); setMapSideMenuOpen(false); }}
                   onBlur={() => setSearchFocused(false)}
                   placeholder={t('map.search', locale)}
@@ -2849,7 +2860,13 @@ export default function MainPage() {
                       </span>
                     </button>
                     {(newMuseumsOpen || newMuseumsClosing) && (
-                      <div className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} role="dialog" aria-label={mobileToolLabels.newMuseums} onScroll={handleNewMuseumsScroll}>
+                      <div
+                        className={`mm-map2-new-museums-popover mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`}
+                        role="dialog"
+                        aria-label={mobileToolLabels.newMuseums}
+                        onScroll={handleNewMuseumsScroll}
+                        {...newMuseumsDragDismiss}
+                      >
                         <div className="mm-map2-new-museums-head">
                           <h3><MuseumNewIcon className="w-4 h-4" />{mobileToolLabels.newMuseums}</h3>
                           <button type="button" onClick={closeNewMuseums} aria-label={mobileToolLabels.close}>
@@ -3012,7 +3029,7 @@ export default function MainPage() {
                 aria-label={locale === 'ko' ? '지도 메뉴 닫기' : 'Close map menu'}
                 onClick={() => setMapSideMenuOpen(false)}
               />
-              <aside className="mm-map2-side-menu" role="dialog" aria-label={locale === 'ko' ? '지도 메뉴' : 'Map menu'}>
+              <aside className="mm-map2-side-menu" role="dialog" aria-label={locale === 'ko' ? '지도 메뉴' : 'Map menu'} {...sideMenuDragDismiss}>
                 <div className="mm-map2-side-head">
                   <div>
                     <span>{locale === 'ko' ? 'Museum Map' : 'Museum Map'}</span>
@@ -3126,6 +3143,7 @@ export default function MainPage() {
               aria-label={mobileToolLabels.categories}
               onMouseDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
+              {...categoryDragDismiss}
             >
               <div className="mm-map2-category-menu-head">
                 <h3>
@@ -3308,6 +3326,8 @@ export default function MainPage() {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onPointerDown={() => primeMobileSearchChrome()}
+                      onTouchStart={() => primeMobileSearchChrome()}
                       onFocus={() => { setSearchFocused(true); closeCategoryDropdown(); closeNewMuseums(); }}
                       onBlur={() => setSearchFocused(false)}
                       placeholder={translateCategory('search.placeholder', locale)}
@@ -3322,7 +3342,7 @@ export default function MainPage() {
                   </button>
                 )}
                 {searchQuery.trim().length > 0 && searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 glass-popup gradient-border-subtle rounded-2xl max-h-60 overflow-y-auto z-[100]" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
+                  <div className="absolute top-full left-0 right-0 mt-0.5 glass-popup gradient-border-subtle rounded-2xl max-h-60 overflow-y-auto z-[100]" style={{ boxShadow: 'var(--glass-shadow-lg)' }}>
                     {searchResults.map(result => (
                       <SearchResultButton
                         key={`museum-${result.museum.id}`}
@@ -3361,7 +3381,11 @@ export default function MainPage() {
                     </button>
 
                     {(newMuseumsOpen || newMuseumsClosing) && (
-                      <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} onScroll={handleNewMuseumsScroll}>
+                      <div
+                        className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`}
+                        onScroll={handleNewMuseumsScroll}
+                        {...newMuseumsDragDismiss}
+                      >
                         {visibleNewMuseums.map((m: any) => (
                           <NewMuseumListItem
                             key={m.id}
@@ -3426,7 +3450,11 @@ export default function MainPage() {
 
                   {/* Expandable List */}
                   {(newMuseumsOpen || newMuseumsClosing) && (
-                    <div className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`} onScroll={handleNewMuseumsScroll}>
+                    <div
+                      className={`mm-map2-new-museums-popover mm-map2-new-museums-popover-pc mm-map-popover-motion ${newMuseumsClosing ? 'is-closing' : ''}`}
+                      onScroll={handleNewMuseumsScroll}
+                      {...newMuseumsDragDismiss}
+                    >
                       {visibleNewMuseums.map((m: any) => (
                         <NewMuseumListItem
                           key={m.id}
@@ -3479,6 +3507,7 @@ export default function MainPage() {
                     aria-label={mobileToolLabels.categories}
                     onMouseDown={(event) => event.stopPropagation()}
                     onClick={(event) => event.stopPropagation()}
+                    {...categoryDragDismiss}
                   >
                     <div className="mm-map2-category-menu-head">
                       <h3>
