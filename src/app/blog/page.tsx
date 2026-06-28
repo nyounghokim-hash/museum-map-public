@@ -8,7 +8,6 @@ import { getMuseumImageSrc, isRenderableUrl } from '@/lib/getMuseumImage';
 import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { lockMobileSearchChrome, primeMobileSearchChrome } from '@/lib/mobileSearchChrome';
 import { useRouter } from 'next/navigation';
-import { navigateDocument } from '@/lib/route-pending';
 import { getDisplayStoryTitle } from '@/lib/storyTitle';
 import * as gtag from '@/lib/gtag';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
@@ -284,6 +283,21 @@ function getStorySearchTitle(post: any, locale: Locale) {
     return getDisplayStoryTitle(sanitizeAI(locale === 'ko' ? post.title : (post.titleEn || post.title)), post.museums);
 }
 
+function normalizeStorySearchText(value: unknown) {
+    return String(value || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function translationSearchValues(value: unknown): string[] {
+    return value && typeof value === 'object'
+        ? Object.values(value as Record<string, unknown>).filter(Boolean).map(String)
+        : [];
+}
+
 function getStorySearchText(post: any, locale: Locale) {
     const museums = post.museums?.map((item: any) => item?.museum).filter(Boolean) || [];
     const museumText = museums.flatMap((museum: any) => [
@@ -292,9 +306,13 @@ function getStorySearchText(post: any, locale: Locale) {
         museum.nameKo,
         museum.nameEn,
         museum.city,
+        museum.cityKo,
         museum.country,
+        ...translationSearchValues(museum.nameTranslations),
+        ...translationSearchValues(museum.cityTranslations),
     ]);
-    return [
+    return normalizeStorySearchText([
+        getStorySearchTitle(post, locale),
         post.title,
         post.titleEn,
         post.author,
@@ -304,7 +322,7 @@ function getStorySearchText(post: any, locale: Locale) {
         post.description,
         getStoryCategoryLabel(post.category, locale),
         ...museumText,
-    ].filter(Boolean).join(' ').toLowerCase();
+    ].filter(Boolean).join(' '));
 }
 
 function StorySearchResult({ post, locale, onNavigate }: { post: any; locale: Locale; onNavigate: StoryNavigateHandler }) {
@@ -772,19 +790,24 @@ const SORT_KEY = 'blog_sort';
         }
     }, [sortMode, userLocation]);
 
-    const normalizedSearchQuery = deferredSearchQuery.trim().toLowerCase();
+    const normalizedSearchQuery = useMemo(() => normalizeStorySearchText(deferredSearchQuery), [deferredSearchQuery]);
     const categoryFilteredPosts = useMemo(
         () => activeCategory === 'ALL' ? posts : posts.filter(p => (p.category || 'MUSEUM') === activeCategory),
         [activeCategory, posts],
     );
+    const storySearchIndex = useMemo(() => (
+        posts.map(post => ({
+            post,
+            searchText: getStorySearchText(post, locale),
+        }))
+    ), [locale, posts]);
     const searchFilteredPosts = useMemo(() => {
         if (!normalizedSearchQuery) return posts;
         const tokens = normalizedSearchQuery.split(/\s+/).filter(Boolean);
-        return posts.filter(post => {
-            const haystack = getStorySearchText(post, locale);
-            return tokens.every(token => haystack.includes(token));
-        });
-    }, [locale, normalizedSearchQuery, posts]);
+        return storySearchIndex
+            .filter(({ searchText }) => tokens.every(token => searchText.includes(token)))
+            .map(({ post }) => post);
+    }, [normalizedSearchQuery, posts, storySearchIndex]);
     const searchResults = normalizedSearchQuery ? searchFilteredPosts.slice(0, 8) : [];
     const filteredPosts = normalizedSearchQuery ? searchFilteredPosts : categoryFilteredPosts;
 

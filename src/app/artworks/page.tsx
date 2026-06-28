@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, useMemo, type MouseEvent, type PointerEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue, type MouseEvent, type PointerEvent } from 'react';
 import { useApp } from '@/components/AppContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Locale } from '@/lib/i18n';
@@ -10,7 +10,6 @@ import { getLocalizedMuseumName } from '@/lib/getLocalizedName';
 import { getLocalizedArtworkTitle, getLocalizedArtistName } from '@/lib/getLocalizedName';
 import { resolveMuseumRouteId } from '@/lib/clientMuseumRoute';
 import { lockMobileSearchChrome, primeMobileSearchChrome } from '@/lib/mobileSearchChrome';
-import { navigateDocument } from '@/lib/route-pending';
 import { useTranslatedText } from '@/hooks/useTranslation';
 import EmptyStateGame from '@/components/ui/EmptyStateGame';
 import { Shuffle } from 'lucide-react';
@@ -55,7 +54,7 @@ function SkeletonCard() {
     );
 }
 
-function ArtworkPageSkeleton({ locale }: { locale: Locale }) {
+function ArtworkPageSkeleton() {
     return (
         <div data-mm-page="artworks" className="mm-nav-page-enter no-back-swipe mm-editorial-page2 mm-library-page2 w-full max-w-[960px] mx-auto px-4 pt-4 sm:px-6 sm:pt-8 md:px-8 pb-32 lg:pb-10">
             <div className="mm-gallery-hero p-5 sm:p-7 mb-5 sm:mb-6">
@@ -109,20 +108,46 @@ function restoreScrollPosition(y: number) {
     });
 }
 
-// Fisher-Yates (Knuth) shuffle — true uniform random, no bias
-function fisherYatesShuffle<T>(arr: T[]): T[] {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-}
-
 function translationValues(value: any): string[] {
     return value && typeof value === 'object'
         ? Object.values(value).filter(Boolean).map(String)
         : [];
+}
+
+function normalizeArtworkSearchText(value: unknown) {
+    return String(value || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getArtworkSearchText(aw: any, museums: any[], locale: Locale) {
+    return normalizeArtworkSearchText([
+        getLocalizedArtworkTitle(aw, locale),
+        getLocalizedArtistName(aw, locale),
+        aw.title,
+        aw.titleKo,
+        aw.titleEn,
+        ...translationValues(aw.titleTranslations),
+        aw.artist,
+        aw.artistKo,
+        aw.artistEn,
+        ...translationValues(aw.artistTranslations),
+        aw.year,
+        ...museums.flatMap((museum: any) => [
+            getLocalizedMuseumName(museum, locale),
+            museum.name,
+            museum.nameKo,
+            museum.nameEn,
+            museum.city,
+            museum.cityKo,
+            museum.country,
+            ...translationValues(museum.nameTranslations),
+            ...translationValues(museum.cityTranslations),
+        ]),
+    ].filter(Boolean).join(' '));
 }
 
 export default function ArtworksPage() {
@@ -148,7 +173,8 @@ export default function ArtworksPage() {
     const [sortMode, setSortMode] = useState<ArtworkSortMode>('random');
 
     const [searchQuery, setSearchQuery] = useState('');
-    const [debouncedQuery, setDebouncedQuery] = useState('');
+    const deferredSearchQuery = useDeferredValue(searchQuery);
+    const normalizedSearchQuery = useMemo(() => normalizeArtworkSearchText(deferredSearchQuery), [deferredSearchQuery]);
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const artworkPointerHandledRef = useRef<string | null>(null);
     const artworkTouchRef = useRef<{ id: string; pointerId: number; x: number; y: number; moved: boolean } | null>(null);
@@ -163,12 +189,6 @@ export default function ArtworksPage() {
     const restoredRef = useRef(false);
     const searchScrollLockRef = useRef(0);
     const randomSeedRef = useRef(`artworks-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-
-    // Keep search responsive while still avoiding a full filter pass on every keystroke.
-    useEffect(() => {
-        const timer = setTimeout(() => setDebouncedQuery(searchQuery), 250);
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
 
     useEffect(() => {
         if (!isSearchFocused) return;
@@ -355,27 +375,21 @@ export default function ArtworksPage() {
         window.location.assign(`/museums/${encodeURIComponent(museumRouteId)}?from=artwork-list`);
     };
 
-    // Filter artworks by debounced search query — memoized
+    const artworkSearchIndex = useMemo(() => (
+        artworks.map(aw => ({
+            aw,
+            searchText: getArtworkSearchText(aw, getMuseums(aw), locale),
+        }))
+    ), [artworks, locale]);
+
+    // Filter artworks by deferred search query — memoized and indexed.
     const filteredArtworks = useMemo(() => {
-        let result = artworks;
-        if (debouncedQuery.trim()) {
-            const q = debouncedQuery.toLowerCase();
-            result = result.filter(aw =>
-                aw.title?.toLowerCase().includes(q) ||
-                aw.titleKo?.toLowerCase().includes(q) ||
-                aw.titleEn?.toLowerCase().includes(q) ||
-                translationValues(aw.titleTranslations).some(value => value.toLowerCase().includes(q)) ||
-                aw.artist?.toLowerCase().includes(q) ||
-                aw.artistKo?.toLowerCase().includes(q) ||
-                aw.artistEn?.toLowerCase().includes(q) ||
-                translationValues(aw.artistTranslations).some(value => value.toLowerCase().includes(q)) ||
-                getMuseums(aw).some((m: any) =>
-                    m.name?.toLowerCase().includes(q) ||
-                    m.nameKo?.toLowerCase().includes(q) ||
-                    translationValues(m.nameTranslations).some(value => value.toLowerCase().includes(q))
-                )
-            );
-        }
+        const tokens = normalizedSearchQuery.split(/\s+/).filter(Boolean);
+        const result = tokens.length > 0
+            ? artworkSearchIndex
+                .filter(({ searchText }) => tokens.every(token => searchText.includes(token)))
+                .map(({ aw }) => aw)
+            : artworks;
         // Apply sort
         if (sortMode !== 'random') {
             const sorted = [...result];
@@ -403,7 +417,7 @@ export default function ArtworksPage() {
             return sorted;
         }
         return result;
-    }, [artworks, debouncedQuery, sortMode, locale]);
+    }, [artworkSearchIndex, artworks, locale, normalizedSearchQuery, sortMode]);
 
     const reshuffleArtworks = async () => {
         setShuffleSpinning(true);
@@ -452,7 +466,7 @@ export default function ArtworksPage() {
     };
 
     if (loading && !searchQuery) {
-        return <ArtworkPageSkeleton locale={locale} />;
+        return <ArtworkPageSkeleton />;
     }
 
     return (
@@ -503,12 +517,17 @@ export default function ArtworksPage() {
                             className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-gray-800 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-blue-100/50"
                         />
                         {searchQuery && (
-                            <button onClick={() => setSearchQuery('')} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery('')}
+                                className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                                aria-label={locale === 'ko' ? '검색어 지우기' : 'Clear search'}
+                            >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         )}
                     </div>
-                    {searchQuery && debouncedQuery === searchQuery && (
+                    {normalizedSearchQuery && (
                         <p className="text-[11px] text-gray-400 mt-2 ml-1 min-w-[60px]">{filteredArtworks.length}{locale === 'ko' ? '개 결과' : ' results'}</p>
                     )}
                 </div>
