@@ -146,6 +146,7 @@ function usePrefersReducedMotion() {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXHIBITION_LIST_PER_PAGE = 10;
+const EXHIBITION_FETCH_LIMIT = 6000;
 const EXHIBITION_RANDOM_SEED_KEY = 'mm-exhibition-list-random-seed-v1';
 
 const SORT_LABELS: Record<ExhibitionSortMode, Record<string, string>> = {
@@ -1749,7 +1750,7 @@ export default function ExhibitionsPage() {
     const loadExhibitions = () => {
         setLoading(true);
         setError(false);
-        fetch('/api/exhibitions?limit=1000')
+        fetch(`/api/exhibitions?limit=${EXHIBITION_FETCH_LIMIT}`)
             .then(res => {
                 if (!res.ok) throw new Error('Failed to load exhibitions');
                 return res.json();
